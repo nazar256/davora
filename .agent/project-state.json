@@ -1,0 +1,74 @@
+{
+  "project": "davora-app",
+  "session": "git-baseline-enable",
+  "status": "in_progress",
+  "repoState": {
+    "git": true,
+    "defaultBranch": "main",
+    "workspace": [
+      "apps/web",
+      "apps/worker",
+      "packages/shared",
+      "docs",
+      ".agent"
+    ],
+    "workspaceSecrets": "sanitized_placeholders_only"
+  },
+  "inputs": {
+    "productDirection": "multi-account in-app Nextcloud connection foundation",
+    "nextcloudBaseUrl": "https://nextcloud.ownhost.top",
+    "nextcloudUsername": "ynvio",
+    "validationSafeRoot": ".davora-agent-test"
+  },
+  "validation": {
+    "currentPass": {
+      "date": "2026-05-22",
+      "typecheck": "passed_packet_10_deploy_runtime_2026-05-22",
+      "unitTests": "passed_packet_10_deploy_runtime_2026-05-22",
+      "build": "passed_packet_10_deploy_runtime_2026-05-22",
+      "playwright": "live_devtools_runtime_verification_2026-05-22_current_and_stale_pages_builds_checked_for_packet_10",
+      "screenshots": "not_rerun_packet_10_non_visual_runtime_batch",
+      "workerWranglerDev": "not_rerun_packet_10_no_local_runtime_behavior_change_needed_for_mock_smoke",
+      "workerDeployDryRun": "passed_packet_10_deploy_runtime_2026-05-22_with_secret_preflight",
+      "pagesDeployPath": "passed_packet_10_deploy_runtime_2026-05-22_default_project_name_davora_and_default_worker_origin_applied",
+      "realBackend": "passed_packet_10_deploy_runtime_2026-05-22_allow_any_host_default_and_live_nextcloud_validation"
+    },
+    "realBackendLastValidatedAt": "2026-05-22",
+      "realBackendGuardrail": "Rerun `rtk npm run validate:real` whenever Packet 10+ deploy/runtime changes affect live Nextcloud validation, allowlist policy, or Worker session/bootstrap behavior.",
+      "feedbackRecording": "2026-05-23_docs_only_backlog_and_workflow_recording_no_product_code_changes"
+  },
+  "v1Status": {
+    "multiAccountDocs": "done",
+    "accountModelFoundation": "done_runtime_worker_store",
+    "accountBoundSessions": "done",
+    "accountAwareBrowserCaches": "done",
+    "accountOnboardingAndSwitchingUx": "done",
+    "fileOperationsForActiveAccount": "done",
+      "browserEvidence": "done_refreshed_2026-05-22_packet_8_bug_batch_including_installed_server_stopped_path",
+    "durableWorkerAccountStore": "local_dev_done_non_local_durable_store_future_scope_reconnect_required_if_runtime_state_resets",
+    "previewUxPacket": "done",
+    "managedUxFeedbackBacklog": "packet_10_closed_items_1_through_34_done_packet_11_12_13_open_items_35_through_45_recorded",
+    "publishDeployReadinessBacklog": "packet_10_closed_items_31_32_33_34_session_secret_default_nextcloud_host_allowance_observability_and_deployed_runtime_drift_plus_packet_13_open_review_and_secret_design_followups",
+    "packet10DeployRuntimeBlockers": "closed_2026-05-22_missing_session_secret_preflight_default_nextcloud_host_allowance_observability_and_deployed_runtime_drift_batch",
+    "packet10DefaultNextcloudHostAllowance": "done_allow_any_nextcloud_host_by_default_when_nextcloud_allowed_hosts_is_empty",
+    "packet10Observability": "done_worker_observability_enabled_in_standard_release_posture",
+    "packet10DeployedRuntimeDrift": "done_older_pages_bundle_pointed_to_davora_worker_but_current_runtime_targets_davora_and_real_nextcloud_fetch_binding_bug_was_fixed",
+    "uxReviewProcessRule": "browser_rendered_evidence_required_for_ui_ux_claims_code_only_review_cannot_sign_off",
+    "cacheFirstPacket1": "done_validated_2026-05-21",
+    "settingsPacket2": "done_validated_cleanup_pass_2026-05-21",
+    "packet3PreviewNavigation": "done_validated_2026-05-22_cleanup_pass_with_preflight",
+    "packet4PwaInstallability": "done_validated_mobile_layout_cleanup_2026-05-22",
+    "packet5UxFeedback": "done_validated_2026-05-22",
+    "packet6BreadcrumbNavigation": "done_validated_2026-05-22",
+    "packet7OpenFeedbackBatch": "done_validated_2026-05-22",
+    "packet7Scope": "complete_relaunch_auth__cache_slider_dropdown_cleanup__file_size_control_dedup__folder_drag_drop_upload__default_dev_pwa_verification__gallery_overlay_navigation_and_precache__browser_cache_eligible_max_file_size",
+      "packet8FeedbackBatch": "done_validated_2026-05-22_relaunch_restore__installed_pwa_server_stopped_cached_shell__functional_update_reload",
+      "packet9PublishDeployReadiness": "done_2026-05-22_after_item_30_root_command_correction__default_worker_origin_for_bare_deploy_web__literal_command_revalidated_to_first_external_boundary",
+      "packet10DeployRuntimeBatch": "done_2026-05-22_session_secret_preflight_default_nextcloud_host_allowance_observability_and_runtime_drift_aligned",
+      "packet11OpenFeedbackBatch": "pending_2026-05-23_account_root_picker__reconnect_required_hardening__transfer_status_shell__chrome_android_downloads",
+      "packet12OpenFeedbackBatch": "pending_2026-05-23_audio_resume__multi_upload__multi_download__remove_app_name_from_chrome",
+      "packet13OpenFeedbackBatch": "pending_2026-05-23_server_side_secret_design_review__oss_publish_review_round__team_visual_manual_review_loops",
+      "improvementLoopExecutionMode": "sequential_by_default_parallelize_only_when_definitely_harmless",
+      "stableStateCommitWorkflow": "active_git_initialized_on_main_2026-05-23_with_baseline_commit_chore_initialize_git_baseline"
+  }
+}
