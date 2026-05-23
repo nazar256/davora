@@ -1,4 +1,4 @@
-import { buildCapabilitySet, type ConnectedAccount } from "@davora/shared";
+import { buildCapabilitySet, normalizeRootPath, type ConnectedAccount } from "@davora/shared";
 
 import { deserializePersistedAccounts, readPersistedAccounts, serializePersistedAccounts, writePersistedAccounts } from "./local-persistence";
 import { normalizeAccountLabel, normalizeNextcloudBaseUrl, validateNextcloudAppPassword, validateNextcloudUsername } from "../config";
@@ -51,12 +51,12 @@ function createDisplayName(label: string | undefined, username: string, baseUrl:
   return `${username}@${host}`;
 }
 
-async function validateLiveAccount(credentials: NextcloudAccountCredentials, env: WorkerEnv) {
+async function validateLiveAccount(credentials: NextcloudAccountCredentials, rootPath: string, env: WorkerEnv) {
   const client = new NextcloudClient({
     baseUrl: credentials.baseUrl,
     username: credentials.username,
     appPassword: credentials.appPassword,
-    rootPath: env.NEXTCLOUD_ROOT_PATH,
+    rootPath,
     maxFileBytes: env.NEXTCLOUD_MAX_FILE_BYTES,
     maxTextFileBytes: env.NEXTCLOUD_MAX_TEXT_FILE_BYTES
   });
@@ -207,6 +207,7 @@ export async function connectAccount(input: {
   baseUrl: string;
   username: string;
   appPassword: string;
+  rootPath?: string;
   label?: string;
   browserId: string;
   browserSecret: string;
@@ -215,9 +216,10 @@ export async function connectAccount(input: {
   const username = validateNextcloudUsername(input.username);
   const appPassword = validateNextcloudAppPassword(input.appPassword);
   const label = normalizeAccountLabel(input.label);
+  const rootPath = input.rootPath?.trim() ? normalizeRootPath(input.rootPath) : env.NEXTCLOUD_ROOT_PATH;
 
   if (!env.MOCK_BACKEND) {
-    await validateLiveAccount({ baseUrl, username, appPassword }, env);
+    await validateLiveAccount({ baseUrl, username, appPassword }, rootPath, env);
   }
 
   const now = new Date().toISOString();
@@ -233,7 +235,7 @@ export async function connectAccount(input: {
     displayName: createDisplayName(label, username, baseUrl),
     baseUrl,
     username,
-    rootPath: env.NEXTCLOUD_ROOT_PATH,
+    rootPath,
     backend: env.MOCK_BACKEND ? "mock" : "nextcloud",
     connectionState: "connected",
     lastValidatedAt: now,

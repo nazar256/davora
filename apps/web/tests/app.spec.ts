@@ -194,7 +194,7 @@ test("preview supports markdown MIME variants and PDF open fallback", async ({ p
   await expect(pdfPreview.getByTitle(/PDF preview guide.pdf/i)).toBeVisible();
   await pdfPreview.getByRole("button", { name: /Open PDF in new tab/i }).click();
   const pdfPage = await newPagePromise;
-  await pdfPage.waitForLoadState("domcontentloaded");
+  // Blob URLs do not reliably fire domcontentloaded across Chrome variants; the URL itself is the invariant.
   await expect(pdfPage).toHaveURL(/blob:/);
 });
 

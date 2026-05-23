@@ -33,29 +33,29 @@
   "validation": {
     "currentPass": {
       "date": "2026-05-23",
-      "typecheck": "passed_packet_11a_session_stability_2026-05-23",
-      "unitTests": "passed_packet_11a_session_stability_2026-05-23",
-      "build": "passed_packet_11a_session_stability_2026-05-23",
-      "playwright": "not_rerun_packet_11a_non_visual_runtime_batch",
-      "screenshots": "not_rerun_packet_11a_non_visual_runtime_batch",
+      "typecheck": "passed_packet_11_item35_root_folder_selection_2026-05-23",
+      "unitTests": "passed_packet_11_item35_root_folder_selection_2026-05-23",
+      "build": "passed_packet_11_item35_root_folder_selection_2026-05-23",
+      "playwright": "passed_packet_11_item35_root_folder_selection_2026-05-23",
+      "screenshots": "passed_packet_11_item35_root_folder_selection_2026-05-23",
       "workerWranglerDev": "not_rerun_packet_11a_local_node_runtime_path_unchanged",
       "workerDeployDryRun": "passed_packet_11a_session_stability_2026-05-23_with_durable_object_binding",
       "pagesDeployPath": "not_rerun_packet_11a_worker_only_runtime_fix",
-      "realBackend": "passed_packet_11a_session_stability_2026-05-23_live_nextcloud_validation",
-      "docsCheckpoint": "aligned_2026-05-23_packet11a_runtime_persistence_story_commit_anchor_open_backlog_and_account_store_retention_semantics"
+      "realBackend": "not_rerun_packet_11_item35_root_folder_selection",
+      "docsCheckpoint": "aligned_2026-05-23_packet11_item35_root_folder_selection_and_refresh"
     },
     "realBackendLastValidatedAt": "2026-05-23",
     "realBackendGuardrail": "Rerun `rtk npm run validate:real` whenever Packet 10+ deploy/runtime changes affect live Nextcloud validation, allowlist policy, or Worker session/bootstrap behavior.",
     "feedbackRecording": "2026-05-23_packet11a_checkpoint_feedback_recording_complete_and_account_store_retention_documented"
   },
-  "v1Status": {
+    "v1Status": {
     "multiAccountDocs": "done",
     "accountModelFoundation": "done_runtime_worker_store",
     "accountBoundSessions": "done",
     "accountAwareBrowserCaches": "done",
     "accountOnboardingAndSwitchingUx": "done",
     "fileOperationsForActiveAccount": "done",
-    "browserEvidence": "done_refreshed_2026-05-22_packet_8_bug_batch_including_installed_server_stopped_path",
+    "browserEvidence": "done_refreshed_2026-05-23_packet_11_item35_root_folder_selection",
     "durableWorkerAccountStore": "done_local_dev_file_store_plus_deployed_durable_object_store_for_packet11a_runtime_correctness",
     "backendStatePolicy": "user_is_skeptical_of_backend_state__future_backend_state_requires_documented_runtime_failure_and_why_stateless_or_browser_local_alternatives_are_insufficient",
     "previewUxPacket": "done",
@@ -77,7 +77,7 @@
     "packet8FeedbackBatch": "done_validated_2026-05-22_relaunch_restore__installed_pwa_server_stopped_cached_shell__functional_update_reload",
     "packet9PublishDeployReadiness": "done_2026-05-22_after_item_30_root_command_correction__default_worker_origin_for_bare_deploy_web__literal_command_revalidated_to_first_external_boundary",
     "packet10DeployRuntimeBatch": "done_2026-05-22_session_secret_preflight_default_nextcloud_host_allowance_observability_and_runtime_drift_aligned",
-    "packet11OpenFeedbackBatch": "partial_2026-05-23_item36_done_via_durable_runtime_account_store__items35_37_38_pending",
+    "packet11OpenFeedbackBatch": "partial_2026-05-23_items35_36_done__items37_38_pending",
     "packet11aReconnectSessionStability": "done_2026-05-23_deployed_worker_durable_object_account_store_plus_local_transient_failure_regressions_and_final_live_worker_redeploy",
     "packet11aStableCommit": "74903e6_fix_persist_deployed_accounts_across_worker_isolates",
     "packet12OpenFeedbackBatch": "pending_2026-05-23_audio_resume__multi_upload__multi_download__remove_app_name_from_chrome",

@@ -85,8 +85,8 @@ Before claiming another Davora UI/account pass is done, always:
   - Item 33 — deployed Worker observability is now enabled by default and operator docs include the live tail command `cd apps/worker && wrangler tail davora --format pretty`.
   - Item 34 — the deployed `Illegal invocation` root cause was an unbound Worker `fetch` reference in the real Nextcloud client; it is now bound safely, and the observed `davora-worker` log signal was explained as stale Pages bundle drift from an older deployment that still hardcoded `davora-worker.public.workers.dev`.
 
-- Packet 11 (recorded as open/pending on 2026-05-23):
-  - Item 35 — root folder should be chosen per account during the connection flow for all users, not only as server-side/debug config.
+- Packet 11 (open items recorded on 2026-05-23; item 35 completed after that checkpoint):
+  - Item 35 — completed: the connect/reconnect flow now allows selecting a per-account root folder (prefilled from Worker health defaults), and the Worker persists/enforces it per account/session.
   - Item 36 — completed in Packet 11a on 2026-05-23: the deployed reconnect storm was caused by Worker isolate/account-store loss, not true auth failure. The Worker now persists connected accounts for deployed runtimes in a Durable Object (`DAVORA_ACCOUNT_STORE`) using the same encrypted payload format as local-dev file persistence, so ordinary connect/session/search/upload traffic no longer falls into reconnect-required on isolate hops. Transient search/upload failures stay action-local; reconnect remains reserved for true account loss/removal.
     - Exact failure before the fix: deployed `POST /api/accounts` returned 201, then the immediate `POST /api/session` often landed on a different Cloudflare isolate and returned 409 `account_reconnect_required`; that false reconnect state then surfaced during normal search/upload use.
     - Why backend state was necessary here: pure in-memory Worker state was insufficient in deployed Cloudflare runtime because requests are not isolate-sticky. Local Node dev already had file-backed persistence, but deployed runtime had no equivalent persisted account store.
