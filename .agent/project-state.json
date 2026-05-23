@@ -6,9 +6,9 @@
     "git": true,
     "defaultBranch": "main",
     "currentStableCommit": {
-      "short": "0f02a2c",
-      "full": "0f02a2c6604466a8d8d91ed07551ebccbcd8f148",
-      "summary": "feat: allow per-account root folder selection"
+      "short": "f938a46",
+      "full": "f938a4661d1e63e2db4d22da6014ba3fd7778648",
+      "summary": "fix: use fetch+blob downloads for better mobile support"
     },
     "workspace": [
       "apps/web",
