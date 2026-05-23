@@ -1,6 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
+import { existsSync } from "node:fs";
 
 const chromeExecutable = process.env.PLAYWRIGHT_CHROME_EXECUTABLE ?? "/usr/bin/google-chrome";
+const useSystemChrome = Boolean(chromeExecutable && existsSync(chromeExecutable));
 const workerPort = 8787;
 const webPort = 4175;
 
@@ -38,7 +40,7 @@ export default defineConfig({
         browserName: "chromium",
         channel: undefined,
         launchOptions: {
-          executablePath: chromeExecutable
+          ...(useSystemChrome ? { executablePath: chromeExecutable } : {})
         }
       }
     }

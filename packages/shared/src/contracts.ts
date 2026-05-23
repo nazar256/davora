@@ -106,6 +106,7 @@ export interface ConnectNextcloudAccountRequest {
   baseUrl: string;
   username: string;
   appPassword: string;
+  rootPath?: string;
   label?: string;
 }
 

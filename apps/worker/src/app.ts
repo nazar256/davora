@@ -385,6 +385,7 @@ export async function handleRequest(request: Request, rawEnv: Record<string, unk
           baseUrl: body.baseUrl ?? "",
           username: body.username ?? "",
           appPassword: body.appPassword ?? "",
+          rootPath: body.rootPath,
           label: body.label,
           browserId: owner.browserId,
           browserSecret: owner.browserSecret

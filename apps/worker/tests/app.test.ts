@@ -166,6 +166,26 @@ describe("worker app multi-account foundation", () => {
     expect(payload.data.supportedAccountTypes).toEqual(["nextcloud"]);
   });
 
+  it("allows selecting a per-account root folder during connection", async () => {
+    const account = await connectMockAccount({ rootPath: ".davora-agent-test/docs" });
+    const response = await handleRequest(
+      new Request("http://127.0.0.1:8787/api/session", {
+        method: "POST",
+        headers: {
+          ...ownerHeaders,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ accountId: account.data.account.id })
+      }),
+      env
+    );
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as { data: { session: { rootPath: string; account: { rootPath: string } } } };
+    expect(payload.data.session.rootPath).toBe(".davora-agent-test/docs");
+    expect(payload.data.session.account.rootPath).toBe(".davora-agent-test/docs");
+  });
+
   it("rejects account connection without browser ownership headers", async () => {
     const response = await handleRequest(
       new Request("http://127.0.0.1:8787/api/accounts", {

@@ -88,6 +88,7 @@ interface AccountFormState {
   baseUrl: string;
   username: string;
   appPassword: string;
+  rootPath: string;
   label: string;
 }
 
@@ -318,13 +319,44 @@ function canUseCachedPreview(cached: Awaited<ReturnType<typeof getCachedOpenedFi
   return !requiresOriginalBlobViewer(cached.entry.preview.viewer) || Boolean(cached.blob);
 }
 
-function openBlobInNewTab(blob: Blob): void {
+function openBlobInNewTab(blob: Blob, existingPopup?: Window | null): void {
   const objectUrl = URL.createObjectURL(blob);
-  const popup = typeof window.open === "function" ? window.open(objectUrl, "_blank", "noopener,noreferrer") : null;
+  const openUrl = blob.type === "application/pdf"
+    ? URL.createObjectURL(new Blob(
+      [
+        `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>PDF</title></head><body style="margin:0"><iframe src="${objectUrl}" style="position:fixed;inset:0;width:100%;height:100%;border:0" title="PDF"></iframe></body></html>`
+      ],
+      { type: "text/html" }
+    ))
+    : objectUrl;
+  const popup = existingPopup && !existingPopup.closed
+    ? existingPopup
+    : (typeof window.open === "function" ? window.open("about:blank", "_blank") : null);
 
-  if (!popup) {
+  // Pop-up blockers are sensitive to async work; pre-opening the window in the click handler
+  // and then navigating it once the blob is ready is the most robust option.
+  if (popup && !popup.closed) {
+    try {
+      // Best-effort: prevent the opened page from reaching back into this window.
+      popup.opener = null;
+    } catch {
+      // ignore
+    }
+    try {
+      popup.location.href = openUrl;
+    } catch {
+      // If navigation fails, fall back to an anchor click.
+      const anchor = document.createElement("a");
+      anchor.href = openUrl;
+      anchor.rel = "noopener noreferrer";
+      anchor.target = "_blank";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    }
+  } else {
     const anchor = document.createElement("a");
-    anchor.href = objectUrl;
+    anchor.href = openUrl;
     anchor.rel = "noopener noreferrer";
     anchor.target = "_blank";
     document.body.appendChild(anchor);
@@ -332,7 +364,12 @@ function openBlobInNewTab(blob: Blob): void {
     anchor.remove();
   }
 
-  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  window.setTimeout(() => {
+    URL.revokeObjectURL(objectUrl);
+    if (openUrl !== objectUrl) {
+      URL.revokeObjectURL(openUrl);
+    }
+  }, 5 * 60_000);
 }
 
 function isUnauthorized(error: unknown): error is ApiRequestError {
@@ -409,12 +446,13 @@ function canAttemptAutoRestore(account: ConnectedAccount | undefined): boolean {
   return Boolean(account && (account.connectionState === "connected" || account.connectionState === "reconnect_required"));
 }
 
-function createEmptyAccountForm(mode: "add" | "reconnect" = "add"): AccountFormState {
+function createEmptyAccountForm(mode: "add" | "reconnect" = "add", rootPath = ""): AccountFormState {
   return {
     mode,
     baseUrl: "",
     username: "",
     appPassword: "",
+    rootPath,
     label: ""
   };
 }
@@ -427,6 +465,7 @@ function buildReconnectForm(record: StoredAccountRecord): AccountFormState {
     baseUrl: record.pendingReconnect?.baseUrl ?? record.account.baseUrl,
     username: record.pendingReconnect?.username ?? record.account.username,
     appPassword: "",
+    rootPath: record.account.rootPath,
     label: record.pendingReconnect?.label ?? record.account.label ?? ""
   };
 }
@@ -538,6 +577,16 @@ function AccountForm(props: AccountFormProps) {
           />
         </label>
         <label>
+          Root folder
+          <input
+            aria-label="Root folder"
+            disabled={props.busy}
+            onChange={(event) => props.onChange({ ...props.form, rootPath: event.target.value })}
+            placeholder=".davora-agent-test"
+            value={props.form.rootPath}
+          />
+        </label>
+        <label>
           Label (optional)
           <input
             aria-label="Label"
@@ -636,13 +685,21 @@ function PreviewModal(props: PreviewModalProps) {
       return;
     }
 
+    // Open the tab synchronously on user activation to avoid pop-up blockers; we'll navigate it once the blob is ready.
+    const popup = typeof window.open === "function" ? window.open("about:blank", "_blank") : null;
+
     setOpeningOriginal(true);
     setOriginalOpenError(undefined);
     try {
       const original = await fetchOriginalFile(previewPath, previewToken);
-      openBlobInNewTab(original.blob);
+      openBlobInNewTab(original.blob, popup);
     } catch (error) {
       setOriginalOpenError(error instanceof Error ? error.message : "Unable to open the original file in a new tab.");
+      try {
+        popup?.close();
+      } catch {
+        // ignore
+      }
     } finally {
       setOpeningOriginal(false);
     }
@@ -814,6 +871,7 @@ export default function App() {
   const [accountState, setAccountState] = useState(initialAccountState);
   const [healthLoading, setHealthLoading] = useState(true);
   const [unlockRequired, setUnlockRequired] = useState(false);
+  const [healthRootPath, setHealthRootPath] = useState(".davora-agent-test");
   const [bootstrapError, setBootstrapError] = useState<string | undefined>();
   const [unlockCode, setUnlockCode] = useState("");
   const [currentPath, setCurrentPath] = useState("");
@@ -848,7 +906,7 @@ export default function App() {
   const [uiSettings, setUiSettings] = useState(loadUiSettings);
   const [showZeroStateForm, setShowZeroStateForm] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
-  const [accountForm, setAccountForm] = useState<AccountFormState>(createEmptyAccountForm());
+  const [accountForm, setAccountForm] = useState<AccountFormState>(createEmptyAccountForm("add", ".davora-agent-test"));
   const [accountFormError, setAccountFormError] = useState<string | undefined>();
   const [showAccountDialog, setShowAccountDialog] = useState(false);
   const [removeAccountTarget, setRemoveAccountTarget] = useState<ConnectedAccount | undefined>();
@@ -898,6 +956,7 @@ export default function App() {
       try {
         const health = await retryTransientBootstrap(() => getHealth());
         setUnlockRequired(health.unlockRequired);
+        setHealthRootPath(health.rootPath);
         setWorkerUnavailable(false);
         setBootstrapError(getHealthConfigErrorMessage(health));
       } catch (error) {
@@ -1103,6 +1162,7 @@ export default function App() {
     setAccountBusy(true);
     setAccountFormError(undefined);
     try {
+      const trimmedRootPath = accountForm.rootPath.trim();
       const result = await connectAccount({
         type: "nextcloud",
         accountId: accountForm.accountId,
@@ -1110,10 +1170,11 @@ export default function App() {
         baseUrl: trimmedBaseUrl,
         username: trimmedUsername,
         appPassword: trimmedPassword,
+        ...(trimmedRootPath ? { rootPath: trimmedRootPath } : {}),
         ...(accountForm.label.trim() ? { label: accountForm.label.trim() } : {})
       });
       refreshAccountState();
-      setAccountForm(createEmptyAccountForm());
+      setAccountForm(createEmptyAccountForm("add", healthRootPath));
       setShowAccountDialog(false);
       setShowZeroStateForm(false);
       setStatus(`Connected account ${result.account.displayName}`);
@@ -1128,7 +1189,7 @@ export default function App() {
   }
 
   function openAddAccountDialog() {
-    setAccountForm(createEmptyAccountForm("add"));
+    setAccountForm(createEmptyAccountForm("add", healthRootPath));
     setAccountFormError(undefined);
     setShowAccountDialog(true);
   }
@@ -1994,11 +2055,22 @@ export default function App() {
           <p className="eyebrow section-eyebrow">Accounts</p>
           <h2>No connected accounts yet</h2>
           <p className="subtitle">Connect a Nextcloud account inside Davora to start browsing files. You can add more accounts later and switch between them without mixing cache state.</p>
-          {!showZeroStateForm ? <button onClick={() => setShowZeroStateForm(true)} type="button">Connect account</button> : null}
+          {!showZeroStateForm ? (
+            <button
+              onClick={() => {
+                setAccountFormError(undefined);
+                setAccountForm(createEmptyAccountForm("add", healthRootPath));
+                setShowZeroStateForm(true);
+              }}
+              type="button"
+            >
+              Connect account
+            </button>
+          ) : null}
           {showZeroStateForm ? (
             <AccountForm
               busy={accountBusy}
-              description="Enter your Nextcloud base URL, username, and app password. An optional label helps when you manage multiple accounts."
+              description="Enter your Nextcloud base URL, username, app password, and the root folder to browse. An optional label helps when you manage multiple accounts."
               eyebrow="First run"
               error={accountFormError}
               form={accountForm}
