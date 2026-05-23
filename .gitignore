@@ -13,4 +13,5 @@ dev-dist/
 apps/worker/.dev.vars
 !apps/worker/.dev.vars
 apps/worker/.dev.vars.*
+!apps/worker/.dev.vars.example
 .tmp/
