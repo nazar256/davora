@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+.playwright/
+playwright-report/
+test-results/
+.wrangler/
+dev-dist/
+.env
+.env.*
+!.env.example
+!.env.*.example
+apps/worker/.dev.vars
+!apps/worker/.dev.vars
+apps/worker/.dev.vars.*
+.tmp/

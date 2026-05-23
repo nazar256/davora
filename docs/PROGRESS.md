@@ -1,0 +1,67 @@
+# Progress
+
+## 2026-05-19
+- Initialized required docs/state scaffolding and then rewrote them to match the actual v1 mission scope.
+- Replaced the incorrect username assumption with the explicit live username `demo-user` across docs/state and live validation scripts.
+- Expanded the npm workspace implementation to include:
+  - normalized Worker mutation APIs for create folder, upload, move/rename, copy, delete;
+  - richer file opening behavior for text, markdown, image, audio, video, and unsupported fallback;
+  - opened-file cache with separate metadata/blob tracking, configurable limit, deterministic LRU eviction, offline reopen support, and clear-cache control.
+- Added explicit UI state handling for loading, empty, error, offline, stale-cache, and permission-denied paths.
+- Added unit/integration/browser contract/e2e coverage for required v1 behavior.
+- Confirmed real backend validation succeeds against `https://nextcloud.example.invalid` with username `demo-user` while constrained to `.davora-agent-test` only.
+
+## 2026-05-20
+- Added root onboarding artifacts: `README.md` plus `.env.example` covering mock vs real mode, required env vars, unlock behavior, local run steps, validation commands, and `.davora-agent-test` safety guidance.
+- Extended Worker health/bootstrap contracts to expose whether `APP_UNLOCK_CODE` is required before session creation.
+- Implemented explicit web bootstrap UX for unlock-protected deployments, including actionable invalid-code messaging and zero extra UI when unlock is not configured.
+- Added unit and Playwright coverage for unlock bootstrap behavior and reran the required blocker-pass validation commands (typecheck, test, build, e2e).
+- Added stable checked-in screenshot artifacts for browse/preview, mutation controls, unlock bootstrap, and degraded-state UX in `docs/screenshots/`, plus README/UX-review captions and regeneration guidance.
+- Checked in `docs/FILE_MANAGER_REDESIGN_BRIEF.md` as the explicit redesign source of truth, with Nextcloud Files as the mandatory primary reference, process requirements, acceptance checklist, responsive/degraded-state principles, and scope guardrails.
+- Refined the web UX further toward that brief with a stronger browse-first hierarchy: dominant file surface, contextual right rail, current-folder actions near the list, and a focused full-screen preview overlay.
+- Reran typecheck, unit tests, build, Playwright coverage, and screenshot regeneration after the redesign refinement pass.
+- Kept real backend validation as a previously completed check on 2026-05-20 against `.davora-agent-test` only; it was not part of this blocker rerun.
+- Removed the redundant left rail and clarified row interaction so item names open/navigate while a dedicated Details control selects rows for the right rail; reran tests and refreshed screenshots.
+
+- Refined narrow-screen hierarchy again: mobile row details now open in a bottom sheet, preview metadata no longer stacks inline on mobile, metadata panels are flatter, and destructive dialogs use consistent cancel/delete actions.
+
+## 2026-05-21
+- Recorded all 8 latest UX feedback items into tracked source-of-truth backlog/state docs before implementation, with packet assignment so future work does not live only in chat memory.
+- Started Packet 1 for items 5 and 8 only: cache-first file opens and cache-first folder loads, both with background refresh/revalidation, honest stale/refresh UI, non-disruptive preview behavior, and account-scoped correctness.
+- Explicitly kept items 1, 2, 3, 4, 6, and 7 as recorded backlog only for later packets.
+- Fixed the real Nextcloud mutation path handling so live MKCOL/PUT/MOVE/COPY/DELETE requests keep the `.davora-agent-test` sandbox root in the upstream DAV path; added regression coverage in `apps/worker/tests/app.test.ts`.
+- Reran `rtk npm run validate:real` with the restored project-root `.env` app password and confirmed the in-app account connect + session + list/file/search/move/copy/create-folder/upload/delete flow passes against `https://nextcloud.example.invalid` for `demo-user` while staying inside `.davora-agent-test`.
+- Added a validation guardrail note so future agents rerun `rtk npm run validate:real` once `NEXTCLOUD_APP_PASSWORD` is restored instead of carrying forward an older blocked state.
+- Completed Packet 1 by removing stale transpiled web JS shadows from active resolution paths, keeping only the TS/TSX sources live under `apps/web` while moving the stale artifacts into `.tmp/trash/2026-05-21_02/`.
+- Stabilized cache-first Packet 1 coverage with deterministic web unit/browser assertions for cached folder-first refresh, cached preview hold-until-apply behavior, and account-scoped cache isolation across account switching.
+- Reran the full required validation path after the shadow fix: `rtk npm run typecheck`, `rtk npm test`, `rtk npm run build`, and `rtk npm run test:e2e` all passed on 2026-05-21, with screenshot evidence refreshed again by `rtk npm run test:screenshots --workspace=@davora/web`.
+
+- Completed Packet 2 UX shell pass on 2026-05-21: moved prominent account details/actions and cache controls behind a new `Profile & settings` modal, reduced the persistent shell to active-account switching plus minimal connection status, and kept the existing file-manager hierarchy intact.
+- Added a persisted file-size display preference with human-readable units as the default and exact-bytes as an alternate mode, applied across file rows, selection details, preview metadata, and cache/settings surfaces.
+- Added browser coverage and screenshot evidence for the new settings/profile entry point, then reran `rtk npm run typecheck`, `rtk npm test`, `rtk npm run build`, and `rtk npm run test:e2e` successfully.
+- Completed a final Packet 2 cleanup pass on 2026-05-21: removed the extra visible Active account label to keep the app bar aligned at narrower widths, and reworked the settings dialog close control into a cleaner mobile Done pattern without changing the underlying settings/profile flows.
+
+- Completed Packet 3 UX follow-up on 2026-05-21: unsupported file types now bypass the dead-end preview overlay and trigger direct browser download/open fallback behavior, preserving the existing supported preview paths for text, markdown, image, audio, video, and PDF.
+- Completed Packet 3 navigation refinement on 2026-05-21: changed both visible parent-folder controls from left-arrow wording to explicit up-arrow semantics without removing the friendly “Up one level” copy or accessible label.
+- Added Packet 3 Vitest + Playwright coverage for unsupported-file direct download behavior and the up-arrow parent-navigation controls, then reran the required UI validation path and refreshed screenshot evidence.
+- Completed a final Packet 3 cleanup pass on 2026-05-22: unsupported-file direct download now preflights metadata/auth failures, then hands off through a browser-native form POST to the Worker download route instead of buffering the whole file via fetch/blob, and the UI posts the download status immediately before the async handoff starts.
+- Completed Packet 4 on 2026-05-22: upgraded the web manifest/icon set for real installability (PNG icons, maskable icon, Apple touch icon, explicit scope/start URL), and wired the install toast to browser-native `beforeinstallprompt` / `appinstalled` signals plus standalone-mode detection.
+- Added dedicated preview-build Chrome verification in `apps/web/tests/pwa.spec.ts` and `apps/web/playwright.pwa.config.ts`, then validated manifest metadata, service-worker control, installability, cached offline reuse, and uncached offline fallback honesty with `rtk npm run test:pwa`.
+- Reran `rtk npm run typecheck`, `rtk npm test --workspace=@davora/web`, `rtk npm run build`, and the full `rtk npm run test:e2e` suite after the Packet 4 PWA changes.
+- Completed Packet 6/7 feedback batch on 2026-05-22: breadcrumb cleanup, relaunch/session continuity hardening, cache-control deduplication, drag-and-drop upload, default-dev PWA verification, gallery navigation/prefetch, and max-cacheable-file-size policy all shipped together with refreshed unit/browser/docs evidence.
+
+- Completed a focused Packet 4 cleanup pass on 2026-05-22: removed the non-essential offline-ready toast, moved install from a floating toast into a quieter contextual app-bar action once a real workspace is active, and preserved the update-ready toast plus the validated installability/offline behavior.
+- Completed the next UX feedback packet on 2026-05-22: file-size display now offers Human readable / KB / MB / GB directly in the file-list header, cache limit now uses a 1 MB–8 GB slider and manual MB input, the desktop shell hides account switching behind `Profile & settings`, video preview uses muted inline autoplay, modal overlays dismiss on outside click, and the manifest/installability path was revalidated with fresh Chrome preview-build evidence.
+- Completed Packet 8 bug batch on 2026-05-22: relaunch restore now treats stale reconnect-required browser flags as recoverable during ordinary local restarts, installed PWAs keep a usable cached shell when the local server is stopped/unreachable even while Chrome remains online, and the update prompt now reloads through service-worker takeover with a visible build-label proof that changed content became active.
+- Completed Packet 9 publish/deploy readiness batch on 2026-05-22: dev-mode service-worker restarts no longer surface a false release-update prompt, the repo now ships root OSS/release artifacts (`LICENSE`, expanded `README.md`, `docs/DEPLOYMENT.md`), and root deploy automation now exists for Pages + Worker via a repo-pinned Wrangler dependency.
+- Fixed and validated the exact Cloudflare operator paths on 2026-05-22: `cd apps/worker && wrangler dev` now works with safe mock defaults plus `nodejs_compat` when Wrangler is installed/on `PATH`, Worker deploy now has a real root dry-run path, and the Pages deploy flow is explicit about building with `VITE_API_BASE_URL=<worker-origin>` before `wrangler pages deploy`.
+- Added process guardrails on 2026-05-22 so future agents must rerun the exact Wrangler dev / Worker dry-run / Pages deploy workflows when deployment or update-signaling code changes.
+- Reopened and corrected the Pages root deploy path on 2026-05-22 after finding that the previously claimed bare `npm run deploy:web` workflow was not actually verified: the root script now defaults `VITE_API_BASE_URL` to the known deployed Worker origin `https://api.example.invalid`, docs/examples now treat `CLOUDFLARE_PAGES_PROJECT_NAME=... npm run deploy:web` as the canonical user-facing command, and the process rule now explicitly forbids claiming deploy/release success from env-prefixed or near-equivalent substitutes.
+- Completed Packet 10 deploy/runtime batch on 2026-05-22: Worker deploy preflight now fails fast when `SESSION_SECRET` is missing from the target runtime, operator docs/examples now treat empty `NEXTCLOUD_ALLOWED_HOSTS` as allow-any-valid-host by default, Worker observability is enabled in `wrangler.toml`, and the deployed `Illegal invocation` bug was traced to an unbound default `fetch` reference in the real Nextcloud client.
+- Live runtime inspection on 2026-05-22 also explained the `davora-worker` drift truthfully: an older Pages deployment (`822d1e61.davora.pages.dev`) still hardcoded `https://davora-worker.public.workers.dev`, while the current production Pages build targets `https://api.example.invalid`.
+
+## 2026-05-23
+- Recorded the new open usability/publish feedback batch into tracked source-of-truth artifacts before any product-code work, using Packet 11 / Packet 12 / Packet 13 packetization with explicit pending visibility.
+- Added tracked workflow requirements for the current improvement loop: sequential by default, parallelize only when definitely harmless, and commit each stable working state once git exists.
+- Recorded the honest workflow blocker that the requested commit/rollback loop cannot be followed fully yet because `.agent/project-state.json` still reports `repoState.git=false`.
+- Enabled the safe versioned workflow on 2026-05-23 by initializing git on `main`, tightening `.gitignore` only for generated `dev-dist/` output, updating tracked workflow state/docs to remove the git blocker, and preparing the repository for the baseline commit `chore: initialize git baseline`.

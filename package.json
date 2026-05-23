@@ -1,0 +1,41 @@
+{
+  "name": "davora-app",
+  "description": "Nextcloud-focused PWA and Worker for account-aware file management.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test:deploy && npm run test:workspaces",
+    "test:workspaces": "npm run test --workspaces --if-present",
+    "test:deploy": "vitest run scripts/deploy.test.ts",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "dev:web": "npm run dev --workspace=@davora/web",
+    "dev:worker": "node --env-file-if-exists=.env --import ./node_modules/tsx/dist/loader.mjs apps/worker/src/node-server.ts",
+    "deploy:web": "node --env-file-if-exists=.env --import ./node_modules/tsx/dist/loader.mjs scripts/deploy.ts web",
+    "deploy:worker": "node --env-file-if-exists=.env --import ./node_modules/tsx/dist/loader.mjs scripts/deploy.ts worker",
+    "deploy:worker:dry-run": "node --env-file-if-exists=.env --import ./node_modules/tsx/dist/loader.mjs scripts/deploy.ts worker --dry-run",
+    "deploy": "node --env-file-if-exists=.env --import ./node_modules/tsx/dist/loader.mjs scripts/deploy.ts all",
+    "test:e2e": "npm run test:playwright --workspace=@davora/web && npm run test:screenshots --workspace=@davora/web",
+    "validate:real": "tsx scripts/validate-real.ts",
+    "dev": "concurrently -k \"npm run dev:worker\" \"npm run dev:web\"",
+    "test:screenshots": "npm run test:screenshots --workspace=@davora/web",
+    "test:pwa": "npm run test:pwa --workspace=@davora/web"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "concurrently": "^9.1.2",
+    "dotenv": "^16.5.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4",
+    "wrangler": "4.86.0"
+  },
+  "dependencies": {
+    "puppeteer-core": "^24.43.1"
+  }
+}
