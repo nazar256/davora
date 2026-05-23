@@ -20,6 +20,7 @@
 | Desktop breadcrumb navigation cleanup | Desktop Chrome, 1280x720 | Open a folder → verify breadcrumbs use a home root plus slash-separated segments and the redundant `All files` / `Up one level` controls are gone | PASS |
 | Desktop drag-and-drop upload | Desktop Chrome, 1280x720 | Drag a file into the folder-view list surface → verify the drop affordance appears and the upload completes into the current folder | PASS |
 | Desktop gallery navigation | Desktop Chrome, 1280x720 | Open image/audio media in the same folder → verify overlay next/previous controls appear, photo click/Space advance to the next item, and audio/video do not auto-advance from those gestures | PASS |
+| Desktop audio reopen resume | Desktop Chrome, 1280x720 | Open `Projects/song.mp3` → move playback forward → close preview → reopen the same file in the same account/browser and verify best-effort resume restores the last position without any resume claim when unavailable | PASS |
 | Desktop reconnect/remove | Desktop Chrome, 1280x720 | Connect account → clear mock worker state → verify reconnect form → reconnect → remove account | PASS |
 | Desktop relaunch continuity | Desktop Chrome, 1280x720 | Connect account → remove the persisted browser session token → reload → verify the workspace restores instead of landing in reconnect | PASS |
 | Desktop relaunch after local dev restart | Desktop Chrome, 1280x720 | Connect account in default `rtk npm run dev` → restart the local worker/web pair → reload → verify the stale reconnect-required banner clears and the workspace restores without re-entering credentials | PASS |
@@ -42,10 +43,12 @@ Source of truth: `docs/FILE_MANAGER_REDESIGN_BRIEF.md` + `docs/UI_QUALITY_GATE.m
 | The connect-account form feels focused and trustworthy | PASS | First-run screenshot and browser flow show one focused form with explicit fields and secret-handling copy. |
 | The file surface remains primary once connected | PASS | `davora-connected-workspace.png` shows account context without crowding the file browser. |
 | Active-account context is always understandable | PASS | `Profile & settings` keeps account identity/switching one click away while the shell itself stays cleaner and still shows workspace status. |
+| Connected header avoids wasting space on persistent product naming | PASS | Connected workspace/browser evidence now shows the `Davora` wordmark removed from in-app chrome while status/location/settings/transfers remain visible in that same compact header space. |
 | Account switching feels explicit and safe | PASS | `davora-account-switcher.png` and Playwright switching coverage. |
 | Account and cache details stay secondary to browsing | PASS | `davora-settings-dialog.png` shows details/actions moved out of the main shell while the workspace remains list-first. |
 | Selection actions stay contextual | PASS | Mutation flow still uses row Details + right rail. |
 | Preview still feels like a mode change | PASS | `davora-browse-preview.png`, `davora-focused-preview.png`, preview browser checks, and the direct-download unsupported fallback that avoids a dead-end modal. |
+| Audio preview resume stays honest | PASS | Desktop browser coverage confirms same-account reopen restores the saved position best-effort; no new UI resume claim appears when that restore state is missing or unusable. |
 | Reconnect-required state is distinct and actionable | PASS | `davora-reconnect-state.png` and reconnect/remove browser flow. |
 | Offline/account cache behavior stays honest | PASS | Offline Playwright flow, account-scoped cache tests, and preview-build Packet 4 offline verification. |
 | Installability is explicit and truthful | PASS | Both preview-build and default-dev Chrome evidence show valid manifest metadata, active service-worker control after one reload, and no installability blockers beyond Chrome automation's `in-incognito` warning. |
@@ -61,7 +64,7 @@ _The app starts with a focused account-onboarding surface instead of assuming on
 
 ### Connected account workspace
 ![Connected account workspace](screenshots/davora-connected-workspace.png)
-_Once connected, active-account context stays visible while the file-manager workspace remains dominant._
+_Once connected, active-account context stays visible while the file-manager workspace remains dominant and the in-app chrome no longer spends that row on a persistent `Davora` wordmark._
 
 ### Account switching context
 ![Account switching context](screenshots/davora-account-switcher.png)
@@ -73,11 +76,11 @@ _Account details/actions and cache controls now live behind one practical entry 
 
 ### Browse + PDF preview workspace
 ![Browse + PDF preview workspace](screenshots/davora-browse-preview.png)
-_PDF preview now keeps the list context intact, uses a more compact header, gives the document much more room, and offers clear open/download fallback actions._
+_PDF preview now keeps the list context intact, uses a more compact connected header without the persistent product name, gives the document much more room, and offers clear open/download fallback actions._
 
 ### Focused preview overlay
 ![Focused preview overlay](screenshots/davora-focused-preview.png)
-_Focused preview keeps content dominant with a tighter header, one clear dismiss action, and a lighter details disclosure._
+_Focused preview keeps content dominant with a tighter header, one clear dismiss action, a lighter details disclosure, and same-account audio reopen now resumes best-effort from the last remembered position only when the browser can restore it honestly._
 
 ### Mutation controls
 ![Mutation controls](screenshots/davora-mutation-controls.png)
@@ -103,6 +106,8 @@ _Mobile still keeps browsing first while preserving account-aware state and bott
 - **Primary reference — Nextcloud Files:** [Accessing your files using the Nextcloud web interface](https://docs.nextcloud.com/server/latest/user_manual/en/files/access_webgui.html). Applied patterns: list-first browsing, breadcrumbs above the file list, create/upload near the current folder, contextual details/actions, and dedicated file open/preview behavior.
 - **Supporting pattern family — productivity app account switchers:** used conceptually for lightweight active-account context and explicit switching without a heavy settings detour.
 - **Applied refinement in this pass:** preview now uses one clear dismiss action, a tighter header, lighter details disclosure, natural-fill media/PDF stage sizing without vh magic numbers, tighter markdown MIME normalization, and the app/header banner area keeps a reserved slot to reduce layout shift.
+- **Packet 12 milestone 1 note:** connected in-app chrome now removes the persistent `Davora` wordmark so header space favors status/location/install/settings/transfers, and audio preview persists last-known playback position per browser account + file path on a best-effort basis without any misleading resume UI when restore is unavailable.
+- **Environment note for this review pass:** the installed-PWA stopped-server test remains part of the standing matrix, but this environment does not have a system Chrome binary with the required CDP `PWA.*` domain, so that one sub-check is skipped automatically while the rest of the preview-build PWA/browser evidence still passes.
 - **Packet 1 completion note:** the shipped UI now runs only from the current TS/TSX sources, root folders open cache-first with background refresh, cached file previews stay stable until the user applies a fresher version, and account switching preserves cache isolation.
 - **Packet 2/5/7 completion note:** account details/actions and cache controls now live behind `Profile & settings`, the shell no longer repeats the desktop account selector on every page, the mobile dialog uses a cleaner Done close action, file-size display now supports Human readable / KB / MB / GB from the main workspace header, cache limit now uses slider/manual controls plus a 15 MB default max-cacheable-file-size policy, and drag-and-drop upload is available directly from the folder view.
 - **Packet 3/6 completion note:** unsupported file types now skip the dead-end preview layer, show an immediate status update, preflight auth/path errors before the handoff, and then hand downloads off through the browser-native Worker download route instead of buffering whole files through a fetch/blob fallback; breadcrumb navigation now uses a home root plus slash separators and removes redundant all-files/up-level controls.

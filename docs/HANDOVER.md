@@ -85,7 +85,7 @@ Before claiming another Davora UI/account pass is done, always:
   - Item 33 — deployed Worker observability is now enabled by default and operator docs include the live tail command `cd apps/worker && wrangler tail davora --format pretty`.
   - Item 34 — the deployed `Illegal invocation` root cause was an unbound Worker `fetch` reference in the real Nextcloud client; it is now bound safely, and the observed `davora-worker` log signal was explained as stale Pages bundle drift from an older deployment that still hardcoded `davora-worker.public.workers.dev`.
 
-- Packet 11 (open items recorded on 2026-05-23; item 35 completed after that checkpoint):
+- Packet 11 (completed on 2026-05-23; item 36 completed in Packet 11a):
   - Item 35 — completed: the connect/reconnect flow now allows selecting a per-account root folder (prefilled from Worker health defaults), and the Worker persists/enforces it per account/session.
   - Item 36 — completed in Packet 11a on 2026-05-23: the deployed reconnect storm was caused by Worker isolate/account-store loss, not true auth failure. The Worker now persists connected accounts for deployed runtimes in a Durable Object (`DAVORA_ACCOUNT_STORE`) using the same encrypted payload format as local-dev file persistence, so ordinary connect/session/search/upload traffic no longer falls into reconnect-required on isolate hops. Transient search/upload failures stay action-local; reconnect remains reserved for true account loss/removal.
     - Exact failure before the fix: deployed `POST /api/accounts` returned 201, then the immediate `POST /api/session` often landed on a different Cloudflare isolate and returned 409 `account_reconnect_required`; that false reconnect state then surfaced during normal search/upload use.
@@ -93,23 +93,23 @@ Before claiming another Davora UI/account pass is done, always:
     - Why this was the smallest working fix: Packet 11a added only the minimal deployed account-persistence layer needed for correctness, reused the existing encrypted payload format keyed by `SESSION_SECRET`, and left browser storage/session design unchanged.
     - Current lifecycle/retention semantics: the Durable Object keeps one encrypted `accounts` snapshot for the named store; connect/remove/clear-all overwrite that snapshot, explicit removal only disappears data by writing a new snapshot without the removed accounts, there is no TTL/auto-expiry/pruning/delete path today, and there is no separate history or app-level retention cap beyond the single-snapshot design plus platform limits.
     - Architectural bar from here: the user is skeptical of backend state/storage. Any future backend state must document the exact deployed-runtime failure it solves, why browser-local/stateless alternatives are insufficient, why the proposed state is the minimum safe fix, and what cleanup/limit semantics apply.
-    - Validation + stable state: pre-deploy live repro failed 6/6 `201 -> 409`; after Worker deploys `1d522366-9382-446b-9410-00eaa659be2f` and final hardening deploy `80479ab5-ac1b-4a5f-8300-58888127904d`, live repro passed 6/6 `201 -> 200`, end-to-end connect/session/search/upload succeeded, and the current stable code state is commit `74903e6` (`fix: persist deployed accounts across worker isolates`).
-  - Item 37 — background transfer status should reserve fixed space, avoid layout jumping, show uploads/downloads, support multiple active tasks with overflow/dropdown, and expose progress for large transfers.
+    - Validation + stable state: pre-deploy live repro failed 6/6 `201 -> 409`; after Worker deploys `1d522366-9382-446b-9410-00eaa659be2f` and final hardening deploy `80479ab5-ac1b-4a5f-8300-58888127904d`, live repro passed 6/6 `201 -> 200`, end-to-end connect/session/search/upload succeeded, and the stable Packet 11a fix anchor is commit `74903e6` (`fix: persist deployed accounts across worker isolates`).
+  - Item 37 — completed: background transfer status now reserves fixed app-bar space, tracks recent upload/download tasks, shows determinate/indeterminate progress, and exposes overflow in a popover.
   - Item 38 — completed: downloads now use a fetch + blob + anchor download flow instead of the prior iframe/form submission path, improving Chrome Android behavior.
-- Packet 12 (recorded as open/pending on 2026-05-23):
-  - Item 39 — audio player should remember position if possible.
+- Packet 12 (milestone 1 partially completed on 2026-05-23):
+  - Item 39 — completed in milestone 1: reopening the same audio file in the same browser/account now restores the last known position on a best-effort basis using browser-local storage keyed by account + path; if storage is unavailable, invalid, rejected by the browser, or no longer usable for the media duration, preview starts quietly at `0:00` with no resume claim.
   - Item 40 — uploading multiple files and directories is must-have.
   - Item 41 — downloading multiple files/directories is must-have; directory downloads may zip client-side if needed.
-  - Item 44 — remove the app name from the in-app chrome to free space and rely on status tray/search instead.
+  - Item 44 — completed in milestone 1: once an account is connected, the in-app chrome no longer shows a persistent `Davora` wordmark, keeping that compact header space for location/status/install/settings/transfer affordances instead while preserving the zero-state product naming.
 - Packet 13 (recorded as open/pending on 2026-05-23):
-  - Item 42 — clarify and/or revisit the server-side secret requirement as a design decision if needed.
-  - Item 43 — run one more OSS/publish readiness review round before open source.
-  - Item 45 — run team visual/manual test-review loops and keep improving constructively while useful.
+  - Item 42 — clarify the actual server-side secret/design requirement: deployed runtime requires `SESSION_SECRET`, while Nextcloud credentials are entered in-app and stay out of browser persistence and server-start env config. The decision artifact is `docs/adr/003-worker-keeps-user-entered-nextcloud-credentials-server-side.md`.
+  - Item 43 — run one more OSS/publish readiness review round before open source, using `docs/PACKET13_REVIEW_GATES.md` as the explicit pass/fail checklist and record.
+  - Item 45 — run team visual/manual test-review loops and keep improving constructively while useful; each recorded loop must use `docs/PACKET13_REVIEW_GATES.md` and include browser-rendered evidence.
 
 ## Current workflow requirements for the next improvement loop
 - PM delegates all work; execute sequentially by default and parallelize only when definitely harmless.
 - Each stable working state should be committed to git.
-- Git is now initialized on `main`; the workflow started from the baseline commit `chore: initialize git baseline`, and the latest stable product state recorded here is Packet 11a commit `74903e6` (`fix: persist deployed accounts across worker isolates`).
+- Git is now initialized on `main`; the workflow started from the baseline commit `chore: initialize git baseline`, and the latest stable product code state recorded here is commit `48901e5` (`feat: add transfer tray for background transfers`).
 
 ## Future limitations / non-goals (not open backlog for this delivery)
 - The managed UX feedback backlog above is complete through Packet 10, with Packets 11-13 now recorded as open backlog; the items below remain intentionally out of scope unless future product scope changes.

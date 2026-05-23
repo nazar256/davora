@@ -1,14 +1,14 @@
 {
   "project": "davora-app",
-  "session": "davora-packet11a-checkpoint-pass",
+  "session": "davora-source-of-truth-alignment",
   "status": "in_progress",
   "repoState": {
     "git": true,
     "defaultBranch": "main",
     "currentStableCommit": {
-      "short": "f938a46",
-      "full": "f938a4661d1e63e2db4d22da6014ba3fd7778648",
-      "summary": "fix: use fetch+blob downloads for better mobile support"
+      "short": "48901e5",
+      "full": "48901e5e051505fd151f09cebb745afddf7538f4",
+      "summary": "feat: add transfer tray for background transfers"
     },
     "workspace": [
       "apps/web",
@@ -33,16 +33,16 @@
   "validation": {
     "currentPass": {
       "date": "2026-05-23",
-      "typecheck": "passed_packet_11_item38_downloads_2026-05-23",
-      "unitTests": "passed_packet_11_item38_downloads_2026-05-23",
-      "build": "passed_packet_11_item38_downloads_2026-05-23",
-      "playwright": "passed_packet_11_item38_downloads_2026-05-23",
-      "screenshots": "passed_packet_11_item38_downloads_2026-05-23",
+      "typecheck": "passed_packet12_milestone1_items39_44_2026-05-23",
+      "unitTests": "passed_packet12_milestone1_items39_44_2026-05-23",
+      "build": "passed_packet12_milestone1_items39_44_2026-05-23",
+      "playwright": "passed_packet12_milestone1_items39_44_2026-05-23",
+      "screenshots": "passed_packet12_milestone1_items39_44_2026-05-23",
       "workerWranglerDev": "not_rerun_packet_11a_local_node_runtime_path_unchanged",
       "workerDeployDryRun": "passed_packet_11a_session_stability_2026-05-23_with_durable_object_binding",
       "pagesDeployPath": "not_rerun_packet_11a_worker_only_runtime_fix",
       "realBackend": "not_rerun_packet_11_item38_downloads",
-      "docsCheckpoint": "aligned_2026-05-23_packet11_item38_downloads_fix_and_refresh"
+      "docsCheckpoint": "aligned_packet12_milestone1_items39_44_2026-05-23"
     },
     "realBackendLastValidatedAt": "2026-05-23",
     "realBackendGuardrail": "Rerun `rtk npm run validate:real` whenever Packet 10+ deploy/runtime changes affect live Nextcloud validation, allowlist policy, or Worker session/bootstrap behavior.",
@@ -55,7 +55,7 @@
     "accountAwareBrowserCaches": "done",
     "accountOnboardingAndSwitchingUx": "done",
     "fileOperationsForActiveAccount": "done",
-    "browserEvidence": "done_refreshed_2026-05-23_packet_11_item38_downloads_fix",
+    "browserEvidence": "done_refreshed_2026-05-23_packet12_milestone1_items39_44",
     "durableWorkerAccountStore": "done_local_dev_file_store_plus_deployed_durable_object_store_for_packet11a_runtime_correctness",
     "backendStatePolicy": "user_is_skeptical_of_backend_state__future_backend_state_requires_documented_runtime_failure_and_why_stateless_or_browser_local_alternatives_are_insufficient",
     "previewUxPacket": "done",
@@ -77,12 +77,12 @@
     "packet8FeedbackBatch": "done_validated_2026-05-22_relaunch_restore__installed_pwa_server_stopped_cached_shell__functional_update_reload",
     "packet9PublishDeployReadiness": "done_2026-05-22_after_item_30_root_command_correction__default_worker_origin_for_bare_deploy_web__literal_command_revalidated_to_first_external_boundary",
     "packet10DeployRuntimeBatch": "done_2026-05-22_session_secret_preflight_default_nextcloud_host_allowance_observability_and_runtime_drift_aligned",
-    "packet11OpenFeedbackBatch": "partial_2026-05-23_items35_36_38_done__item37_pending",
+    "packet11OpenFeedbackBatch": "done_2026-05-23_items35_36_37_38_done",
     "packet11aReconnectSessionStability": "done_2026-05-23_deployed_worker_durable_object_account_store_plus_local_transient_failure_regressions_and_final_live_worker_redeploy",
     "packet11aStableCommit": "74903e6_fix_persist_deployed_accounts_across_worker_isolates",
-    "packet12OpenFeedbackBatch": "pending_2026-05-23_audio_resume__multi_upload__multi_download__remove_app_name_from_chrome",
+    "packet12OpenFeedbackBatch": "partial_2026-05-23_items39_and44_done__items40_and41_pending",
     "packet13OpenFeedbackBatch": "pending_2026-05-23_server_side_secret_design_review__oss_publish_review_round__team_visual_manual_review_loops",
     "improvementLoopExecutionMode": "pm_delegates_all_work__sequential_by_default_parallelize_only_when_definitely_harmless",
-    "stableStateCommitWorkflow": "active_git_initialized_on_main_2026-05-23__packet11a_stable_code_anchor_74903e6__continue_committing_each_stable_state"
+    "stableStateCommitWorkflow": "active_git_initialized_on_main_2026-05-23__packet11_stable_code_anchor_48901e5__continue_committing_each_stable_state"
   }
 }

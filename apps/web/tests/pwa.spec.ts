@@ -1,10 +1,12 @@
 import { mkdir, mkdtemp } from "node:fs/promises";
 import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { chromium, expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 const chromeExecutable = process.env.PLAYWRIGHT_CHROME_EXECUTABLE ?? "/usr/bin/google-chrome";
+const useSystemChrome = Boolean(chromeExecutable && existsSync(chromeExecutable));
 const workerPort = 8787;
 
 async function dismissToastIfVisible(page: Page) {
@@ -221,12 +223,13 @@ test("offline preview build without primed account data falls back to zero-state
 });
 
 test("installed PWA opens with cached shell when the worker is stopped but browser stays online", async ({ page, context }) => {
+  test.skip(!useSystemChrome, "Installed-PWA CDP coverage requires a system Chrome binary with the PWA protocol domain.");
   const tempRoot = resolve(process.cwd(), "../../.tmp/pwa-installed-profiles");
   await mkdir(tempRoot, { recursive: true });
   const profileDir = await mkdtemp(join(tempRoot, "profile-"));
   const evidencePath = resolve(process.cwd(), "../../.tmp/pwa-installed-server-stopped.png");
   const persistentContext = await chromium.launchPersistentContext(profileDir, {
-    executablePath: chromeExecutable,
+    ...(useSystemChrome ? { executablePath: chromeExecutable } : {}),
     headless: true,
     viewport: { width: 1280, height: 720 }
   });

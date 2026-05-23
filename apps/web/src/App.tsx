@@ -44,6 +44,12 @@ import {
   readSearchCache
 } from "./lib/cache";
 import {
+  clearAudioPreviewPosition,
+  loadAudioPreviewPosition,
+  saveAudioPreviewPosition,
+  type AudioPreviewResumeTarget
+} from "./lib/audioResume";
+import {
   cacheOpenedFile,
   clearOpenedFileCache,
   configureOpenedFileCache,
@@ -114,8 +120,22 @@ const DEFAULT_PREVIEW_CACHE_STATE: PreviewCacheState = {
   updateReady: false
 };
 
+const AUDIO_PREVIEW_RESUME_END_TOLERANCE_SECONDS = 1;
+
 const PREVIEW_PREFETCH_AHEAD_COUNT = 1;
 const MEDIA_GALLERY_VIEWERS = new Set<ViewerKind>(["image", "audio", "video"]);
+
+function canRestoreAudioPreviewPosition(audio: HTMLAudioElement, positionSeconds: number): boolean {
+  if (!Number.isFinite(positionSeconds) || positionSeconds <= 0) {
+    return false;
+  }
+
+  if (Number.isFinite(audio.duration) && audio.duration > 0) {
+    return positionSeconds < Math.max(0, audio.duration - AUDIO_PREVIEW_RESUME_END_TOLERANCE_SECONDS);
+  }
+
+  return true;
+}
 
 function breadcrumbs(path: string) {
   const parts = path.split("/").filter(Boolean);
@@ -630,6 +650,7 @@ function AccountForm(props: AccountFormProps) {
 
 interface PreviewModalProps {
   open: boolean;
+  accountId?: string;
   entry?: FileEntry;
   file?: FilePreview;
   blobUrl?: string;
@@ -651,9 +672,16 @@ function PreviewModal(props: PreviewModalProps) {
   const [openingOriginal, setOpeningOriginal] = useState(false);
   const [originalOpenError, setOriginalOpenError] = useState<string | undefined>();
   const [imagePreviewFailed, setImagePreviewFailed] = useState(false);
+  const audioPreviewRef = useRef<HTMLAudioElement | null>(null);
+  const lastPersistedAudioSecondRef = useRef<number | undefined>();
   const previewViewer = props.file?.viewer;
   const showGalleryControls = isMediaGalleryViewer(previewViewer) && (props.onPrevious || props.onNext);
   const imageStageAdvances = previewViewer === "image" && Boolean(props.onNext);
+  const audioResumeAccountId = props.open && props.accountId && props.file?.viewer === "audio" ? props.accountId : undefined;
+  const audioResumePath = props.open && props.file?.viewer === "audio" ? props.file?.path : undefined;
+  const audioResumeTarget: AudioPreviewResumeTarget | undefined = audioResumeAccountId && audioResumePath
+    ? { accountId: audioResumeAccountId, path: audioResumePath }
+    : undefined;
 
   useEffect(() => {
     setOpeningOriginal(false);
@@ -663,6 +691,92 @@ function PreviewModal(props: PreviewModalProps) {
   useEffect(() => {
     setImagePreviewFailed(false);
   }, [props.open, props.file?.path, props.file?.viewer, props.blobUrl]);
+
+  useEffect(() => {
+    lastPersistedAudioSecondRef.current = undefined;
+  }, [audioResumeAccountId, audioResumePath, props.blobUrl]);
+
+  useEffect(() => {
+    const audio = audioPreviewRef.current;
+    if (!props.open || !audioResumeTarget || !audio) {
+      return;
+    }
+
+    const applyStoredPosition = (validateAgainstDuration: boolean) => {
+      const storedPosition = loadAudioPreviewPosition(audioResumeTarget);
+      if (storedPosition === undefined) {
+        return;
+      }
+
+      if (validateAgainstDuration && !canRestoreAudioPreviewPosition(audio, storedPosition)) {
+        clearAudioPreviewPosition(audioResumeTarget);
+        try {
+          audio.currentTime = 0;
+        } catch {
+          // Best-effort only.
+        }
+        return;
+      }
+
+      try {
+        audio.currentTime = storedPosition;
+      } catch {
+        // Best-effort only. If the browser rejects the seek, playback stays at 0:00.
+      }
+    };
+
+    const persistPosition = (force: boolean) => {
+      const currentTime = audio.currentTime;
+      if (!Number.isFinite(currentTime) || currentTime <= 0) {
+        if (force && lastPersistedAudioSecondRef.current !== undefined) {
+          clearAudioPreviewPosition(audioResumeTarget);
+          lastPersistedAudioSecondRef.current = 0;
+        }
+        return;
+      }
+
+      const roundedSecond = Math.floor(currentTime);
+      if (!force && lastPersistedAudioSecondRef.current === roundedSecond) {
+        return;
+      }
+
+      saveAudioPreviewPosition(audioResumeTarget, currentTime);
+      lastPersistedAudioSecondRef.current = roundedSecond;
+    };
+
+    const clearPosition = () => {
+      clearAudioPreviewPosition(audioResumeTarget);
+      lastPersistedAudioSecondRef.current = 0;
+    };
+
+    const handleTimeUpdate = () => persistPosition(false);
+    const handlePause = () => {
+      if (!audio.ended) {
+        persistPosition(true);
+      }
+    };
+    const handleEnded = () => clearPosition();
+
+    const handleLoadedMetadata = () => applyStoredPosition(true);
+
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+    audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("pause", handlePause);
+    audio.addEventListener("ended", handleEnded);
+
+    applyStoredPosition(false);
+
+    return () => {
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      audio.removeEventListener("timeupdate", handleTimeUpdate);
+      audio.removeEventListener("pause", handlePause);
+      audio.removeEventListener("ended", handleEnded);
+
+      if (!audio.ended) {
+        persistPosition(true);
+      }
+    };
+  }, [audioResumeAccountId, audioResumePath, props.open]);
 
   useEffect(() => {
     if (!props.open || !showGalleryControls) {
@@ -859,7 +973,7 @@ function PreviewModal(props: PreviewModalProps) {
                     />
                   </div>
                 ) : null}
-                {props.file.viewer === "audio" && props.blobUrl ? <div className="preview-media-stage">{renderGalleryControls("inline")}<audio className="media-preview media-preview-audio" controls src={props.blobUrl} /></div> : null}
+                {props.file.viewer === "audio" && props.blobUrl ? <div className="preview-media-stage">{renderGalleryControls("inline")}<audio className="media-preview media-preview-audio" controls ref={audioPreviewRef} src={props.blobUrl} /></div> : null}
                 {props.file.viewer === "video" && props.blobUrl ? <div className="preview-media-stage">{renderGalleryControls("inline")}<video aria-label={`Video preview ${props.file.name}`} autoPlay className="media-preview media-preview-video" controls muted playsInline src={props.blobUrl} /></div> : null}
                 {props.file.viewer === "pdf" && props.blobUrl ? <div className="preview-media-stage preview-media-stage-pdf"><iframe className="pdf-preview" src={props.blobUrl} title={`PDF preview ${props.file.name}`} /></div> : null}
                 {(props.file.viewer === "unsupported" || imagePreviewUnavailable || (requiresOriginalBlobViewer(props.file.viewer) && !props.blobUrl && !imagePreviewUnavailable))
@@ -2107,13 +2221,14 @@ export default function App() {
   const renderAppBar = (supportText: string) => {
     const compactMobileHeader = isNarrowScreen && accountState.accounts.length > 0;
     const showHeaderStatusBadge = !compactMobileHeader;
+    const showPersistentProductName = accountState.accounts.length === 0;
 
     return (
       <header className={`app-bar${compactMobileHeader ? " app-bar-compact" : ""}`}>
         <div className="app-bar-brand">
           <div aria-hidden="true" className="app-logo">D</div>
           <div className="app-bar-brand-copy">
-            <h1>Davora</h1>
+            {showPersistentProductName ? <h1>Davora</h1> : null}
             {!compactMobileHeader ? <p className="status app-bar-subtitle">{supportText}</p> : null}
           </div>
         </div>
@@ -2691,6 +2806,7 @@ export default function App() {
       ) : null}
 
       <PreviewModal
+        accountId={activeAccount?.id}
         blobUrl={selectedBlobUrl}
         cacheState={previewCacheState}
         entry={openedEntry}
