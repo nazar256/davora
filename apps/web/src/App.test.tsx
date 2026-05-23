@@ -39,6 +39,7 @@ vi.mock("./lib/api", async () => {
     fetchOriginalFile: vi.fn(),
     createFolder: vi.fn(),
     uploadFile: vi.fn(),
+    uploadFileWithProgress: vi.fn(),
     moveFile: vi.fn(),
     copyFile: vi.fn(),
     deleteFile: vi.fn()
@@ -227,7 +228,7 @@ beforeEach(() => {
   });
   mockedApi.fetchOriginalFile.mockResolvedValue({ blob: new Blob(["binary"], { type: "image/png" }), mimeType: "image/png", filename: "photo.png" });
   mockedApi.createFolder.mockResolvedValue({ result: { action: "createFolder", parentPath: "", path: "Plans" } });
-  mockedApi.uploadFile.mockResolvedValue({ result: { action: "upload", parentPath: "", path: "Projects/roadmap.txt" } });
+  mockedApi.uploadFileWithProgress.mockResolvedValue({ result: { action: "upload", parentPath: "", path: "Projects/roadmap.txt" } });
   mockedApi.moveFile.mockResolvedValue({ result: { action: "move", parentPath: "", path: "Projects/roadmap.txt", destinationPath: "Projects/renamed.txt" } });
   mockedApi.copyFile.mockResolvedValue({ result: { action: "copy", parentPath: "", path: "Projects/roadmap.txt", destinationPath: "Projects/roadmap-copy.txt" } });
   mockedApi.deleteFile.mockResolvedValue({ result: { action: "delete", parentPath: "", path: "Projects/roadmap.txt" } });
@@ -354,7 +355,7 @@ describe("App", () => {
   it("keeps reconnect local to upload when a transient upload request fails", async () => {
     const account = buildAccount("alpha", { displayName: "Upload workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.uploadFile.mockRejectedValueOnce(new TypeError("fetch failed"));
+    mockedApi.uploadFileWithProgress.mockRejectedValueOnce(new TypeError("fetch failed"));
 
     render(<App />);
 
@@ -363,7 +364,7 @@ describe("App", () => {
     const file = new File(["hello"], "hello.txt", { type: "text/plain" });
     fireEvent.change(input, { target: { files: [file] } });
 
-    await waitFor(() => expect(mockedApi.uploadFile).toHaveBeenCalledWith(expect.objectContaining({ name: "hello.txt", path: "" }), "token-alpha"));
+    await waitFor(() => expect(mockedApi.uploadFileWithProgress).toHaveBeenCalledWith(expect.objectContaining({ name: "hello.txt", path: "" }), "token-alpha", expect.any(Function)));
     expect(await screen.findByText(/fetch failed/i)).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /Reconnect Upload workspace/i })).not.toBeInTheDocument();
   });
@@ -628,7 +629,7 @@ describe("App", () => {
     expect(dropZone.className).toContain("file-list-panel-drop-active");
     fireEvent.drop(dropZone, { dataTransfer: { files: [file], types: ["Files"] } });
 
-    await waitFor(() => expect(mockedApi.uploadFile).toHaveBeenCalledWith(expect.objectContaining({ name: "dropped.txt", path: "" }), "token-alpha"));
+    await waitFor(() => expect(mockedApi.uploadFileWithProgress).toHaveBeenCalledWith(expect.objectContaining({ name: "dropped.txt", path: "" }), "token-alpha", expect.any(Function)));
   });
 
   it("adds gallery next controls for photos and ignores oversized blobs for browser cache storage", async () => {
