@@ -95,7 +95,7 @@ Before claiming another Davora UI/account pass is done, always:
     - Architectural bar from here: the user is skeptical of backend state/storage. Any future backend state must document the exact deployed-runtime failure it solves, why browser-local/stateless alternatives are insufficient, why the proposed state is the minimum safe fix, and what cleanup/limit semantics apply.
     - Validation + stable state: pre-deploy live repro failed 6/6 `201 -> 409`; after Worker deploys `1d522366-9382-446b-9410-00eaa659be2f` and final hardening deploy `80479ab5-ac1b-4a5f-8300-58888127904d`, live repro passed 6/6 `201 -> 200`, end-to-end connect/session/search/upload succeeded, and the current stable code state is commit `74903e6` (`fix: persist deployed accounts across worker isolates`).
   - Item 37 — background transfer status should reserve fixed space, avoid layout jumping, show uploads/downloads, support multiple active tasks with overflow/dropdown, and expose progress for large transfers.
-  - Item 38 — downloads and non-viewable-file downloads do not work on Chrome Android.
+  - Item 38 — completed: downloads now use a fetch + blob + anchor download flow instead of the prior iframe/form submission path, improving Chrome Android behavior.
 - Packet 12 (recorded as open/pending on 2026-05-23):
   - Item 39 — audio player should remember position if possible.
   - Item 40 — uploading multiple files and directories is must-have.
