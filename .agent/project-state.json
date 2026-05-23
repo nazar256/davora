@@ -6,14 +6,14 @@
     "git": true,
     "defaultBranch": "main",
     "currentStableCommit": {
-      "short": "edff0d0",
-      "full": "edff0d0456984d3a84c74c1836ee1ab1eefcd3f0",
-      "summary": "feat: resume audio preview and simplify chrome"
+      "short": "c08e43c",
+      "full": "c08e43c037d0d813a603231c7ffa55659e1e6e66",
+      "summary": "feat: add multi-file and directory uploads"
     },
     "lastDeployHead": {
-      "short": "bf63583",
-      "full": "bf6358336e436beae749964496b14a0c370bf76d",
-      "summary": "docs: record Packet 13 PM updates"
+      "short": "8ecc9c1",
+      "full": "8ecc9c10fdaac7f7f75a2ebd7961e5c8b1acdb96",
+      "summary": "docs: checkpoint screenshot evidence"
     },
     "workspace": [
       "apps/web",
@@ -42,13 +42,13 @@
       "unitTests": "passed_packet12_item40_multi_file_and_directory_uploads_2026-05-23",
       "build": "passed_packet12_item40_multi_file_and_directory_uploads_2026-05-23",
       "playwright": "passed_packet12_item40_multi_file_and_directory_uploads_2026-05-23",
-      "screenshots": "passed_packet12_milestone1_items39_44_2026-05-23",
-      "productionDeploy": "not_run_packet12_item40_pre_deploy_commit_requested",
+      "screenshots": "passed_packet12_item40_checkpoint_evidence_2026-05-23",
+      "productionDeploy": "passed_packet12_item40_release_handling_2026-05-23_head_8ecc9c1_worker_4ba02fa9-632e-48ab-bf02-d9784bc52a98_pages_92f36b69",
       "workerWranglerDev": "not_rerun_packet_11a_local_node_runtime_path_unchanged",
       "workerDeployDryRun": "passed_packet_11a_session_stability_2026-05-23_with_durable_object_binding",
       "pagesDeployPath": "not_rerun_packet_11a_worker_only_runtime_fix",
       "realBackend": "not_rerun_packet_11_item38_downloads",
-      "docsCheckpoint": "aligned_packet12_item40_multi_file_and_directory_uploads_2026-05-23"
+      "docsCheckpoint": "aligned_packet12_item40_release_handling_2026-05-23"
     },
     "realBackendLastValidatedAt": "2026-05-23",
     "realBackendGuardrail": "Rerun `rtk npm run validate:real` whenever Packet 10+ deploy/runtime changes affect live Nextcloud validation, allowlist policy, or Worker session/bootstrap behavior.",
@@ -61,7 +61,7 @@
     "accountAwareBrowserCaches": "done",
     "accountOnboardingAndSwitchingUx": "done",
     "fileOperationsForActiveAccount": "done",
-    "browserEvidence": "done_refreshed_2026-05-23_packet12_milestone1_items39_44",
+    "browserEvidence": "done_refreshed_2026-05-23_packet12_item40",
     "durableWorkerAccountStore": "done_local_dev_file_store_plus_deployed_durable_object_store_for_packet11a_runtime_correctness",
     "backendStatePolicy": "user_is_skeptical_of_backend_state__future_backend_state_requires_documented_runtime_failure_and_why_stateless_or_browser_local_alternatives_are_insufficient",
     "previewUxPacket": "done",
@@ -86,9 +86,9 @@
     "packet11OpenFeedbackBatch": "done_2026-05-23_items35_36_37_38_done",
     "packet11aReconnectSessionStability": "done_2026-05-23_deployed_worker_durable_object_account_store_plus_local_transient_failure_regressions_and_final_live_worker_redeploy",
     "packet11aStableCommit": "74903e6_fix_persist_deployed_accounts_across_worker_isolates",
-    "packet12OpenFeedbackBatch": "partial_2026-05-23_items39_40_44_implemented__items39_and44_deployed_done__item40_pre_deploy_validated_commit_ready__item41_pending",
+    "packet12OpenFeedbackBatch": "partial_2026-05-23_items39_40_44_deployed_done__item41_pending",
     "packet13OpenFeedbackBatch": "pending_2026-05-23_server_side_secret_design_review__oss_publish_review_round__team_visual_manual_review_loops",
     "improvementLoopExecutionMode": "pm_delegates_all_work__sequential_by_default_parallelize_only_when_definitely_harmless",
-    "stableStateCommitWorkflow": "active_git_initialized_on_main_2026-05-23__packet12_stable_code_anchor_edff0d0__continue_committing_each_stable_state"
+    "stableStateCommitWorkflow": "active_git_initialized_on_main_2026-05-23__packet12_stable_code_anchor_c08e43c__continue_committing_each_stable_state"
   }
 }

@@ -50,7 +50,7 @@ Append one line per milestone commit + deploy.
 - 2026-05-23 Packet 11 / Item 38: commit `f938a46` deployed. Worker version `cec47b53-d34f-4db2-971c-831ef83affc0` at `https://davora.xyofn8h7t.workers.dev`; Pages deploy `https://000c3ab4.davora.pages.dev`.
 - 2026-05-23 Packet 11 / Item 37: commit `48901e5` deployed. Worker version `c50da9bb-1b48-4984-9375-3c205ee94663` at `https://davora.xyofn8h7t.workers.dev`; Pages deploy `https://a9f2b738.davora.pages.dev`.
 - 2026-05-23 Packet 12 / Item 39: stable product commit `edff0d0` was included in successful deploy of current HEAD `bf63583`. Worker version `f07e6c6c-df42-42ca-bbfe-b6f2c47e8af6` at `https://davora.xyofn8h7t.workers.dev`; Pages deploy `https://55ec9dfd.davora.pages.dev`.
-- (pending) Packet 12 / Item 40
+- 2026-05-23 Packet 12 / Item 40: stable product commit `c08e43c` was included in successful deploy of current HEAD `8ecc9c1`. Worker version `4ba02fa9-632e-48ab-bf02-d9784bc52a98` at `https://davora.xyofn8h7t.workers.dev`; Pages deploy `https://92f36b69.davora.pages.dev`.
 - (pending) Packet 12 / Item 41
 - 2026-05-23 Packet 12 / Item 44: stable product commit `edff0d0` was included in successful deploy of current HEAD `bf63583`. Worker version `f07e6c6c-df42-42ca-bbfe-b6f2c47e8af6` at `https://davora.xyofn8h7t.workers.dev`; Pages deploy `https://55ec9dfd.davora.pages.dev`.
 - (pending) Packet 13 / Item 42
