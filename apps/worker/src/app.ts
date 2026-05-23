@@ -46,8 +46,9 @@ import { errorResponse, json, originMatchesAllowedOrigin, withCors } from "./sec
 import { signSessionToken, verifySessionToken } from "./security/token";
 import type { AuthorizedAccountContext, SessionPayload, WorkerEnv } from "./types";
 
-function parseAllowedOrigins(rawEnv: Record<string, string | undefined>): string[] {
-  return (rawEnv.ALLOWED_ORIGINS ?? "")
+function parseAllowedOrigins(rawEnv: Record<string, unknown>): string[] {
+  const allowedOrigins = typeof rawEnv.ALLOWED_ORIGINS === "string" ? rawEnv.ALLOWED_ORIGINS : "";
+  return allowedOrigins
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
@@ -317,7 +318,7 @@ async function handleAuthorizedRequest(request: Request, env: WorkerEnv, session
   }
 }
 
-export async function handleRequest(request: Request, rawEnv: Record<string, string | undefined>): Promise<Response> {
+export async function handleRequest(request: Request, rawEnv: Record<string, unknown>): Promise<Response> {
   const origin = request.headers.get("origin");
   const allowedOrigins = parseAllowedOrigins(rawEnv);
   const url = new URL(request.url);
@@ -392,8 +393,16 @@ export async function handleRequest(request: Request, rawEnv: Record<string, str
         return withCors(json(payload, body.accountId ? 200 : 201), origin, env.ALLOWED_ORIGINS);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to connect account.";
-        const status = /different browser context|Browser ownership headers/i.test(message) ? 403 : 400;
-        const code = status === 403 ? "permission_denied" : "account_validation_failed";
+        const status = /different browser context|Browser ownership headers/i.test(message)
+          ? 403
+          : /Account store persistence failed/i.test(message)
+            ? 500
+            : 400;
+        const code = status === 500
+          ? "internal_error"
+          : status === 403
+            ? "permission_denied"
+            : "account_validation_failed";
         return withCors(errorResponse(status, code, message), origin, env.ALLOWED_ORIGINS);
       }
     }

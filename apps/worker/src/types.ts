@@ -11,6 +11,12 @@ export interface WorkerEnv {
   NEXTCLOUD_MAX_TEXT_FILE_BYTES: number;
   MOCK_BACKEND: boolean;
   LOCAL_DEV_STATE_PATH?: string;
+  DAVORA_ACCOUNT_STORE?: {
+    idFromName(name: string): { toString(): string };
+    get(id: { toString(): string }): {
+      fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
+    };
+  };
 }
 
 export interface SessionPayload {

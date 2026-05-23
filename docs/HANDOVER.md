@@ -86,7 +86,7 @@ Before claiming another Davora UI/account pass is done, always:
 
 - Packet 11 (recorded as open/pending on 2026-05-23):
   - Item 35 — root folder should be chosen per account during the connection flow for all users, not only as server-side/debug config.
-  - Item 36 — `reconnect required` happens often in real use (uploads, search, typing), making the app unusable; this needs real-use debugging/hardening and may use production logs/docs plus `./.tmp/for_upload` repro payloads.
+  - Item 36 — completed in Packet 11a on 2026-05-23: the deployed reconnect storm was caused by Worker isolate/account-store loss, not true auth failure. The Worker now persists connected accounts for deployed runtimes in a Durable Object (`DAVORA_ACCOUNT_STORE`) using the same encrypted payload format as local-dev file persistence, so ordinary connect/session/search/upload traffic no longer falls into reconnect-required on isolate hops. Transient search/upload failures stay action-local; reconnect remains reserved for true account loss/removal.
   - Item 37 — background transfer status should reserve fixed space, avoid layout jumping, show uploads/downloads, support multiple active tasks with overflow/dropdown, and expose progress for large transfers.
   - Item 38 — downloads and non-viewable-file downloads do not work on Chrome Android.
 - Packet 12 (recorded as open/pending on 2026-05-23):

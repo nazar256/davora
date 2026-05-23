@@ -6,6 +6,22 @@ const IPV4_PATTERN = /^(?:\d{1,3}\.){3}\d{1,3}$/;
 const IPV6_PATTERN = /^[0-9a-f:]+$/i;
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1"]);
 
+function readString(env: Record<string, unknown>, key: string): string | undefined {
+  const value = env[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function isDurableObjectNamespace(value: unknown): value is NonNullable<WorkerEnv["DAVORA_ACCOUNT_STORE"]> {
+  return Boolean(
+    value
+      && typeof value === "object"
+      && "idFromName" in value
+      && typeof (value as { idFromName?: unknown }).idFromName === "function"
+      && "get" in value
+      && typeof (value as { get?: unknown }).get === "function"
+  );
+}
+
 function parseBoolean(value: string | undefined): boolean {
   return value?.trim().toLowerCase() === "true";
 }
@@ -107,12 +123,12 @@ export function normalizeAccountLabel(rawValue: string | undefined): string | un
   return value ? value.slice(0, 120) : undefined;
 }
 
-export function loadConfig(env: Record<string, string | undefined>): WorkerEnv {
-  const mockBackend = parseBoolean(env.MOCK_BACKEND);
-  const allowedOrigins = parseList(env.ALLOWED_ORIGINS);
-  const allowedHosts = parseList(env.NEXTCLOUD_ALLOWED_HOSTS);
-  const rootPath = normalizeRootPath(env.NEXTCLOUD_ROOT_PATH || ".davora-agent-test");
-  const sessionSecret = env.SESSION_SECRET?.trim();
+export function loadConfig(env: Record<string, unknown>): WorkerEnv {
+  const mockBackend = parseBoolean(readString(env, "MOCK_BACKEND"));
+  const allowedOrigins = parseList(readString(env, "ALLOWED_ORIGINS"));
+  const allowedHosts = parseList(readString(env, "NEXTCLOUD_ALLOWED_HOSTS"));
+  const rootPath = normalizeRootPath(readString(env, "NEXTCLOUD_ROOT_PATH") || ".davora-agent-test");
+  const sessionSecret = readString(env, "SESSION_SECRET")?.trim();
 
   if (!sessionSecret) {
     throw new Error("SESSION_SECRET is required. Provision it in the Worker runtime before release.");
@@ -120,27 +136,28 @@ export function loadConfig(env: Record<string, string | undefined>): WorkerEnv {
 
   return {
     SESSION_SECRET: sessionSecret,
-    SESSION_TTL_SECONDS: parseNumber(env.SESSION_TTL_SECONDS, 3600),
+    SESSION_TTL_SECONDS: parseNumber(readString(env, "SESSION_TTL_SECONDS"), 3600),
     ALLOWED_ORIGINS: allowedOrigins,
-    APP_UNLOCK_CODE: env.APP_UNLOCK_CODE?.trim() || undefined,
+    APP_UNLOCK_CODE: readString(env, "APP_UNLOCK_CODE")?.trim() || undefined,
     NEXTCLOUD_ROOT_PATH: rootPath,
     NEXTCLOUD_ALLOWED_HOSTS: allowedHosts,
-    NEXTCLOUD_MAX_FILE_BYTES: parseNumber(env.NEXTCLOUD_MAX_FILE_BYTES, 64 * 1024),
-    NEXTCLOUD_MAX_TEXT_FILE_BYTES: parseNumber(env.NEXTCLOUD_MAX_TEXT_FILE_BYTES, 16 * 1024),
+    NEXTCLOUD_MAX_FILE_BYTES: parseNumber(readString(env, "NEXTCLOUD_MAX_FILE_BYTES"), 64 * 1024),
+    NEXTCLOUD_MAX_TEXT_FILE_BYTES: parseNumber(readString(env, "NEXTCLOUD_MAX_TEXT_FILE_BYTES"), 16 * 1024),
     MOCK_BACKEND: mockBackend,
-    LOCAL_DEV_STATE_PATH: env.LOCAL_DEV_STATE_PATH?.trim() || undefined
+    LOCAL_DEV_STATE_PATH: readString(env, "LOCAL_DEV_STATE_PATH")?.trim() || undefined,
+    DAVORA_ACCOUNT_STORE: isDurableObjectNamespace(env.DAVORA_ACCOUNT_STORE) ? env.DAVORA_ACCOUNT_STORE : undefined
   };
 }
 
-export function configHealth(env: Record<string, string | undefined>) {
+export function configHealth(env: Record<string, unknown>) {
   const required = ["SESSION_SECRET"];
 
-  const missing = required.filter((key) => !env[key]?.trim());
+  const missing = required.filter((key) => !readString(env, key)?.trim());
   return {
     configLoaded: missing.length === 0,
     missing,
-    backend: parseBoolean(env.MOCK_BACKEND) ? "mock" as const : "nextcloud" as const,
-    rootPath: normalizeRootPath(env.NEXTCLOUD_ROOT_PATH || ".davora-agent-test"),
-    unlockRequired: Boolean(env.APP_UNLOCK_CODE?.trim())
+    backend: parseBoolean(readString(env, "MOCK_BACKEND")) ? "mock" as const : "nextcloud" as const,
+    rootPath: normalizeRootPath(readString(env, "NEXTCLOUD_ROOT_PATH") || ".davora-agent-test"),
+    unlockRequired: Boolean(readString(env, "APP_UNLOCK_CODE")?.trim())
   };
 }

@@ -86,6 +86,66 @@ async function authorizedRequest(token: string, input: string, init: RequestInit
   );
 }
 
+function createDurableObjectEnv(overrides: Record<string, string> = {}) {
+  const storage = new Map<string, unknown>();
+  let durablePromise: Promise<typeof import("../src/accounts/durable-object")> | undefined;
+  let failGetStatus: number | undefined;
+  let failPutStatus: number | undefined;
+
+  const envWithBinding = {
+    ...env,
+    ...overrides,
+    DAVORA_ACCOUNT_STORE: {
+      idFromName(name: string) {
+        return { toString: () => name };
+      },
+      get() {
+        return {
+          async fetch(input: RequestInfo | URL, init?: RequestInit) {
+            durablePromise ??= import("../src/accounts/durable-object");
+            const { AccountStoreDurableObject } = await durablePromise;
+            const object = new AccountStoreDurableObject({
+              storage: {
+                async get<T>(key: string) {
+                  return storage.get(key) as T | undefined;
+                },
+                async put(key: string, value: unknown) {
+                  storage.set(key, value);
+                }
+              }
+            });
+
+            const request = input instanceof Request
+              ? input
+              : new Request(String(input), init);
+
+            const url = new URL(request.url);
+            if (url.pathname === "/accounts" && request.method === "GET" && failGetStatus) {
+              return new Response(JSON.stringify({ message: "forced get failure" }), { status: failGetStatus, headers: { "content-type": "application/json" } });
+            }
+            if (url.pathname === "/accounts" && request.method === "PUT" && failPutStatus) {
+              return new Response(JSON.stringify({ message: "forced put failure" }), { status: failPutStatus, headers: { "content-type": "application/json" } });
+            }
+
+            return object.fetch(request);
+          }
+        };
+      }
+    }
+  };
+
+  return {
+    env: envWithBinding,
+    storage,
+    setFailGetStatus(status: number | undefined) {
+      failGetStatus = status;
+    },
+    setFailPutStatus(status: number | undefined) {
+      failPutStatus = status;
+    }
+  };
+}
+
 describe("worker app multi-account foundation", () => {
   it("connects an account, creates a bound session, and lists files in mock mode", async () => {
     const { token } = await createSessionToken();
@@ -503,6 +563,117 @@ describe("worker app multi-account foundation", () => {
     const persistedRaw = await readFile(localStatePath, "utf8");
     expect(persistedRaw).not.toContain("demo-password");
     expect(persistedRaw).toContain('"ciphertext"');
+  });
+
+  it("restores a connected account in durable-object-backed deployed runtime storage", async () => {
+    const { env: durableEnv } = createDurableObjectEnv();
+
+    const accountResponse = await handleRequest(
+      new Request("http://127.0.0.1:8787/api/accounts", {
+        method: "POST",
+        headers: {
+          ...ownerHeaders,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          type: "nextcloud",
+          baseUrl: "https://mock-account.example.com",
+          username: "demo-user",
+          appPassword: "demo-password",
+          label: "Demo account"
+        })
+      }),
+      durableEnv
+    );
+
+    expect(accountResponse.status).toBe(201);
+    const accountPayload = (await accountResponse.json()) as { data: { account: { id: string } } };
+    resetConnectedAccountStoreForTests();
+
+    const sessionResponse = await handleRequest(
+      new Request("http://127.0.0.1:8787/api/session", {
+        method: "POST",
+        headers: {
+          ...ownerHeaders,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ accountId: accountPayload.data.account.id })
+      }),
+      durableEnv
+    );
+
+    expect(sessionResponse.status).toBe(200);
+    const sessionPayload = (await sessionResponse.json()) as { data: { session: { account: { id: string } } } };
+    expect(sessionPayload.data.session.account.id).toBe(accountPayload.data.account.id);
+  });
+
+  it("keeps an existing deployed-runtime account usable when durable hydration fails transiently", async () => {
+    const durable = createDurableObjectEnv();
+
+    const accountResponse = await handleRequest(
+      new Request("http://127.0.0.1:8787/api/accounts", {
+        method: "POST",
+        headers: {
+          ...ownerHeaders,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          type: "nextcloud",
+          baseUrl: "https://mock-account.example.com",
+          username: "demo-user",
+          appPassword: "demo-password",
+          label: "Demo account"
+        })
+      }),
+      durable.env
+    );
+
+    const accountPayload = (await accountResponse.json()) as { data: { account: { id: string } } };
+    durable.setFailGetStatus(503);
+
+    const sessionResponse = await handleRequest(
+      new Request("http://127.0.0.1:8787/api/session", {
+        method: "POST",
+        headers: {
+          ...ownerHeaders,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ accountId: accountPayload.data.account.id })
+      }),
+      durable.env
+    );
+
+    expect(sessionResponse.status).toBe(200);
+    const sessionPayload = (await sessionResponse.json()) as { data: { session: { account: { id: string } } } };
+    expect(sessionPayload.data.session.account.id).toBe(accountPayload.data.account.id);
+  });
+
+  it("surfaces durable persistence outages as local errors instead of reconnect-required", async () => {
+    const durable = createDurableObjectEnv();
+    durable.setFailPutStatus(503);
+
+    const accountResponse = await handleRequest(
+      new Request("http://127.0.0.1:8787/api/accounts", {
+        method: "POST",
+        headers: {
+          ...ownerHeaders,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          type: "nextcloud",
+          baseUrl: "https://mock-account.example.com",
+          username: "demo-user",
+          appPassword: "demo-password",
+          label: "Demo account"
+        })
+      }),
+      durable.env
+    );
+
+    expect(accountResponse.status).toBe(500);
+    const payload = await accountResponse.json() as { data?: { code?: string; message?: string } };
+    expect(payload.data?.code).toBe("internal_error");
+    expect(payload.data?.message).toMatch(/Account store persistence failed/i);
   });
 
   it("restores a session after restart even when the browser attempts session creation before account hydration settles", async () => {
