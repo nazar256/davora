@@ -1,10 +1,15 @@
 {
   "project": "davora-app",
-  "session": "packet-11a-session-stability",
+  "session": "davora-packet11a-checkpoint-pass",
   "status": "in_progress",
   "repoState": {
     "git": true,
     "defaultBranch": "main",
+    "currentStableCommit": {
+      "short": "74903e6",
+      "full": "74903e6f46fcf1007a835e4e9fd001538c788201",
+      "summary": "fix: persist deployed accounts across worker isolates"
+    },
     "workspace": [
       "apps/web",
       "apps/worker",
@@ -13,6 +18,11 @@
       ".agent"
     ],
     "workspaceSecrets": "sanitized_placeholders_only"
+  },
+  "managementMode": {
+    "delegation": "pm_delegates_all_work",
+    "execution": "sequential_by_default_parallel_only_when_definitely_harmless",
+    "stableStateCommits": "required_for_each_stable_working_state"
   },
   "inputs": {
     "productDirection": "multi-account in-app Nextcloud connection foundation",
@@ -31,11 +41,12 @@
       "workerWranglerDev": "not_rerun_packet_11a_local_node_runtime_path_unchanged",
       "workerDeployDryRun": "passed_packet_11a_session_stability_2026-05-23_with_durable_object_binding",
       "pagesDeployPath": "not_rerun_packet_11a_worker_only_runtime_fix",
-      "realBackend": "passed_packet_11a_session_stability_2026-05-23_live_nextcloud_validation"
+      "realBackend": "passed_packet_11a_session_stability_2026-05-23_live_nextcloud_validation",
+      "docsCheckpoint": "aligned_2026-05-23_packet11a_runtime_persistence_story_commit_anchor_open_backlog_and_account_store_retention_semantics"
     },
     "realBackendLastValidatedAt": "2026-05-23",
-      "realBackendGuardrail": "Rerun `rtk npm run validate:real` whenever Packet 10+ deploy/runtime changes affect live Nextcloud validation, allowlist policy, or Worker session/bootstrap behavior.",
-      "feedbackRecording": "2026-05-23_packet11a_reconnect_runtime_fix_done_and_redeployed"
+    "realBackendGuardrail": "Rerun `rtk npm run validate:real` whenever Packet 10+ deploy/runtime changes affect live Nextcloud validation, allowlist policy, or Worker session/bootstrap behavior.",
+    "feedbackRecording": "2026-05-23_packet11a_checkpoint_feedback_recording_complete_and_account_store_retention_documented"
   },
   "v1Status": {
     "multiAccountDocs": "done",
@@ -44,8 +55,9 @@
     "accountAwareBrowserCaches": "done",
     "accountOnboardingAndSwitchingUx": "done",
     "fileOperationsForActiveAccount": "done",
-      "browserEvidence": "done_refreshed_2026-05-22_packet_8_bug_batch_including_installed_server_stopped_path",
-    "durableWorkerAccountStore": "local_dev_done_non_local_durable_store_future_scope_reconnect_required_if_runtime_state_resets",
+    "browserEvidence": "done_refreshed_2026-05-22_packet_8_bug_batch_including_installed_server_stopped_path",
+    "durableWorkerAccountStore": "done_local_dev_file_store_plus_deployed_durable_object_store_for_packet11a_runtime_correctness",
+    "backendStatePolicy": "user_is_skeptical_of_backend_state__future_backend_state_requires_documented_runtime_failure_and_why_stateless_or_browser_local_alternatives_are_insufficient",
     "previewUxPacket": "done",
     "managedUxFeedbackBacklog": "packet_10_closed_items_1_through_34_done_packet_11_12_13_open_items_35_through_45_recorded",
     "publishDeployReadinessBacklog": "packet_10_closed_items_31_32_33_34_session_secret_default_nextcloud_host_allowance_observability_and_deployed_runtime_drift_plus_packet_13_open_review_and_secret_design_followups",
@@ -62,14 +74,15 @@
     "packet6BreadcrumbNavigation": "done_validated_2026-05-22",
     "packet7OpenFeedbackBatch": "done_validated_2026-05-22",
     "packet7Scope": "complete_relaunch_auth__cache_slider_dropdown_cleanup__file_size_control_dedup__folder_drag_drop_upload__default_dev_pwa_verification__gallery_overlay_navigation_and_precache__browser_cache_eligible_max_file_size",
-      "packet8FeedbackBatch": "done_validated_2026-05-22_relaunch_restore__installed_pwa_server_stopped_cached_shell__functional_update_reload",
-      "packet9PublishDeployReadiness": "done_2026-05-22_after_item_30_root_command_correction__default_worker_origin_for_bare_deploy_web__literal_command_revalidated_to_first_external_boundary",
-      "packet10DeployRuntimeBatch": "done_2026-05-22_session_secret_preflight_default_nextcloud_host_allowance_observability_and_runtime_drift_aligned",
-      "packet11OpenFeedbackBatch": "partial_2026-05-23_item36_done_via_durable_runtime_account_store__items35_37_38_pending",
-      "packet11aReconnectSessionStability": "done_2026-05-23_deployed_worker_durable_object_account_store_plus_local_transient_failure_regressions_and_final_live_worker_redeploy",
-      "packet12OpenFeedbackBatch": "pending_2026-05-23_audio_resume__multi_upload__multi_download__remove_app_name_from_chrome",
-      "packet13OpenFeedbackBatch": "pending_2026-05-23_server_side_secret_design_review__oss_publish_review_round__team_visual_manual_review_loops",
-      "improvementLoopExecutionMode": "sequential_by_default_parallelize_only_when_definitely_harmless",
-      "stableStateCommitWorkflow": "active_git_initialized_on_main_2026-05-23_with_baseline_commit_chore_initialize_git_baseline"
+    "packet8FeedbackBatch": "done_validated_2026-05-22_relaunch_restore__installed_pwa_server_stopped_cached_shell__functional_update_reload",
+    "packet9PublishDeployReadiness": "done_2026-05-22_after_item_30_root_command_correction__default_worker_origin_for_bare_deploy_web__literal_command_revalidated_to_first_external_boundary",
+    "packet10DeployRuntimeBatch": "done_2026-05-22_session_secret_preflight_default_nextcloud_host_allowance_observability_and_runtime_drift_aligned",
+    "packet11OpenFeedbackBatch": "partial_2026-05-23_item36_done_via_durable_runtime_account_store__items35_37_38_pending",
+    "packet11aReconnectSessionStability": "done_2026-05-23_deployed_worker_durable_object_account_store_plus_local_transient_failure_regressions_and_final_live_worker_redeploy",
+    "packet11aStableCommit": "74903e6_fix_persist_deployed_accounts_across_worker_isolates",
+    "packet12OpenFeedbackBatch": "pending_2026-05-23_audio_resume__multi_upload__multi_download__remove_app_name_from_chrome",
+    "packet13OpenFeedbackBatch": "pending_2026-05-23_server_side_secret_design_review__oss_publish_review_round__team_visual_manual_review_loops",
+    "improvementLoopExecutionMode": "pm_delegates_all_work__sequential_by_default_parallelize_only_when_definitely_harmless",
+    "stableStateCommitWorkflow": "active_git_initialized_on_main_2026-05-23__packet11a_stable_code_anchor_74903e6__continue_committing_each_stable_state"
   }
 }

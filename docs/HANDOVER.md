@@ -9,7 +9,7 @@
 ## What v1 now delivers
 - In-app Nextcloud account onboarding using base URL, username, app password, and optional label.
 - Multiple connected accounts in one browser session with explicit active-account switching.
-- Account-bound Worker sessions with encrypted local-dev worker persistence across ordinary restarts, plus reconnect-required handling when worker state is explicitly reset or unavailable.
+- Account-bound Worker sessions with encrypted worker-side account persistence in both local dev (`.tmp/local-dev/worker-state.json`) and deployed Cloudflare runtime (`DAVORA_ACCOUNT_STORE` Durable Object), plus reconnect-required handling only when persisted account state is truly unavailable.
 - Browser-side file operations for the active account: create folder, upload (including drag-and-drop into the folder view), move/rename, copy, delete with explicit contextual confirmation dialogs.
 - Browser-side file opening for the active account: text, markdown render + raw fallback, image/audio/video from original file content, PDF embed with open/download fallback, direct-download fallback for unsupported file types, muted inline autoplay for video preview so autoplay remains browser-compatible, and gallery-style next/previous overlays with one-ahead media prefetch.
 - Browse-first workspace with a lighter persistent shell: minimal online/offline status and a `Profile & settings` entry point, with account switching/details hidden behind that one-click surface instead of repeating the selector on every page.
@@ -29,7 +29,8 @@
 - The browser stores account metadata and session tokens, but not raw Nextcloud app passwords.
 - Local `npm run dev` uses same-origin `/api` proxying through Vite by default, so browser login/bootstrap no longer depends on cross-origin CORS matching during normal local development.
 - The checked-in `apps/worker/.dev.vars` file is intentionally mock-only so `cd apps/worker && wrangler dev` works for exact runtime smoke checks. Do not treat those values as deployment secrets.
-- The local Node worker now keeps connected account material in an encrypted `.tmp/local-dev/worker-state.json` file by default. If that file is reset, `SESSION_SECRET` changes, or another runtime lacks that store, the browser should show reconnect-required and ask for the password again.
+- Connected account material now persists in two runtime-specific stores: local Node dev uses encrypted `.tmp/local-dev/worker-state.json`, while deployed Cloudflare runtime uses the `DAVORA_ACCOUNT_STORE` Durable Object with the same encrypted payload format. Reconnect-required should represent true account loss/removal or unusable persisted state, not ordinary isolate hops.
+- Current `DAVORA_ACCOUNT_STORE` lifecycle/retention semantics are intentionally limited and should be described truthfully in future handoffs: connect, explicit account removal, and clear-all overwrite one encrypted `accounts` snapshot in a single named Durable Object; removal does not delete the object/key outright, there is no automatic expiry/TTL/pruning path today, and no app-level count/age retention bound exists beyond the single-snapshot design plus underlying Durable Object limits.
 - Do not change the real validation root away from `.davora-agent-test`; the script rejects any other root.
 - Use the cache clear button in the UI to reset opened-file cache state for the active account during testing.
 
@@ -87,6 +88,12 @@ Before claiming another Davora UI/account pass is done, always:
 - Packet 11 (recorded as open/pending on 2026-05-23):
   - Item 35 — root folder should be chosen per account during the connection flow for all users, not only as server-side/debug config.
   - Item 36 — completed in Packet 11a on 2026-05-23: the deployed reconnect storm was caused by Worker isolate/account-store loss, not true auth failure. The Worker now persists connected accounts for deployed runtimes in a Durable Object (`DAVORA_ACCOUNT_STORE`) using the same encrypted payload format as local-dev file persistence, so ordinary connect/session/search/upload traffic no longer falls into reconnect-required on isolate hops. Transient search/upload failures stay action-local; reconnect remains reserved for true account loss/removal.
+    - Exact failure before the fix: deployed `POST /api/accounts` returned 201, then the immediate `POST /api/session` often landed on a different Cloudflare isolate and returned 409 `account_reconnect_required`; that false reconnect state then surfaced during normal search/upload use.
+    - Why backend state was necessary here: pure in-memory Worker state was insufficient in deployed Cloudflare runtime because requests are not isolate-sticky. Local Node dev already had file-backed persistence, but deployed runtime had no equivalent persisted account store.
+    - Why this was the smallest working fix: Packet 11a added only the minimal deployed account-persistence layer needed for correctness, reused the existing encrypted payload format keyed by `SESSION_SECRET`, and left browser storage/session design unchanged.
+    - Current lifecycle/retention semantics: the Durable Object keeps one encrypted `accounts` snapshot for the named store; connect/remove/clear-all overwrite that snapshot, explicit removal only disappears data by writing a new snapshot without the removed accounts, there is no TTL/auto-expiry/pruning/delete path today, and there is no separate history or app-level retention cap beyond the single-snapshot design plus platform limits.
+    - Architectural bar from here: the user is skeptical of backend state/storage. Any future backend state must document the exact deployed-runtime failure it solves, why browser-local/stateless alternatives are insufficient, why the proposed state is the minimum safe fix, and what cleanup/limit semantics apply.
+    - Validation + stable state: pre-deploy live repro failed 6/6 `201 -> 409`; after Worker deploys `1d522366-9382-446b-9410-00eaa659be2f` and final hardening deploy `80479ab5-ac1b-4a5f-8300-58888127904d`, live repro passed 6/6 `201 -> 200`, end-to-end connect/session/search/upload succeeded, and the current stable code state is commit `74903e6` (`fix: persist deployed accounts across worker isolates`).
   - Item 37 — background transfer status should reserve fixed space, avoid layout jumping, show uploads/downloads, support multiple active tasks with overflow/dropdown, and expose progress for large transfers.
   - Item 38 — downloads and non-viewable-file downloads do not work on Chrome Android.
 - Packet 12 (recorded as open/pending on 2026-05-23):
@@ -100,13 +107,13 @@ Before claiming another Davora UI/account pass is done, always:
   - Item 45 — run team visual/manual test-review loops and keep improving constructively while useful.
 
 ## Current workflow requirements for the next improvement loop
-- Sequential by default; parallelize only when definitely harmless.
+- PM delegates all work; execute sequentially by default and parallelize only when definitely harmless.
 - Each stable working state should be committed to git.
-- Git is now initialized on `main`, and the current stable state is anchored by the baseline commit `chore: initialize git baseline`.
+- Git is now initialized on `main`; the workflow started from the baseline commit `chore: initialize git baseline`, and the latest stable product state recorded here is Packet 11a commit `74903e6` (`fix: persist deployed accounts across worker isolates`).
 
 ## Future limitations / non-goals (not open backlog for this delivery)
 - The managed UX feedback backlog above is complete through Packet 10, with Packets 11-13 now recorded as open backlog; the items below remain intentionally out of scope unless future product scope changes.
-- Add a dedicated durable store for non-local Worker runtimes if restart persistence is required outside the local Node dev server.
+- Do not broaden backend state beyond Packet 11a's account-persistence store unless docs first show the exact deployed-runtime failure, why browser-local/stateless options are insufficient, and why the added state is the minimum safe fix.
 - Add OAuth account connection when product scope expands.
 - Add richer media controls/metadata if deeper UX polish is needed beyond the new content-first preview treatment.
 - Add pinned/sync-specific cache layers separately from opened-file cache when that future feature exists.

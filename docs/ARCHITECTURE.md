@@ -62,8 +62,16 @@ Shared contracts expose:
 ## Storage foundation note
 - This pass establishes a strong runtime account foundation and browser-safe persistence model.
 - Local Node-worker development now persists connected accounts in an encrypted `.tmp/local-dev/worker-state.json` file by default, keyed from the local session secret so restarts preserve account continuity without moving raw credentials into browser storage.
-- Non-local runtimes still treat worker-side account material as runtime-scoped unless a dedicated durable Worker store is introduced there.
+- Deployed Cloudflare runtime now persists the same encrypted connected-account payload in the `DAVORA_ACCOUNT_STORE` Durable Object. Packet 11a made this necessary because pure in-memory Worker maps were insufficient in deployed runtime: `POST /api/accounts` and the immediate `POST /api/session` can hit different isolates, and Cloudflare does not guarantee isolate-sticky request handling or durable in-memory state.
 - Browser persistence keeps only non-secret account metadata, browser-ownership tokens, and session tokens; it never stores raw app passwords.
+
+## Backend state policy
+- The current backend state is intentionally minimal: only the Worker-side connected-account material needed to preserve correct account-bound session behavior across deployed isolate hops is persisted server-side.
+- Packet 11a chose a Durable Object because it was the smallest working deployed fix: it reuses the existing AES-GCM encrypted payload format keyed by `SESSION_SECRET`, leaves local-dev file persistence unchanged, and avoids pushing raw credentials into browser storage or redesigning the session model.
+- Current `DAVORA_ACCOUNT_STORE` semantics are intentionally narrow: one named Durable Object instance stores one encrypted `accounts` snapshot, and each connect/remove/clear-all write replaces that snapshot wholesale rather than appending records or keeping history.
+- Current removal/retention behavior is equally minimal: explicit account removal and clear-all replace the persisted snapshot with one that no longer contains those accounts (including an empty encrypted snapshot when no accounts remain), but there is no automatic TTL, expiry, pruning job, or delete endpoint for the Durable Object payload.
+- Current bounds are only the ones the implementation actually has today: no app-level max account count, age-based retention window, or per-account history exists; the practical ceiling is the single encrypted snapshot model plus underlying Durable Object storage/write limits, and an unreadable snapshot (for example after `SESSION_SECRET` changes) is treated as unavailable persisted state that requires reconnect.
+- The user is skeptical of backend state/storage. Any future backend-state addition must clear a higher bar in docs before implementation: record the exact failure being solved, explain why browser-local/stateless/request-scoped alternatives are insufficient, justify why the proposed server-side state is the minimum safe fix, and describe its cleanup/retention limits explicitly.
 
 ## Validation strategy
 - Unit/integration tests cover shared helpers, Worker auth/config logic, account validation, account-bound sessions, WebDAV translation, and browser UI state.
