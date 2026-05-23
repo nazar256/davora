@@ -46,7 +46,7 @@ Mark an item `DONE` in `docs/TASKS.md` only when all of these are true:
 
 ## Milestone Log
 Append one line per milestone commit + deploy.
-- (pending) Packet 11 / Item 35
+- 2026-05-23 Packet 11 / Item 35: commit `0f02a2c` deployed. Worker version `f46cb900-1501-4026-87ea-7a77a4133dbb` at `https://davora.xyofn8h7t.workers.dev`; Pages deploy `https://38a5c5aa.davora.pages.dev`.
 - (pending) Packet 11 / Item 38
 - (pending) Packet 11 / Item 37
 - (pending) Packet 12 / Item 39
@@ -56,4 +56,3 @@ Append one line per milestone commit + deploy.
 - (pending) Packet 13 / Item 42
 - (pending) Packet 13 / Item 43
 - (pending) Packet 13 / Item 45
-

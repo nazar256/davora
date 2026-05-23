@@ -6,9 +6,9 @@
     "git": true,
     "defaultBranch": "main",
     "currentStableCommit": {
-      "short": "74903e6",
-      "full": "74903e6f46fcf1007a835e4e9fd001538c788201",
-      "summary": "fix: persist deployed accounts across worker isolates"
+      "short": "0f02a2c",
+      "full": "0f02a2c6604466a8d8d91ed07551ebccbcd8f148",
+      "summary": "feat: allow per-account root folder selection"
     },
     "workspace": [
       "apps/web",
