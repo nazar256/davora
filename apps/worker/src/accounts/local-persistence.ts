@@ -77,6 +77,54 @@ async function decryptState(payload: EncryptedPersistedAccountState, secret: str
   return JSON.parse(new TextDecoder().decode(plaintext)) as PersistedAccountState;
 }
 
+function toPersistedAccountMap(parsed: PersistedAccountState): Map<string, PersistedAccountRecord> {
+  if (parsed.version !== CURRENT_VERSION || !Array.isArray(parsed.accounts)) {
+    return new Map();
+  }
+
+  const entries = parsed.accounts
+    .filter((record): record is PersistedAccountRecord => {
+      return Boolean(
+        record?.account?.id
+          && record.accountNonce
+          && record.ownerBrowserId
+          && record.ownerBrowserSecret
+      );
+    })
+    .map((record) => [record.account.id, record] as const);
+
+  return new Map(entries);
+}
+
+export async function serializePersistedAccounts(
+  accounts: Iterable<PersistedAccountRecord>,
+  secret: string
+): Promise<EncryptedPersistedAccountState> {
+  const payload: PersistedAccountState = {
+    version: CURRENT_VERSION,
+    accounts: Array.from(accounts)
+  };
+  return encryptState(payload, secret);
+}
+
+export async function deserializePersistedAccounts(
+  encrypted: Partial<EncryptedPersistedAccountState> | undefined,
+  secret: string
+): Promise<Map<string, PersistedAccountRecord>> {
+  if (encrypted?.version !== CURRENT_VERSION || encrypted.algorithm !== "AES-GCM" || !encrypted.iv || !encrypted.ciphertext) {
+    return new Map();
+  }
+
+  let parsed: PersistedAccountState;
+  try {
+    parsed = await decryptState(encrypted as EncryptedPersistedAccountState, secret);
+  } catch {
+    return new Map();
+  }
+
+  return toPersistedAccountMap(parsed);
+}
+
 async function ensureParentDirectory(storagePath: string): Promise<void> {
   const { mkdir } = await import("node:fs/promises");
   const { dirname } = await import("node:path");
@@ -95,32 +143,7 @@ export async function readPersistedAccounts(storagePath: string, secret: string)
       return new Map();
     }
 
-    if (encrypted.version !== CURRENT_VERSION || encrypted.algorithm !== "AES-GCM" || !encrypted.iv || !encrypted.ciphertext) {
-      return new Map();
-    }
-
-    let parsed: PersistedAccountState;
-    try {
-      parsed = await decryptState(encrypted as EncryptedPersistedAccountState, secret);
-    } catch {
-      return new Map();
-    }
-    if (parsed.version !== CURRENT_VERSION || !Array.isArray(parsed.accounts)) {
-      return new Map();
-    }
-
-    const entries = parsed.accounts
-      .filter((record): record is PersistedAccountRecord => {
-        return Boolean(
-          record?.account?.id
-            && record.accountNonce
-            && record.ownerBrowserId
-            && record.ownerBrowserSecret
-        );
-      })
-      .map((record) => [record.account.id, record] as const);
-
-    return new Map(entries);
+    return deserializePersistedAccounts(encrypted, secret);
   } catch (error) {
     if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") {
       return new Map();
@@ -137,11 +160,7 @@ export async function writePersistedAccounts(
   const normalizedPath = normalizeStoragePath(storagePath);
   await ensureParentDirectory(normalizedPath);
   const { rename, writeFile } = await import("node:fs/promises");
-  const payload: PersistedAccountState = {
-    version: CURRENT_VERSION,
-    accounts: Array.from(accounts)
-  };
-  const encryptedPayload = await encryptState(payload, secret);
+  const encryptedPayload = await serializePersistedAccounts(accounts, secret);
   const tempPath = `${normalizedPath}.tmp`;
   await writeFile(tempPath, JSON.stringify(encryptedPayload, null, 2), "utf8");
   await rename(tempPath, normalizedPath);

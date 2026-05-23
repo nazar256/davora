@@ -1,6 +1,6 @@
 import { buildCapabilitySet, type ConnectedAccount } from "@davora/shared";
 
-import { readPersistedAccounts, writePersistedAccounts } from "./local-persistence";
+import { deserializePersistedAccounts, readPersistedAccounts, serializePersistedAccounts, writePersistedAccounts } from "./local-persistence";
 import { normalizeAccountLabel, normalizeNextcloudBaseUrl, validateNextcloudAppPassword, validateNextcloudUsername } from "../config";
 import { resetMockEntries } from "../mock/data";
 import { NextcloudClient } from "../nextcloud/client";
@@ -15,9 +15,21 @@ interface StoredNextcloudAccount {
 }
 
 const runtimeAccounts = new Map<string, StoredNextcloudAccount>();
+const ACCOUNT_STORE_OBJECT_NAME = "davora-account-store";
 
 let initializedStoragePath: string | undefined;
 let persistenceHydration: Promise<void> | undefined;
+let durableHydrationGeneration = 0;
+
+function cloneRuntimeAccounts(accounts: Map<string, StoredNextcloudAccount>): Map<string, StoredNextcloudAccount> {
+  return new Map(Array.from(accounts.entries(), ([accountId, record]) => [accountId, {
+    account: record.account,
+    accountNonce: record.accountNonce,
+    ownerBrowserId: record.ownerBrowserId,
+    ownerBrowserSecret: record.ownerBrowserSecret,
+    credentials: record.credentials
+  }]));
+}
 
 function createAccountId(): string {
   return crypto.randomUUID();
@@ -69,13 +81,96 @@ function toAuthorizedContext(stored: StoredNextcloudAccount): AuthorizedAccountC
 
 async function persistRuntimeAccounts(env: WorkerEnv): Promise<void> {
   if (!env.LOCAL_DEV_STATE_PATH) {
+    if (env.DAVORA_ACCOUNT_STORE) {
+      const stub = env.DAVORA_ACCOUNT_STORE.get(env.DAVORA_ACCOUNT_STORE.idFromName(ACCOUNT_STORE_OBJECT_NAME));
+      const encryptedPayload = await serializePersistedAccounts(runtimeAccounts.values(), env.SESSION_SECRET);
+      const response = await stub.fetch("https://davora.internal/accounts", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          encrypted: encryptedPayload
+        })
+      });
+      if (!response.ok) {
+        throw new Error(`Account store persistence failed with ${response.status}.`);
+      }
+    }
     return;
   }
   await writePersistedAccounts(env.LOCAL_DEV_STATE_PATH, runtimeAccounts.values(), env.SESSION_SECRET);
 }
 
+async function hydrateDurableAccounts(env: WorkerEnv): Promise<void> {
+  if (!env.DAVORA_ACCOUNT_STORE) {
+    return;
+  }
+
+  const generation = ++durableHydrationGeneration;
+  const stub = env.DAVORA_ACCOUNT_STORE.get(env.DAVORA_ACCOUNT_STORE.idFromName(ACCOUNT_STORE_OBJECT_NAME));
+  const snapshot = cloneRuntimeAccounts(runtimeAccounts);
+  const response = await stub.fetch("https://davora.internal/accounts");
+  if (!response.ok) {
+    throw new Error(`Account store hydration failed with ${response.status}.`);
+  }
+
+  const payload = await response.json().catch(() => undefined) as { stored?: boolean; encrypted?: unknown } | undefined;
+  if (generation !== durableHydrationGeneration) {
+    return;
+  }
+
+  if (!payload || typeof payload.stored !== "boolean") {
+    runtimeAccounts.clear();
+    snapshot.forEach((record, accountId) => runtimeAccounts.set(accountId, record));
+    throw new Error("Account store hydration returned an invalid payload.");
+  }
+
+  if (!payload.stored) {
+    runtimeAccounts.clear();
+    return;
+  }
+
+  const hydrated = await deserializePersistedAccounts(payload.encrypted as Parameters<typeof deserializePersistedAccounts>[0], env.SESSION_SECRET);
+  if (hydrated.size === 0 && runtimeAccounts.size > 0) {
+    runtimeAccounts.clear();
+    snapshot.forEach((record, accountId) => runtimeAccounts.set(accountId, record));
+    throw new Error("Account store hydration could not decrypt persisted accounts.");
+  }
+
+  runtimeAccounts.clear();
+  for (const record of hydrated.values()) {
+    if (!record?.account?.id || !record.accountNonce || !record.ownerBrowserId || !record.ownerBrowserSecret) {
+      continue;
+    }
+    runtimeAccounts.set(record.account.id, {
+      account: record.account,
+      accountNonce: record.accountNonce,
+      ownerBrowserId: record.ownerBrowserId,
+      ownerBrowserSecret: record.ownerBrowserSecret,
+      credentials: record.credentials
+    });
+    if (env.MOCK_BACKEND) {
+      resetMockEntries(record.account.id);
+    }
+  }
+}
+
 export async function initializeConnectedAccounts(env: WorkerEnv): Promise<void> {
   if (!env.LOCAL_DEV_STATE_PATH) {
+    if (env.DAVORA_ACCOUNT_STORE) {
+      persistenceHydration ??= Promise.resolve();
+      persistenceHydration = persistenceHydration.then(async () => {
+        const hadRuntimeAccounts = runtimeAccounts.size > 0;
+        try {
+          await hydrateDurableAccounts(env);
+        } catch (error) {
+          if (hadRuntimeAccounts) {
+            return;
+          }
+          throw error;
+        }
+      });
+      return persistenceHydration;
+    }
     initializedStoragePath = undefined;
     persistenceHydration = undefined;
     return;
@@ -213,4 +308,5 @@ export function resetConnectedAccountStoreForTests(): void {
   runtimeAccounts.clear();
   initializedStoragePath = undefined;
   persistenceHydration = undefined;
+  durableHydrationGeneration = 0;
 }

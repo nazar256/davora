@@ -13,3 +13,11 @@ enabled = true
   [observability.traces]
   enabled = true
   head_sampling_rate = 1
+
+[[durable_objects.bindings]]
+name = "DAVORA_ACCOUNT_STORE"
+class_name = "AccountStoreDurableObject"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AccountStoreDurableObject"]

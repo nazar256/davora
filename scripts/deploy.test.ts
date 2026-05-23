@@ -7,6 +7,8 @@ import {
   DEFAULT_PAGES_PROJECT_NAME,
   resolveWebDeployConfig
 } from "./deploy";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 describe("resolveWebDeployConfig", () => {
   it("defaults the Pages build API origin when unset", () => {
@@ -71,5 +73,13 @@ describe("resolveWebDeployConfig", () => {
       .toEqual(["secret", "list", "--format", "json", "--env", "production", "--name", "davora-prod"]);
     expect(buildWorkerSecretListArgs(["--env=preview", "--outdir", ".tmp/out"]))
       .toEqual(["secret", "list", "--format", "json", "--env=preview"]);
+  });
+
+  it("keeps the worker wrangler config aligned with durable account store binding and migration", () => {
+    const wranglerToml = readFileSync(resolve(process.cwd(), "apps/worker/wrangler.toml"), "utf8");
+
+    expect(wranglerToml).toContain('name = "DAVORA_ACCOUNT_STORE"');
+    expect(wranglerToml).toContain('class_name = "AccountStoreDurableObject"');
+    expect(wranglerToml).toContain('new_sqlite_classes = ["AccountStoreDurableObject"]');
   });
 });

@@ -333,6 +333,41 @@ describe("App", () => {
     expect(await screen.findByRole("button", { name: /Create folder/i })).toBeInTheDocument();
   });
 
+  it("keeps reconnect local to search when a transient search request fails", async () => {
+    const account = buildAccount("alpha", { displayName: "Search workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.searchFiles.mockRejectedValueOnce(new TypeError("fetch failed"));
+    mockedCache.readSearchCache.mockReturnValue([
+      { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain", score: 75 }
+    ]);
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Create folder/i });
+    fireEvent.change(screen.getByLabelText(/Search files/i), { target: { value: "roadmap" } });
+
+    await waitFor(() => expect(mockedApi.searchFiles).toHaveBeenCalledWith("", "roadmap", "token-alpha"));
+    expect(await screen.findByRole("button", { name: /Open file roadmap.txt/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Reconnect Search workspace/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps reconnect local to upload when a transient upload request fails", async () => {
+    const account = buildAccount("alpha", { displayName: "Upload workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.uploadFile.mockRejectedValueOnce(new TypeError("fetch failed"));
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Create folder/i });
+    const input = screen.getByLabelText(/Upload file/i) as HTMLInputElement;
+    const file = new File(["hello"], "hello.txt", { type: "text/plain" });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => expect(mockedApi.uploadFile).toHaveBeenCalledWith(expect.objectContaining({ name: "hello.txt", path: "" }), "token-alpha"));
+    expect(await screen.findByText(/fetch failed/i)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Reconnect Upload workspace/i })).not.toBeInTheDocument();
+  });
+
   it("keeps an offline cached shell usable while the live session is unavailable", async () => {
     const account = buildAccount("alpha", { displayName: "Offline shell workspace" });
     seedAccounts([{ account }], account.id);

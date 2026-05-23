@@ -1,6 +1,6 @@
 {
   "project": "davora-app",
-  "session": "git-baseline-enable",
+  "session": "packet-11a-session-stability",
   "status": "in_progress",
   "repoState": {
     "git": true,
@@ -22,20 +22,20 @@
   },
   "validation": {
     "currentPass": {
-      "date": "2026-05-22",
-      "typecheck": "passed_packet_10_deploy_runtime_2026-05-22",
-      "unitTests": "passed_packet_10_deploy_runtime_2026-05-22",
-      "build": "passed_packet_10_deploy_runtime_2026-05-22",
-      "playwright": "live_devtools_runtime_verification_2026-05-22_current_and_stale_pages_builds_checked_for_packet_10",
-      "screenshots": "not_rerun_packet_10_non_visual_runtime_batch",
-      "workerWranglerDev": "not_rerun_packet_10_no_local_runtime_behavior_change_needed_for_mock_smoke",
-      "workerDeployDryRun": "passed_packet_10_deploy_runtime_2026-05-22_with_secret_preflight",
-      "pagesDeployPath": "passed_packet_10_deploy_runtime_2026-05-22_default_project_name_davora_and_default_worker_origin_applied",
-      "realBackend": "passed_packet_10_deploy_runtime_2026-05-22_allow_any_host_default_and_live_nextcloud_validation"
+      "date": "2026-05-23",
+      "typecheck": "passed_packet_11a_session_stability_2026-05-23",
+      "unitTests": "passed_packet_11a_session_stability_2026-05-23",
+      "build": "passed_packet_11a_session_stability_2026-05-23",
+      "playwright": "not_rerun_packet_11a_non_visual_runtime_batch",
+      "screenshots": "not_rerun_packet_11a_non_visual_runtime_batch",
+      "workerWranglerDev": "not_rerun_packet_11a_local_node_runtime_path_unchanged",
+      "workerDeployDryRun": "passed_packet_11a_session_stability_2026-05-23_with_durable_object_binding",
+      "pagesDeployPath": "not_rerun_packet_11a_worker_only_runtime_fix",
+      "realBackend": "passed_packet_11a_session_stability_2026-05-23_live_nextcloud_validation"
     },
-    "realBackendLastValidatedAt": "2026-05-22",
+    "realBackendLastValidatedAt": "2026-05-23",
       "realBackendGuardrail": "Rerun `rtk npm run validate:real` whenever Packet 10+ deploy/runtime changes affect live Nextcloud validation, allowlist policy, or Worker session/bootstrap behavior.",
-      "feedbackRecording": "2026-05-23_docs_only_backlog_and_workflow_recording_no_product_code_changes"
+      "feedbackRecording": "2026-05-23_packet11a_reconnect_runtime_fix_done_and_redeployed"
   },
   "v1Status": {
     "multiAccountDocs": "done",
@@ -65,7 +65,8 @@
       "packet8FeedbackBatch": "done_validated_2026-05-22_relaunch_restore__installed_pwa_server_stopped_cached_shell__functional_update_reload",
       "packet9PublishDeployReadiness": "done_2026-05-22_after_item_30_root_command_correction__default_worker_origin_for_bare_deploy_web__literal_command_revalidated_to_first_external_boundary",
       "packet10DeployRuntimeBatch": "done_2026-05-22_session_secret_preflight_default_nextcloud_host_allowance_observability_and_runtime_drift_aligned",
-      "packet11OpenFeedbackBatch": "pending_2026-05-23_account_root_picker__reconnect_required_hardening__transfer_status_shell__chrome_android_downloads",
+      "packet11OpenFeedbackBatch": "partial_2026-05-23_item36_done_via_durable_runtime_account_store__items35_37_38_pending",
+      "packet11aReconnectSessionStability": "done_2026-05-23_deployed_worker_durable_object_account_store_plus_local_transient_failure_regressions_and_final_live_worker_redeploy",
       "packet12OpenFeedbackBatch": "pending_2026-05-23_audio_resume__multi_upload__multi_download__remove_app_name_from_chrome",
       "packet13OpenFeedbackBatch": "pending_2026-05-23_server_side_secret_design_review__oss_publish_review_round__team_visual_manual_review_loops",
       "improvementLoopExecutionMode": "sequential_by_default_parallelize_only_when_definitely_harmless",
