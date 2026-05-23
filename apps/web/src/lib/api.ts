@@ -213,47 +213,33 @@ export async function resetMockBackend(): Promise<void> {
   });
 }
 
-const BROWSER_DOWNLOAD_TARGET = "davora-browser-download";
-
-function ensureBrowserDownloadTarget(): HTMLIFrameElement {
-  const existingTarget = document.getElementById(BROWSER_DOWNLOAD_TARGET);
-  if (existingTarget instanceof HTMLIFrameElement) {
-    return existingTarget;
-  }
-
-  const target = document.createElement("iframe");
-  target.hidden = true;
-  target.id = BROWSER_DOWNLOAD_TARGET;
-  target.name = BROWSER_DOWNLOAD_TARGET;
-  target.setAttribute("aria-hidden", "true");
-  document.body.appendChild(target);
-  return target;
-}
-
-function appendHiddenField(form: HTMLFormElement, name: string, value: string): void {
-  const input = document.createElement("input");
-  input.type = "hidden";
-  input.name = name;
-  input.value = value;
-  form.appendChild(input);
-}
-
 export async function downloadFile(path: string, token: string): Promise<void> {
-  await request<MetadataResponse>(`/api/metadata?path=${encodeURIComponent(path)}`, {}, token);
+  const metadata = await request<MetadataResponse>(`/api/metadata?path=${encodeURIComponent(path)}`, {}, token);
 
-  const target = ensureBrowserDownloadTarget();
-  const form = document.createElement("form");
-  form.action = apiUrl("/api/download");
-  form.method = "POST";
-  form.style.display = "none";
-  form.target = target.name;
-  appendHiddenField(form, "path", path);
-  appendHiddenField(form, "token", token);
-  document.body.appendChild(form);
-
-  try {
-    form.submit();
-  } finally {
-    form.remove();
+  const response = await fetch(apiUrl(`/api/download?path=${encodeURIComponent(path)}`), {
+    headers: {
+      authorization: `Bearer ${token}`
+    }
+  });
+  if (!response.ok) {
+    throw new ApiRequestError(`Download request failed with ${response.status}`, response.status);
   }
+
+  const blob = await response.blob();
+  const contentDisposition = response.headers.get("content-disposition") ?? "";
+  const candidateFilename = contentDisposition.match(/filename\\*=UTF-8''(.+)$/)?.[1];
+  const filename = candidateFilename
+    ? decodeURIComponent(candidateFilename)
+    : metadata.metadata.name || path.split("/").pop() || "file";
+
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  anchor.rel = "noopener noreferrer";
+  anchor.target = "_blank";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
 }

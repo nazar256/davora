@@ -122,6 +122,15 @@ describe("browser API contract", () => {
           }
         });
       }
+      if (url.includes("/api/download?path=")) {
+        return new Response(new Blob(["download"]), {
+          status: 200,
+          headers: {
+            "content-disposition": "attachment; filename*=UTF-8''roadmap.txt",
+            "content-type": "text/plain"
+          }
+        });
+      }
 
       if (url.includes("/api/health")) {
         return new Response(
@@ -225,6 +234,23 @@ describe("browser API contract", () => {
         );
       }
 
+      if (url.includes("/api/metadata")) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              metadata: {
+                path: "Projects/roadmap.txt",
+                name: "roadmap.txt",
+                isFolder: false,
+                size: 5,
+                mimeType: "text/plain"
+              }
+            }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+
       return new Response(JSON.stringify({ data: { path: "", items: [], result: { action: "copy", path: "x", parentPath: "" } } }), {
         status: 200,
         headers: { "content-type": "application/json" }
@@ -232,13 +258,21 @@ describe("browser API contract", () => {
     });
 
     vi.stubGlobal("fetch", fetchMock);
-    const submitSpy = vi.spyOn(HTMLFormElement.prototype, "submit").mockImplementation(function submit(this: HTMLFormElement) {
-      const payload = new FormData(this);
-      expect(this.action).toContain("/api/download");
-      expect(this.method).toBe("post");
-      expect(this.target).toBe("davora-browser-download");
-      expect(payload.get("path")).toBe("Projects/roadmap.txt");
-      expect(payload.get("token")).toBe("token");
+    const createObjectUrl = typeof URL.createObjectURL === "function"
+      ? vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:download")
+      : vi.fn(() => "blob:download");
+    if (typeof URL.createObjectURL !== "function") {
+      Object.defineProperty(URL, "createObjectURL", { value: createObjectUrl, configurable: true });
+    }
+    const revokeObjectUrl = typeof URL.revokeObjectURL === "function"
+      ? vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined)
+      : vi.fn(() => undefined);
+    if (typeof URL.revokeObjectURL !== "function") {
+      Object.defineProperty(URL, "revokeObjectURL", { value: revokeObjectUrl, configurable: true });
+    }
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function click(this: HTMLAnchorElement) {
+      expect(this.download).toBe("roadmap.txt");
+      expect(this.href).toBe("blob:download");
     });
 
     try {
@@ -261,11 +295,17 @@ describe("browser API contract", () => {
       calledUrls.forEach((url) => expect(url).toContain("/api/"));
       expect(calledUrls.join(" ")).not.toMatch(/remote\.php\/dav|authorization:\s*basic|nextcloud_app_password/i);
       expect(calledUrls.some((url) => url.includes("/api/metadata?path=Projects%2Froadmap.txt"))).toBe(true);
-      expect(submitSpy).toHaveBeenCalledTimes(1);
-      expect(document.getElementById("davora-browser-download")).toBeInstanceOf(HTMLIFrameElement);
-      expect(document.querySelector('form[action$="/api/download"]')).toBeNull();
+      expect(calledUrls.some((url) => url.includes("/api/download?path=Projects%2Froadmap.txt"))).toBe(true);
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+      expect(document.querySelector('a[download="roadmap.txt"]')).toBeNull();
     } finally {
-      submitSpy.mockRestore();
+      clickSpy.mockRestore();
+      if ("mockRestore" in createObjectUrl) {
+        (createObjectUrl as unknown as { mockRestore(): void }).mockRestore();
+      }
+      if ("mockRestore" in revokeObjectUrl) {
+        (revokeObjectUrl as unknown as { mockRestore(): void }).mockRestore();
+      }
     }
   });
 
