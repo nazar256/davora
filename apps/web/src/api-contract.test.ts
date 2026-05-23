@@ -8,6 +8,7 @@ import {
   deleteFile,
   deleteConnectedAccount,
   downloadFile,
+  fetchDownloadBlob,
   fetchOriginalFile,
   getFile,
   getHealth,
@@ -327,6 +328,28 @@ describe("browser API contract", () => {
 
     const calledUrls = fetchMock.mock.calls.map((call) => String(call[0]));
     expect(calledUrls).toEqual(["/api/health"]);
+  });
+
+  it("returns an empty blob for zero-byte downloads without re-reading the body", async () => {
+    const fetchMock = vi.fn(async () => new Response(new Uint8Array(0), {
+      status: 200,
+      headers: {
+        "content-disposition": "attachment; filename*=UTF-8''empty.txt",
+        "content-type": "text/plain",
+        "content-length": "0"
+      }
+    }));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const progress = vi.fn();
+    const result = await fetchDownloadBlob("Projects/empty.txt", "token", { onProgress: progress });
+
+    expect(result.filename).toBe("empty.txt");
+    expect(result.blob.size).toBe(0);
+    expect(result.blob.type).toBe("text/plain");
+    expect(progress).toHaveBeenCalledWith(0, 0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("honors an explicit API base override when configured", async () => {

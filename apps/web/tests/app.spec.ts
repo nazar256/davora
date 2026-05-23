@@ -1,4 +1,7 @@
+import { readFile } from "node:fs/promises";
+
 import { expect, test, type Page } from "@playwright/test";
+import JSZip from "jszip";
 
 async function connectAccount(page: Page, label = "Mock workspace", options: { waitForWorkspace?: boolean } = {}) {
   const { waitForWorkspace = true } = options;
@@ -469,6 +472,38 @@ test("normal picker flow uploads directories while preserving nested relative pa
   await expect(page.getByRole("button", { name: /Open file track.txt/i })).toBeVisible();
   await page.getByRole("button", { name: /Open folder assets/i }).click();
   await expect(page.getByRole("button", { name: /Open file cover.txt/i })).toBeVisible();
+});
+
+test("batch download zips a mixed file and folder selection in one workflow", async ({ page }) => {
+  await connectAccount(page, "Batch download workspace");
+
+  const fileChooser = page.waitForEvent("filechooser");
+  await page.getByLabel("Upload files").click();
+  const chooser = await fileChooser;
+  await chooser.setFiles({ name: "alpha.txt", mimeType: "text/plain", buffer: Buffer.from("alpha") });
+  await expect(page.getByText(/Uploaded 1 file into \//i)).toBeVisible();
+
+  await page.getByLabel(/Select Archive folder for batch download/i).click();
+  await page.getByLabel(/Select alpha.txt file for batch download/i).click();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: /^Download selected$/i }).click();
+  const download = await downloadPromise;
+
+  expect(download.suggestedFilename()).toBe("davora-home-download.zip");
+  const downloadPath = await download.path();
+  expect(downloadPath).toBeTruthy();
+  const zipBuffer = await readFile(downloadPath!);
+  const zip = await JSZip.loadAsync(zipBuffer);
+
+  expect(Object.keys(zip.files).sort()).toEqual([
+    "Archive/",
+    "Archive/guide.pdf",
+    "Archive/image.bin",
+    "Archive/photo.png",
+    "alpha.txt"
+  ]);
+  await expect(page.getByText(/Downloaded 1 file and 1 folder as davora-home-download.zip in Batch download workspace\./i)).toBeVisible();
 });
 
 test("mutation flow still works for the active account", async ({ page }, testInfo) => {

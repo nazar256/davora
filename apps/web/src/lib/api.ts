@@ -300,6 +300,18 @@ export async function downloadFile(
 ): Promise<void> {
   const metadata = await request<MetadataResponse>(`/api/metadata?path=${encodeURIComponent(path)}`, {}, token);
 
+  const { blob, filename } = await fetchDownloadBlob(path, token, options);
+  const resolvedFilename = filename ?? metadata.metadata.name ?? path.split("/").pop() ?? "file";
+  triggerBrowserDownload(blob, resolvedFilename);
+}
+
+export async function fetchDownloadBlob(
+  path: string,
+  token: string,
+  options: {
+    onProgress?: (loadedBytes: number, totalBytes?: number) => void;
+  } = {}
+): Promise<{ blob: Blob; filename?: string }> {
   const response = await fetch(apiUrl(`/api/download?path=${encodeURIComponent(path)}`), {
     headers: {
       authorization: `Bearer ${token}`
@@ -309,11 +321,14 @@ export async function downloadFile(
     throw new ApiRequestError(`Download request failed with ${response.status}`, response.status);
   }
 
+  const contentType = response.headers.get("content-type") ?? "application/octet-stream";
   const totalHeader = response.headers.get("content-length");
   const total = totalHeader ? Number.parseInt(totalHeader, 10) : undefined;
-  const chunks: Uint8Array[] = [];
-  let loaded = 0;
+  let blob: Blob;
+
   if (response.body && typeof response.body.getReader === "function") {
+    const chunks: Uint8Array[] = [];
+    let loaded = 0;
     const reader = response.body.getReader();
     while (true) {
       const result = await reader.read();
@@ -326,24 +341,30 @@ export async function downloadFile(
         options.onProgress?.(loaded, Number.isFinite(total ?? NaN) ? total : undefined);
       }
     }
+    if (loaded === 0) {
+      options.onProgress?.(0, Number.isFinite(total ?? NaN) ? total : undefined);
+    }
+    blob = new Blob(
+      chunks.map((c) =>
+        c.buffer instanceof ArrayBuffer
+          ? c.buffer.slice(c.byteOffset, c.byteOffset + c.byteLength)
+          : new Uint8Array(c).buffer
+      ),
+      { type: contentType }
+    );
+  } else {
+    blob = await response.blob();
   }
 
-  const blob = chunks.length > 0
-    ? new Blob(
-        chunks.map((c) =>
-          c.buffer instanceof ArrayBuffer
-            ? c.buffer.slice(c.byteOffset, c.byteOffset + c.byteLength)
-            : new Uint8Array(c).buffer
-        ),
-        { type: response.headers.get("content-type") ?? "application/octet-stream" }
-      )
-    : await response.blob();
   const contentDisposition = response.headers.get("content-disposition") ?? "";
-  const candidateFilename = contentDisposition.match(/filename\\*=UTF-8''(.+)$/)?.[1];
-  const filename = candidateFilename
-    ? decodeURIComponent(candidateFilename)
-    : metadata.metadata.name || path.split("/").pop() || "file";
+  const candidateFilename = contentDisposition.match(/filename\*=UTF-8''(.+)$/)?.[1];
+  return {
+    blob,
+    filename: candidateFilename ? decodeURIComponent(candidateFilename) : undefined
+  };
+}
 
+export function triggerBrowserDownload(blob: Blob, filename: string): void {
   const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = objectUrl;
