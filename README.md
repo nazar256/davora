@@ -50,12 +50,14 @@ Use this only when validating the Worker against a live Nextcloud instance.
 - Users connect Nextcloud accounts inside the app using base URL, username, app password, and optional label.
 - Multiple accounts can be connected and switched inside the same app instance.
 - The persistent shell keeps only a minimal online/offline badge and a `Profile & settings` entry point; account switching/details and cache controls live behind that one-click settings surface.
+- Once an account is connected, the in-app header drops the persistent `Davora` wordmark so status, current location, install, settings, and transfer affordances keep that space instead.
 - The browser stores only non-secret account metadata plus account-bound session tokens; it does **not** persist raw app passwords in local storage, IndexedDB, or the service-worker cache.
 - Local Node-worker development persists connected-account material in an encrypted file at `.tmp/local-dev/worker-state.json` by default, so restarting `npm run dev` keeps the same browser/account pairing usable without re-entering the app password.
 - Folder/search/opened-file cache data is partitioned by account namespace so accounts do not bleed into each other.
 - File sizes default to human-readable units and can be switched between Human readable / KB / MB / GB from the file-list toolbar or `Profile & settings`.
 - Opened-file cache limit uses a 1 MB–8 GB slider plus a manual MB input, and a separate max-cacheable-file-size control defaults to 15 MB so larger files can still open without persisting their full blobs offline.
 - Unsupported file types skip the dead-end preview layer and trigger browser download/open fallback behavior instead.
+- Audio preview remembers the last known playback position on a best-effort basis per browser account + file path; when no usable saved position exists, it simply starts from `0:00` without claiming resume.
 - Breadcrumbs use a home-icon root with slash separators, replacing redundant `All files` / `Up one level` controls where breadcrumb navigation already covers the path.
 - Video preview uses muted inline autoplay for the most reliable browser-compatible behavior.
 - A normal local dev restart preserves connected accounts and now retries transient bootstrap/session startup races before falling back; explicit worker state resets, secret changes, or non-local runtimes still surface reconnect-required honestly.
@@ -153,11 +155,11 @@ _Account details/actions and cache controls now live behind one practical settin
 
 ### Browse + PDF preview workspace
 ![Davora browse preview workspace](docs/screenshots/davora-browse-preview.png)
-_The file list stays stable while PDF preview keeps clear back, file, and action context._
+_The connected shell now uses that top-row space for location/status/actions instead of a persistent `Davora` wordmark, while PDF preview keeps clear back, file, and action context._
 
 ### Focused preview overlay
 ![Davora focused preview overlay](docs/screenshots/davora-focused-preview.png)
-_Text and markdown preview now keep file details lighter so content stays dominant._
+_Focused preview keeps content dominant, and audio reopen now resumes from the last remembered position only when the browser can restore it honestly._
 
 ### Mutation controls
 ![Davora mutation controls](docs/screenshots/davora-mutation-controls.png)
@@ -189,23 +191,25 @@ _Mobile keeps browsing first while preserving account-aware state and the bottom
 6. Use the file-list header file-size control and verify Human readable / KB / MB / GB updates list/details/preview sizes immediately.
 7. In `Profile & settings`, verify the opened-file cache limit can be changed with the slider and manual MB input, and that max-cacheable-file-size defaults to 15 MB.
 8. Open text, markdown, image/video, and PDF files; verify preview keeps Back/Close context, larger media space, lighter file details, and muted inline autoplay for video.
-9. Confirm markdown still renders when the MIME type includes charset variants such as `text/markdown;charset=UTF-8`.
-10. Open an unsupported file such as `Archive/image.bin`; verify the browser downloads it instead of opening a dead-end preview screen.
-11. Open settings/create-folder/preview overlays and verify clicking outside closes them.
-12. Open a child folder and verify breadcrumbs show a home root plus slash-separated segments, with no redundant `All files` / `Up one level` buttons beside them.
-13. Create/upload/rename/copy/delete inside the active account.
-14. Go offline and confirm cached reads still work while mutation controls stay disabled.
-15. In the default `rtk npm run dev` flow, open Chrome DevTools and confirm `/manifest.webmanifest` is valid, the service worker controls the page after one reload, and Chrome reports no installability blockers beyond automation/incognito noise.
-16. Run `rtk npm run test:pwa` and confirm the preview build reports a valid manifest/service worker/installability path plus honest offline behavior.
-17. Restart `rtk npm run dev` and confirm the previously connected account still boots without re-entering credentials.
-18. In the preview-build PWA flow, install the app, stop the local server while Chrome still stays online, relaunch the installed app, and confirm the cached shell/workspace opens instead of a white screen or restore dead-end.
-19. In the preview-build PWA flow, rebuild with a different `VITE_APP_BUILD_LABEL`, accept the update toast, and confirm `Profile & settings` shows the new build label afterward.
-20. Trigger the explicit mock reset and confirm reconnect-required still appears because the worker-side store was intentionally cleared.
-21. Remove an account and confirm its local view/cache state is gone.
-22. Run `cd apps/worker && wrangler dev` and confirm `http://127.0.0.1:8787/api/health` reports mock mode with `configLoaded: true`.
-23. Run `npm run deploy:worker -- --dry-run` and confirm the Worker bundle completes without unresolved Node-compat warnings.
-24. Run `npm run deploy:web` and confirm the Pages path builds `apps/web/dist` before attempting upload. Override `VITE_API_BASE_URL` only when targeting a different deployed Worker origin or `CLOUDFLARE_PAGES_PROJECT_NAME` only when targeting a non-default Pages project.
-25. If Cloudflare rejects the Pages upload because auth, account access, or the target project is missing, record that exact external blocker instead of marking the deploy path unverified.
+9. Open `Projects/song.mp3`, move playback forward, close it, reopen it in the same browser/account, and verify the preview resumes best-effort from the remembered position; if browser restore is unavailable, it should simply start from `0:00` without any false resume message.
+10. After connecting an account, verify the in-app chrome no longer shows a persistent `Davora` wordmark while `Profile & settings`, transfers, install (when offered), and status/location context remain usable.
+11. Confirm markdown still renders when the MIME type includes charset variants such as `text/markdown;charset=UTF-8`.
+12. Open an unsupported file such as `Archive/image.bin`; verify the browser downloads it instead of opening a dead-end preview screen.
+13. Open settings/create-folder/preview overlays and verify clicking outside closes them.
+14. Open a child folder and verify breadcrumbs show a home root plus slash-separated segments, with no redundant `All files` / `Up one level` buttons beside them.
+15. Create/upload/rename/copy/delete inside the active account.
+16. Go offline and confirm cached reads still work while mutation controls stay disabled.
+17. In the default `rtk npm run dev` flow, open Chrome DevTools and confirm `/manifest.webmanifest` is valid, the service worker controls the page after one reload, and Chrome reports no installability blockers beyond automation/incognito noise.
+18. Run `rtk npm run test:pwa` and confirm the preview build reports a valid manifest/service worker/installability path plus honest offline behavior.
+19. Restart `rtk npm run dev` and confirm the previously connected account still boots without re-entering credentials.
+20. In the preview-build PWA flow, install the app, stop the local server while Chrome still stays online, relaunch the installed app, and confirm the cached shell/workspace opens instead of a white screen or restore dead-end.
+21. In the preview-build PWA flow, rebuild with a different `VITE_APP_BUILD_LABEL`, accept the update toast, and confirm `Profile & settings` shows the new build label afterward.
+22. Trigger the explicit mock reset and confirm reconnect-required still appears because the worker-side store was intentionally cleared.
+23. Remove an account and confirm its local view/cache state is gone.
+24. Run `cd apps/worker && wrangler dev` and confirm `http://127.0.0.1:8787/api/health` reports mock mode with `configLoaded: true`.
+25. Run `npm run deploy:worker -- --dry-run` and confirm the Worker bundle completes without unresolved Node-compat warnings.
+26. Run `npm run deploy:web` and confirm the Pages path builds `apps/web/dist` before attempting upload. Override `VITE_API_BASE_URL` only when targeting a different deployed Worker origin or `CLOUDFLARE_PAGES_PROJECT_NAME` only when targeting a non-default Pages project.
+27. If Cloudflare rejects the Pages upload because auth, account access, or the target project is missing, record that exact external blocker instead of marking the deploy path unverified.
 
 ### Unlock flow
 1. Set `APP_UNLOCK_CODE` in `.env`.

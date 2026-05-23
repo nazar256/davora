@@ -625,9 +625,38 @@ test("gallery overlay adds next/previous controls and photo-only quick advance b
 
 test("desktop shell hides the account selector behind profile and settings", async ({ page }) => {
   await connectAccount(page, "Desktop shell workspace");
+  await expect(page.locator(".app-bar").getByRole("heading", { name: /^Davora$/i })).toHaveCount(0);
   await expect(page.getByLabel("Active account")).toHaveCount(0);
   await page.getByRole("button", { name: /Profile & settings/i }).click();
   await expect(page.getByRole("dialog", { name: /Profile and settings/i }).getByLabel("Active account")).toHaveValue(/.+/);
+});
+
+test("audio preview reopens at the last remembered position for the same browser account", async ({ page }) => {
+  await connectAccount(page, "Audio resume workspace");
+  await page.getByRole("button", { name: /Open folder Projects/i }).click();
+  await page.getByRole("button", { name: /Open file song.mp3/i }).click();
+
+  const audioPreview = page.getByRole("dialog", { name: /Preview song.mp3/i });
+  await expect(audioPreview).toBeVisible();
+  const firstPosition = await audioPreview.locator("audio").evaluate((audio) => {
+    Object.defineProperty(audio, "duration", { configurable: true, value: 180 });
+    audio.currentTime = 37.25;
+    audio.dispatchEvent(new Event("timeupdate"));
+    audio.dispatchEvent(new Event("pause"));
+    return audio.currentTime;
+  });
+  expect(firstPosition).toBeCloseTo(37.25, 2);
+
+  await audioPreview.getByRole("button", { name: /Back to files/i }).click();
+  await page.getByRole("button", { name: /Open file song.mp3/i }).click();
+
+  const reopenedPosition = await page.getByRole("dialog", { name: /Preview song.mp3/i }).locator("audio").evaluate((audio) => {
+    Object.defineProperty(audio, "duration", { configurable: true, value: 180 });
+    audio.dispatchEvent(new Event("loadedmetadata"));
+    return audio.currentTime;
+  });
+
+  expect(reopenedPosition).toBeCloseTo(37.25, 2);
 });
 
 test("video preview autoplays muted and modal overlays dismiss on outside click", async ({ page }) => {

@@ -714,6 +714,111 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByRole("dialog", { name: /Preview photo.png/i })).toBeInTheDocument());
   });
 
+  it("restores the last known audio position when reopening the same file for the same account", async () => {
+    const account = buildAccount("alpha", { displayName: "Audio resume workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [{ path: "Projects/song.mp3", name: "song.mp3", isFolder: false, size: 18, mimeType: "audio/mpeg" }]
+    });
+    mockedApi.getFile.mockResolvedValue({
+      file: {
+        ...textPreview,
+        path: "Projects/song.mp3",
+        name: "song.mp3",
+        mimeType: "audio/mpeg",
+        viewer: "audio",
+        content: "",
+        encoding: "none",
+        bytesRead: 0,
+        requiresOriginalBlob: true,
+        size: 18
+      }
+    });
+    mockedApi.fetchOriginalFile.mockResolvedValue({
+      blob: new Blob([new Uint8Array([1, 2, 3])], { type: "audio/mpeg" }),
+      mimeType: "audio/mpeg",
+      filename: "song.mp3"
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Open file song.mp3/i }));
+    const previewDialog = await screen.findByRole("dialog", { name: /Preview song.mp3/i });
+    const firstAudio = previewDialog.querySelector("audio") as HTMLAudioElement;
+    Object.defineProperty(firstAudio, "currentTime", { configurable: true, writable: true, value: 37.25 });
+    Object.defineProperty(firstAudio, "duration", { configurable: true, writable: true, value: 180 });
+    fireEvent.timeUpdate(firstAudio);
+    fireEvent.pause(firstAudio);
+
+    fireEvent.click(within(previewDialog).getByRole("button", { name: /Back to files/i }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Preview song.mp3/i })).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: /Open file song.mp3/i }));
+    const reopenedPreview = await screen.findByRole("dialog", { name: /Preview song.mp3/i });
+    const reopenedAudio = reopenedPreview.querySelector("audio") as HTMLAudioElement;
+    Object.defineProperty(reopenedAudio, "currentTime", { configurable: true, writable: true, value: 0 });
+    Object.defineProperty(reopenedAudio, "duration", { configurable: true, writable: true, value: 180 });
+
+    fireEvent(reopenedAudio, new Event("loadedmetadata"));
+
+    expect(reopenedAudio.currentTime).toBeCloseTo(37.25);
+  });
+
+  it("clears an unusable near-end audio resume position instead of pretending resume is available", async () => {
+    const account = buildAccount("alpha", { displayName: "Audio resume workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    localStorage.setItem("davora-audio-preview-position:alpha:Projects/song.mp3", "179.5");
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [{ path: "Projects/song.mp3", name: "song.mp3", isFolder: false, size: 18, mimeType: "audio/mpeg" }]
+    });
+    mockedApi.getFile.mockResolvedValue({
+      file: {
+        ...textPreview,
+        path: "Projects/song.mp3",
+        name: "song.mp3",
+        mimeType: "audio/mpeg",
+        viewer: "audio",
+        content: "",
+        encoding: "none",
+        bytesRead: 0,
+        requiresOriginalBlob: true,
+        size: 18
+      }
+    });
+    mockedApi.fetchOriginalFile.mockResolvedValue({
+      blob: new Blob([new Uint8Array([1, 2, 3])], { type: "audio/mpeg" }),
+      mimeType: "audio/mpeg",
+      filename: "song.mp3"
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Open file song.mp3/i }));
+    const previewDialog = await screen.findByRole("dialog", { name: /Preview song.mp3/i });
+    const audio = previewDialog.querySelector("audio") as HTMLAudioElement;
+    Object.defineProperty(audio, "duration", { configurable: true, writable: true, value: 180 });
+
+    fireEvent(audio, new Event("loadedmetadata"));
+
+    expect(audio.currentTime).toBe(0);
+    expect(localStorage.getItem("davora-audio-preview-position:alpha:Projects/song.mp3")).toBeNull();
+  });
+
+  it("removes the persistent Davora app name from connected in-app chrome", async () => {
+    const account = buildAccount("alpha", { displayName: "Chrome cleanup workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Create folder/i });
+    const appBar = document.querySelector(".app-bar") as HTMLElement;
+    expect(within(appBar).queryByRole("heading", { name: /^Davora$/i })).toBeNull();
+    expect(within(appBar).getByRole("button", { name: /Profile & settings/i })).toBeInTheDocument();
+    expect(within(appBar).getByLabelText(/Transfers/i)).toBeInTheDocument();
+  });
+
   it("closes settings and action dialogs when clicking outside", async () => {
     const account = buildAccount("alpha", { displayName: "Alpha workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
