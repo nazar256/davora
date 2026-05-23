@@ -33,6 +33,7 @@ import {
   removeAccountFromStorage,
   saveActiveAccount,
   searchFiles,
+  uploadFileWithProgress,
   uploadFile
 } from "./lib/api";
 import {
@@ -58,6 +59,7 @@ import { MarkdownPreview } from "./components/MarkdownPreview";
 import { ReloadPrompt, usePwaPromptState } from "./components/ReloadPrompt";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { StateBanner } from "./components/StateBanner";
+import { TransferTray, type TransferTask } from "./components/TransferTray";
 
 interface StoredAccountRecord {
   account: ConnectedAccount;
@@ -124,6 +126,26 @@ function readFileAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      const value = String(reader.result ?? "");
+      resolve(value.includes(",") ? value.split(",")[1]! : value);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function readFileAsBase64WithProgress(
+  file: File,
+  onProgress?: (loadedBytes: number, totalBytes: number) => void
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onprogress = (event) => {
+      if (typeof event.loaded === "number" && typeof event.total === "number" && event.total > 0) {
+        onProgress?.(event.loaded, event.total);
+      }
+    };
     reader.onload = () => {
       const value = String(reader.result ?? "");
       resolve(value.includes(",") ? value.split(",")[1]! : value);
@@ -619,6 +641,7 @@ interface PreviewModalProps {
   cacheState: PreviewCacheState;
   fileSizeDisplayMode: FileSizeDisplayMode;
   onApplyRefresh?: () => void;
+  onDownload?: (path: string) => void;
   onPrevious?: () => void;
   onNext?: () => void;
   onClose: () => void;
@@ -667,21 +690,20 @@ function PreviewModal(props: PreviewModalProps) {
   }
 
   const previewPath = props.file?.path ?? props.entry?.path;
-  const previewToken = props.token;
-  const handleDownload = previewPath && previewToken ? () => void downloadFile(previewPath, previewToken) : undefined;
+  const handleDownload = previewPath && props.onDownload ? () => props.onDownload?.(previewPath) : undefined;
   const displayPath = toDisplayPath(previewPath ?? props.entry?.path ?? "");
   const fileName = props.file?.name ?? props.entry?.name ?? "file";
   const previewMode = viewerHeading(previewViewer);
   const previewKind = normalizeMimeType(props.file?.mimeType) ?? (props.entry?.isFolder ? "Folder" : "Unknown");
   const immersivePreview = previewViewer === "image" || previewViewer === "video" || previewViewer === "pdf";
-  const canOpenOriginal = Boolean(previewPath && previewToken && !props.entry?.isFolder);
+  const canOpenOriginal = Boolean(previewPath && props.token && !props.entry?.isFolder);
   const showOpenOriginalAction = canOpenOriginal && previewViewer === "pdf";
   const openOriginalLabel = previewViewer === "pdf" ? "Open PDF in new tab" : "Open original in new tab";
   const previewNotice = getPreviewNotice(props.cacheState, props.offline || Boolean(props.workerUnavailable), props.offline);
   const imagePreviewUnavailable = previewViewer === "image" && (!props.blobUrl || imagePreviewFailed);
 
   const handleOpenOriginal = async () => {
-    if (!previewPath || !previewToken) {
+    if (!previewPath || !props.token) {
       return;
     }
 
@@ -691,7 +713,7 @@ function PreviewModal(props: PreviewModalProps) {
     setOpeningOriginal(true);
     setOriginalOpenError(undefined);
     try {
-      const original = await fetchOriginalFile(previewPath, previewToken);
+      const original = await fetchOriginalFile(previewPath, props.token);
       openBlobInNewTab(original.blob, popup);
     } catch (error) {
       setOriginalOpenError(error instanceof Error ? error.message : "Unable to open the original file in a new tab.");
@@ -913,6 +935,8 @@ export default function App() {
   const [removeAccountConfirmation, setRemoveAccountConfirmation] = useState("");
   const [removeAccountError, setRemoveAccountError] = useState<string | undefined>();
   const [folderDropActive, setFolderDropActive] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferTasks, setTransferTasks] = useState<TransferTask[]>([]);
   const pwaPrompt = usePwaPromptState();
   const folderRequestIdRef = useRef(0);
   const previewRequestIdRef = useRef(0);
@@ -929,6 +953,25 @@ export default function App() {
   const fileSizeDisplayMode = uiSettings.fileSizeDisplayMode;
   const maxCacheableFileSizeBytes = uiSettings.maxCacheableFileSizeBytes;
   const cacheOnlyMode = offline || workerUnavailable;
+
+  const addTransferTask = (task: Omit<TransferTask, "startedAt" | "loadedBytes"> & { loadedBytes?: number }) => {
+    const now = new Date().toISOString();
+    const record: TransferTask = {
+      startedAt: now,
+      loadedBytes: task.loadedBytes ?? 0,
+      ...task
+    };
+    setTransferTasks((previous) => [record, ...previous].slice(0, 12));
+    return record.id;
+  };
+
+  const updateTransferTask = (id: string, patch: Partial<TransferTask>) => {
+    setTransferTasks((previous) => previous.map((task) => task.id === id ? { ...task, ...patch } : task));
+  };
+
+  const clearFinishedTransfers = () => {
+    setTransferTasks((previous) => previous.filter((task) => task.phase !== "done" && task.phase !== "error"));
+  };
 
   activeAccountIdRef.current = activeAccount?.id;
   currentPathRef.current = currentPath;
@@ -1512,7 +1555,48 @@ export default function App() {
     setMobileDetailsOpen(isNarrowScreen);
   };
 
-  const downloadUnsupportedFile = async (path: string, displayPath: string, activeAccountName: string, activeToken: string) => {
+  const startDownloadWithTransfer = async (path: string, displayPath: string) => {
+    if (!activeAccount || !token) {
+      setListError(new Error("No session available for this action."));
+      return;
+    }
+    if (cacheOnlyMode) {
+      setListError(new Error(offline
+        ? "Offline downloads are disabled. Reconnect to download files."
+        : "Downloads are disabled while the local server is unavailable. Restore the server and retry."));
+      return;
+    }
+
+    const transferId = crypto.randomUUID();
+    addTransferTask({
+      id: transferId,
+      kind: "download",
+      label: displayPath,
+      phase: "queued",
+      totalBytes: undefined
+    });
+
+    try {
+      updateTransferTask(transferId, { phase: "transferring" });
+      await downloadFile(path, token, {
+        onProgress: (loadedBytes, totalBytes) => updateTransferTask(transferId, { loadedBytes, totalBytes, phase: "transferring" })
+      });
+      updateTransferTask(transferId, { phase: "done", finishedAt: new Date().toISOString() });
+    } catch (error) {
+      if (isUnauthorized(error)) {
+        resetActiveSession("Session expired. Create a fresh session for this account.");
+        return;
+      }
+      if (error instanceof ApiRequestError && error.code === "account_reconnect_required") {
+        resetActiveSession("This account needs to be reconnected before downloading files.", true);
+        return;
+      }
+      updateTransferTask(transferId, { phase: "error", finishedAt: new Date().toISOString(), errorMessage: error instanceof Error ? error.message : "Unable to download file." });
+      setListError(error instanceof Error ? error : new Error("Unable to download file."));
+    }
+  };
+
+  const downloadUnsupportedFile = async (path: string, displayPath: string, activeAccountName: string) => {
     closePreview();
     setSelected(undefined);
     clearSelectedBlob();
@@ -1528,19 +1612,7 @@ export default function App() {
 
     setListError(undefined);
     setStatus(`Starting browser download for ${displayPath} from ${activeAccountName} because this file type opens outside preview.`);
-    try {
-      await downloadFile(path, activeToken);
-    } catch (error) {
-      if (isUnauthorized(error)) {
-        resetActiveSession("Session expired. Create a fresh session for this account.");
-        return;
-      }
-      if (error instanceof ApiRequestError && error.code === "account_reconnect_required") {
-        resetActiveSession("This account needs to be reconnected before downloading files.", true);
-        return;
-      }
-      setListError(error instanceof Error ? error : new Error("Unable to download file."));
-    }
+    await startDownloadWithTransfer(path, displayPath);
   };
 
   const openFile = async (entry: FileEntry) => {
@@ -1551,7 +1623,7 @@ export default function App() {
     const displayPath = toDisplayPath(entry.path);
     if (getViewerKind(entry.mimeType) === "unsupported") {
       if (token) {
-        await downloadUnsupportedFile(entry.path, displayPath, activeAccount.displayName, token);
+        await downloadUnsupportedFile(entry.path, displayPath, activeAccount.displayName);
       } else {
         setPreviewError(new Error(offline
           ? "Offline and no cached inline preview is available for this file type yet."
@@ -1660,7 +1732,7 @@ export default function App() {
     if (usableCachedPreview) {
       if (usableCachedPreview.entry.preview.viewer === "unsupported") {
         if (token) {
-          await downloadUnsupportedFile(entry.path, displayPath, activeAccount.displayName, token);
+          await downloadUnsupportedFile(entry.path, displayPath, activeAccount.displayName);
         } else {
           setLoadingPreview(false);
           setPreviewError(new Error(offline
@@ -1681,7 +1753,7 @@ export default function App() {
           }
           const livePreview = await loadPreviewPayload(entry.path, token);
           if (livePreview.file.viewer === "unsupported") {
-            await downloadUnsupportedFile(entry.path, displayPath, activeAccount.displayName, token);
+            await downloadUnsupportedFile(entry.path, displayPath, activeAccount.displayName);
             return;
           }
           await cacheOpenedFile(cacheNamespace, {
@@ -1749,7 +1821,7 @@ export default function App() {
     try {
       const livePreview = await loadPreviewPayload(entry.path, token);
       if (livePreview.file.viewer === "unsupported") {
-        await downloadUnsupportedFile(entry.path, displayPath, activeAccount.displayName, token);
+        await downloadUnsupportedFile(entry.path, displayPath, activeAccount.displayName);
         return;
       }
       await cacheOpenedFile(cacheNamespace, {
@@ -1851,8 +1923,31 @@ export default function App() {
 
     try {
       for (const file of Array.from(files)) {
-        const contentBase64 = await readFileAsBase64(file);
-        await executeMutation(() => uploadFile({ path: currentPath, name: file.name, mimeType: file.type || "application/octet-stream", contentBase64 }, token).then((response) => response.result));
+        const transferId = crypto.randomUUID();
+        addTransferTask({
+          id: transferId,
+          kind: "upload",
+          label: `${currentLocationLabel}/${file.name}`.replace(/\/{2,}/g, "/"),
+          phase: "preparing",
+          loadedBytes: 0,
+          totalBytes: file.size
+        });
+        try {
+          const contentBase64 = await readFileAsBase64WithProgress(file, (loadedBytes, totalBytes) => {
+            updateTransferTask(transferId, { loadedBytes, totalBytes, phase: "preparing" });
+          });
+
+          updateTransferTask(transferId, { phase: "transferring", loadedBytes: 0, totalBytes: undefined });
+          await executeMutation(() => uploadFileWithProgress(
+            { path: currentPath, name: file.name, mimeType: file.type || "application/octet-stream", contentBase64 },
+            token,
+            (loadedBytes, totalBytes) => updateTransferTask(transferId, { loadedBytes, totalBytes, phase: "transferring" })
+          ).then((response) => response.result));
+          updateTransferTask(transferId, { phase: "done", finishedAt: new Date().toISOString() });
+        } catch (error) {
+          updateTransferTask(transferId, { phase: "error", finishedAt: new Date().toISOString(), errorMessage: error instanceof Error ? error.message : "Upload failed." });
+          throw error;
+        }
       }
       if (source === "drop") {
         setStatus(`Uploaded ${Array.from(files).length} item${Array.from(files).length === 1 ? "" : "s"} into ${currentLocationLabel} via drag and drop.`);
@@ -2028,6 +2123,14 @@ export default function App() {
               {token && pwaPrompt.installAvailable ? <button className="quiet-button app-install-button" disabled={pwaPrompt.installing} onClick={() => void pwaPrompt.installApp()} type="button">{pwaPrompt.installing ? "Installing…" : "Install app"}</button> : null}
               {accountState.accounts.length > 0 ? <button onClick={() => setShowSettingsDialog(true)} type="button">Profile & settings</button> : null}
             </div>
+          ) : null}
+          {accountState.accounts.length > 0 ? (
+            <TransferTray
+              onClearFinished={clearFinishedTransfers}
+              onToggleOpen={() => setTransferOpen((previous) => !previous)}
+              open={transferOpen}
+              tasks={transferTasks}
+            />
           ) : null}
           {showHeaderStatusBadge ? <div className={`badge ${cacheOnlyMode ? "offline" : "online"}`}>{offline ? "Offline" : workerUnavailable ? "Server unavailable" : "Online"}</div> : null}
         </div>
@@ -2405,7 +2508,7 @@ export default function App() {
                   <div className="context-actions">
                     {selectedDetails.isFolder && selectedEntry ? <button onClick={() => navigateToPath(selectedEntry.path)} type="button">Open folder</button> : null}
                     {!selectedDetails.isFolder && selectedEntry ? <button onClick={() => void openFile(selectedEntry)} type="button">Open</button> : null}
-                    {canDownloadSelected && selectedFilePath && token ? <button onClick={() => void downloadFile(selectedFilePath, token)} type="button">Download</button> : null}
+                    {canDownloadSelected && selectedFilePath ? <button onClick={() => void startDownloadWithTransfer(selectedFilePath, toDisplayPath(selectedFilePath))} type="button">Download</button> : null}
                     <button disabled={!canMoveSelected || mutationBusy} onClick={handleMove} type="button">Rename or move</button>
                     <button disabled={!canCopySelected || mutationBusy} onClick={handleCopy} type="button">Copy</button>
                     <button className={canDeleteSelected ? "button-danger" : undefined} disabled={!canDeleteSelected || mutationBusy} onClick={handleDelete} type="button">Delete</button>
@@ -2598,6 +2701,7 @@ export default function App() {
         offline={offline}
         workerUnavailable={workerUnavailable}
         onApplyRefresh={pendingPreviewUpdate ? applyPendingPreviewRefresh : undefined}
+        onDownload={(path) => void startDownloadWithTransfer(path, toDisplayPath(path))}
         onNext={nextMediaItem ? () => openAdjacentMedia(1) : undefined}
         onPrevious={previousMediaItem ? () => openAdjacentMedia(-1) : undefined}
         onClose={closePreview}

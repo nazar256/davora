@@ -183,6 +183,84 @@ export async function uploadFile(requestBody: UploadFileRequest, token: string) 
   }, token);
 }
 
+function parseApiErrorPayload(raw: unknown): { message?: string; code?: string; details?: string } | undefined {
+  if (!raw || typeof raw !== "object") {
+    return undefined;
+  }
+  const envelope = raw as { data?: unknown };
+  if (!envelope.data || typeof envelope.data !== "object") {
+    return undefined;
+  }
+  const data = envelope.data as { message?: unknown; code?: unknown; details?: unknown };
+  return {
+    message: typeof data.message === "string" ? data.message : undefined,
+    code: typeof data.code === "string" ? data.code : undefined,
+    details: typeof data.details === "string" ? data.details : undefined
+  };
+}
+
+async function xhrJson<T>(
+  path: string,
+  method: "POST",
+  body: string,
+  token: string,
+  options: {
+    onUploadProgress?: (loaded: number, total: number) => void;
+  } = {}
+): Promise<T> {
+  return await new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, apiUrl(path));
+    xhr.setRequestHeader("content-type", "application/json");
+    xhr.setRequestHeader("authorization", `Bearer ${token}`);
+    xhr.responseType = "text";
+
+    if (options.onUploadProgress) {
+      const total = body.length;
+      xhr.upload.onprogress = (event) => {
+        // Some browsers set lengthComputable=false for string bodies; use our known body size.
+        const loaded = typeof event.loaded === "number" ? event.loaded : 0;
+        options.onUploadProgress?.(Math.max(0, loaded), total);
+      };
+    }
+
+    xhr.onerror = () => reject(new ApiRequestError("Request failed", 0));
+    xhr.onabort = () => reject(new ApiRequestError("Request aborted", 0));
+    xhr.onload = () => {
+      const status = xhr.status;
+      const text = xhr.responseText ?? "";
+      if (status < 200 || status >= 300) {
+        const parsed = (() => {
+          try {
+            return parseApiErrorPayload(JSON.parse(text));
+          } catch {
+            return undefined;
+          }
+        })();
+        reject(new ApiRequestError(parsed?.message ?? `Request failed with ${status}`, status, parsed?.code, parsed?.details));
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(text) as { data?: unknown };
+        resolve(parsed.data as T);
+      } catch {
+        reject(new ApiRequestError("Response was not valid JSON.", status));
+      }
+    };
+
+    xhr.send(body);
+  });
+}
+
+export async function uploadFileWithProgress(
+  requestBody: UploadFileRequest,
+  token: string,
+  onUploadProgress?: (loadedBytes: number, totalBytes: number) => void
+) {
+  return await xhrJson<MutationResponse>("/api/upload", "POST", JSON.stringify(requestBody), token, { onUploadProgress });
+}
+
 export async function moveFile(requestBody: MoveCopyRequest, token: string) {
   return request<MutationResponse>("/api/move", {
     method: "POST",
@@ -213,7 +291,13 @@ export async function resetMockBackend(): Promise<void> {
   });
 }
 
-export async function downloadFile(path: string, token: string): Promise<void> {
+export async function downloadFile(
+  path: string,
+  token: string,
+  options: {
+    onProgress?: (loadedBytes: number, totalBytes?: number) => void;
+  } = {}
+): Promise<void> {
   const metadata = await request<MetadataResponse>(`/api/metadata?path=${encodeURIComponent(path)}`, {}, token);
 
   const response = await fetch(apiUrl(`/api/download?path=${encodeURIComponent(path)}`), {
@@ -225,7 +309,35 @@ export async function downloadFile(path: string, token: string): Promise<void> {
     throw new ApiRequestError(`Download request failed with ${response.status}`, response.status);
   }
 
-  const blob = await response.blob();
+  const totalHeader = response.headers.get("content-length");
+  const total = totalHeader ? Number.parseInt(totalHeader, 10) : undefined;
+  const chunks: Uint8Array[] = [];
+  let loaded = 0;
+  if (response.body && typeof response.body.getReader === "function") {
+    const reader = response.body.getReader();
+    while (true) {
+      const result = await reader.read();
+      if (result.done) {
+        break;
+      }
+      if (result.value) {
+        chunks.push(result.value);
+        loaded += result.value.byteLength;
+        options.onProgress?.(loaded, Number.isFinite(total ?? NaN) ? total : undefined);
+      }
+    }
+  }
+
+  const blob = chunks.length > 0
+    ? new Blob(
+        chunks.map((c) =>
+          c.buffer instanceof ArrayBuffer
+            ? c.buffer.slice(c.byteOffset, c.byteOffset + c.byteLength)
+            : new Uint8Array(c).buffer
+        ),
+        { type: response.headers.get("content-type") ?? "application/octet-stream" }
+      )
+    : await response.blob();
   const contentDisposition = response.headers.get("content-disposition") ?? "";
   const candidateFilename = contentDisposition.match(/filename\\*=UTF-8''(.+)$/)?.[1];
   const filename = candidateFilename
