@@ -360,13 +360,54 @@ describe("App", () => {
     render(<App />);
 
     await screen.findByRole("button", { name: /Create folder/i });
-    const input = screen.getByLabelText(/Upload file/i) as HTMLInputElement;
+    const input = screen.getByLabelText(/Upload files/i) as HTMLInputElement;
     const file = new File(["hello"], "hello.txt", { type: "text/plain" });
     fireEvent.change(input, { target: { files: [file] } });
 
     await waitFor(() => expect(mockedApi.uploadFileWithProgress).toHaveBeenCalledWith(expect.objectContaining({ name: "hello.txt", path: "" }), "token-alpha", expect.any(Function)));
     expect(await screen.findByText(/fetch failed/i)).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /Reconnect Upload workspace/i })).not.toBeInTheDocument();
+  });
+
+  it("uploads multiple files from the normal picker flow", async () => {
+    const account = buildAccount("alpha", { displayName: "Multi upload workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Create folder/i });
+    const input = screen.getByLabelText(/Upload files/i) as HTMLInputElement;
+    const first = new File(["alpha"], "alpha.txt", { type: "text/plain" });
+    const second = new File(["beta"], "beta.txt", { type: "text/plain" });
+    fireEvent.change(input, { target: { files: [first, second] } });
+
+    await waitFor(() => expect(mockedApi.uploadFileWithProgress).toHaveBeenCalledTimes(2));
+    expect(mockedApi.uploadFileWithProgress).toHaveBeenNthCalledWith(1, expect.objectContaining({ path: "", name: "alpha.txt" }), "token-alpha", expect.any(Function));
+    expect(mockedApi.uploadFileWithProgress).toHaveBeenNthCalledWith(2, expect.objectContaining({ path: "", name: "beta.txt" }), "token-alpha", expect.any(Function));
+    expect(await screen.findByText(/Uploaded 2 files into \//i)).toBeInTheDocument();
+  });
+
+  it("uploads a directory while preserving relative paths under the current folder", async () => {
+    const account = buildAccount("alpha", { displayName: "Folder upload workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Create folder/i });
+    const input = screen.getByLabelText(/Upload folder/i) as HTMLInputElement;
+    const first = new File(["cover"], "cover.png", { type: "image/png" });
+    const second = new File(["track"], "track.mp3", { type: "audio/mpeg" });
+    Object.defineProperty(first, "webkitRelativePath", { configurable: true, value: "Mixtape/assets/cover.png" });
+    Object.defineProperty(second, "webkitRelativePath", { configurable: true, value: "Mixtape/track.mp3" });
+    fireEvent.change(input, { target: { files: [first, second] } });
+
+    await waitFor(() => expect(mockedApi.createFolder).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mockedApi.uploadFileWithProgress).toHaveBeenCalledTimes(2));
+    expect(mockedApi.createFolder).toHaveBeenNthCalledWith(1, { path: "", name: "Mixtape" }, "token-alpha");
+    expect(mockedApi.createFolder).toHaveBeenNthCalledWith(2, { path: "Mixtape", name: "assets" }, "token-alpha");
+    expect(mockedApi.uploadFileWithProgress).toHaveBeenNthCalledWith(1, expect.objectContaining({ path: "Mixtape/assets", name: "cover.png" }), "token-alpha", expect.any(Function));
+    expect(mockedApi.uploadFileWithProgress).toHaveBeenNthCalledWith(2, expect.objectContaining({ path: "Mixtape", name: "track.mp3" }), "token-alpha", expect.any(Function));
+    expect(await screen.findByText(/Uploaded 2 files from 1 folder into \//i)).toBeInTheDocument();
   });
 
   it("keeps an offline cached shell usable while the live session is unavailable", async () => {
@@ -630,6 +671,7 @@ describe("App", () => {
     fireEvent.drop(dropZone, { dataTransfer: { files: [file], types: ["Files"] } });
 
     await waitFor(() => expect(mockedApi.uploadFileWithProgress).toHaveBeenCalledWith(expect.objectContaining({ name: "dropped.txt", path: "" }), "token-alpha", expect.any(Function)));
+    expect(await screen.findByText(/Uploaded 1 file into \/ via drag and drop/i)).toBeInTheDocument();
   });
 
   it("adds gallery next controls for photos and ignores oversized blobs for browser cache storage", async () => {

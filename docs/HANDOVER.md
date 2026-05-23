@@ -98,7 +98,7 @@ Before claiming another Davora UI/account pass is done, always:
   - Item 38 — completed: downloads now use a fetch + blob + anchor download flow instead of the prior iframe/form submission path, improving Chrome Android behavior.
 - Packet 12 (milestone 1 partially completed on 2026-05-23):
   - Item 39 — completed in milestone 1: reopening the same audio file in the same browser/account now restores the last known position on a best-effort basis using browser-local storage keyed by account + path; if storage is unavailable, invalid, rejected by the browser, or no longer usable for the media duration, preview starts quietly at `0:00` with no resume claim.
-  - Item 40 — uploading multiple files and directories is must-have.
+  - Item 40 — local pre-deploy milestone completed on 2026-05-23: the current-folder actions now expose separate `Upload files` and `Upload folder` controls; normal picker flow accepts multiple files in one action, directory uploads preserve nested relative paths under the current folder by creating any missing parents first, and the transfer tray remains per-file so progress stays honest. Source-of-truth backlog status stays `PENDING` until the later deploy step is actually run.
   - Item 41 — downloading multiple files/directories is must-have; directory downloads may zip client-side if needed.
   - Item 44 — completed in milestone 1: once an account is connected, the in-app chrome no longer shows a persistent `Davora` wordmark, keeping that compact header space for location/status/install/settings/transfer affordances instead while preserving the zero-state product naming.
 - Packet 13 (recorded as open/pending on 2026-05-23):

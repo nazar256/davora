@@ -8,7 +8,9 @@
 | Desktop connected workspace | Desktop Chrome, 1280x720 | Connect account → verify active-account context stays visible while file-manager remains dominant | PASS |
 | Desktop account switching | Desktop Chrome, 1280x720 | Connect account A → open `Profile & settings` → add account B → switch active account from that one-click settings surface | PASS |
 | Desktop profile/settings shell | Desktop Chrome, 1280x720 | Connect account → open `Profile & settings` → verify account details/actions and cache controls move off the main workspace while file-size mode stays in the toolbar | PASS |
-| Desktop mutation flow | Desktop Chrome, 1280x720 | Connect account → create folder → upload file → rename | PASS |
+| Desktop mutation flow | Desktop Chrome, 1280x720 | Connect account → create folder → upload one file in the current folder → rename | PASS |
+| Desktop multi-file picker upload | Desktop Chrome, 1280x720 | Connect account → use `Upload files` → select two files in one chooser action → verify both upload and appear in the current folder | PASS |
+| Desktop folder picker upload | Desktop Chrome, 1280x720 | Connect account → use `Upload folder` on a nested fixture folder → verify the top-level folder is created in the current folder and nested files keep their relative paths inside it | PASS |
 | Desktop unlock bootstrap | Desktop Chrome, 1280x720 | Connect account under unlock-protected health state → enter wrong code → verify error → enter correct code | PASS |
 | Desktop offline cached access | Desktop Chrome, 1280x720 | Connect account → open cached file online → go offline → navigate via cached folder data | PASS |
 | Desktop cache-first folder refresh | Desktop Chrome, 1280x720 | Reload with cached root folder → verify cached rows render first, stale/refresh copy stays visible, then background refresh swaps in the newer folder result | PASS |
@@ -55,6 +57,8 @@ Source of truth: `docs/FILE_MANAGER_REDESIGN_BRIEF.md` + `docs/UI_QUALITY_GATE.m
 | Mobile keeps browse-first priority | PASS | `davora-mobile-browse.png` plus mobile Playwright flow. |
 | Required v1 file capabilities remain preserved | PASS | Mutation, preview, offline, unlock, and reconnect coverage stayed green. |
 | Screenshot set explains the shipped result without running it | PASS | Ten checked-in screenshots cover zero state, workspace, switching, the new settings dialog, preview states, mutation controls, unlock, error, reconnect, and mobile evidence. |
+| Current-folder upload actions stay explicit without drifting into generic bulk-action UI | PASS | Browser evidence shows separate `Upload files` and `Upload folder` controls near the file-list header, with no new multi-select/download surface added. |
+| Transfer/progress UX stays honest for batched uploads | PASS | The transfer tray and workspace status now report per-file progress/status while multi-file and folder uploads run sequentially through the existing upload API, avoiding fake aggregate percentages. |
 
 ## Checked-in visual evidence
 
@@ -107,6 +111,7 @@ _Mobile still keeps browsing first while preserving account-aware state and bott
 - **Supporting pattern family — productivity app account switchers:** used conceptually for lightweight active-account context and explicit switching without a heavy settings detour.
 - **Applied refinement in this pass:** preview now uses one clear dismiss action, a tighter header, lighter details disclosure, natural-fill media/PDF stage sizing without vh magic numbers, tighter markdown MIME normalization, and the app/header banner area keeps a reserved slot to reduce layout shift.
 - **Packet 12 milestone 1 note:** connected in-app chrome now removes the persistent `Davora` wordmark so header space favors status/location/install/settings/transfers, and audio preview persists last-known playback position per browser account + file path on a best-effort basis without any misleading resume UI when restore is unavailable.
+- **Packet 12 item 40 note:** current-folder uploads now stay explicit with separate `Upload files` and `Upload folder` actions; normal picker flow accepts multiple files in one action, folder uploads keep nested relative paths under the current folder, and the transfer tray remains per-file so progress stays honest instead of pretending a synthetic bulk-transfer percentage.
 - **Environment note for this review pass:** the installed-PWA stopped-server test remains part of the standing matrix, but this environment does not have a system Chrome binary with the required CDP `PWA.*` domain, so that one sub-check is skipped automatically while the rest of the preview-build PWA/browser evidence still passes.
 - **Packet 1 completion note:** the shipped UI now runs only from the current TS/TSX sources, root folders open cache-first with background refresh, cached file previews stay stable until the user applies a fresher version, and account switching preserves cache isolation.
 - **Packet 2/5/7 completion note:** account details/actions and cache controls now live behind `Profile & settings`, the shell no longer repeats the desktop account selector on every page, the mobile dialog uses a cleaner Done close action, file-size display now supports Human readable / KB / MB / GB from the main workspace header, cache limit now uses slider/manual controls plus a 15 MB default max-cacheable-file-size policy, and drag-and-drop upload is available directly from the folder view.

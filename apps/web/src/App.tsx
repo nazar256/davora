@@ -11,7 +11,7 @@ import type {
   SearchResult,
   ViewerKind
 } from "@davora/shared";
-import { dirname, getViewerKind, toDisplayPath } from "@davora/shared";
+import { basename, dirname, getViewerKind, toDisplayPath } from "@davora/shared";
 
 import {
   ApiRequestError,
@@ -33,9 +33,9 @@ import {
   removeAccountFromStorage,
   saveActiveAccount,
   searchFiles,
-  uploadFileWithProgress,
-  uploadFile
+  uploadFileWithProgress
 } from "./lib/api";
+import { buildUploadSelectionPlan } from "./lib/uploadPlan";
 import {
   cacheFolder,
   cacheSearch,
@@ -172,6 +172,37 @@ function readFileAsBase64WithProgress(
     };
     reader.readAsDataURL(file);
   });
+}
+
+function isFolderAlreadyExistsError(error: unknown): boolean {
+  return error instanceof Error && /folder already exists/i.test(error.message);
+}
+
+function pluralize(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function buildUploadSuccessMessage(fileCount: number, directoryCount: number, currentLocationLabel: string, source: "picker" | "drop"): string {
+  const directorySuffix = directoryCount > 0 ? ` from ${pluralize(directoryCount, "folder")}` : "";
+  const sourceSuffix = source === "drop" ? " via drag and drop" : "";
+  return `Uploaded ${pluralize(fileCount, "file")}${directorySuffix} into ${currentLocationLabel}${sourceSuffix}`;
+}
+
+function buildUploadPartialFailureMessage(completedFileCount: number, totalFileCount: number, currentLocationLabel: string): string {
+  return `Upload stopped after ${pluralize(completedFileCount, "file")} of ${totalFileCount} into ${currentLocationLabel}`;
+}
+
+function applyDirectoryUploadAttributes(input: HTMLInputElement | null) {
+  if (!input) {
+    return;
+  }
+
+  input.multiple = true;
+  input.setAttribute("multiple", "");
+  input.setAttribute("webkitdirectory", "");
+  input.setAttribute("directory", "");
+  (input as HTMLInputElement & { webkitdirectory?: boolean; directory?: boolean }).webkitdirectory = true;
+  (input as HTMLInputElement & { webkitdirectory?: boolean; directory?: boolean }).directory = true;
 }
 
 function classifyState(error: ApiRequestError | Error | undefined, cacheOnlyMode: boolean, stale: boolean, refreshing: boolean, offline: boolean): { kind: "loading" | "error" | "offline" | "stale" | "permission" | "idle"; message: string } {
@@ -1990,7 +2021,15 @@ export default function App() {
     }
   };
 
-  const executeMutation = async (runner: () => Promise<MutationResult>) => {
+  const executeMutation = async (
+    runner: () => Promise<MutationResult>,
+    options: {
+      refreshFolder?: boolean;
+      successStatus?: string | false;
+      syncSelection?: boolean;
+      manageBusy?: boolean;
+    } = {}
+  ) => {
     if (!token || !activeAccount) {
       throw new Error("No session available for this action.");
     }
@@ -2000,17 +2039,25 @@ export default function App() {
         : "Mutations are disabled while the local server is unavailable. Restore the server and retry.");
     }
 
-    setMutationBusy(true);
+    if (options.manageBusy ?? true) {
+      setMutationBusy(true);
+    }
     setListError(undefined);
     try {
       const result = await runner();
-      syncSelectionWithMutation(result);
-      if (result.parentPath !== currentPath) {
-        setCurrentPath(result.parentPath);
-      } else {
-        await loadFolder(result.parentPath, { preferCache: false });
+      if (options.syncSelection ?? true) {
+        syncSelectionWithMutation(result);
       }
-      setStatus(`${result.action} completed for ${toDisplayPath(result.destinationPath ?? result.path)} in ${activeAccountName}`);
+      if (options.refreshFolder ?? true) {
+        if (result.parentPath !== currentPath) {
+          setCurrentPath(result.parentPath);
+        } else {
+          await loadFolder(result.parentPath, { preferCache: false });
+        }
+      }
+      if (options.successStatus !== false) {
+        setStatus(options.successStatus ?? `${result.action} completed for ${toDisplayPath(result.destinationPath ?? result.path)} in ${activeAccountName}`);
+      }
       return result;
     } catch (error) {
       if (isUnauthorized(error)) {
@@ -2021,7 +2068,9 @@ export default function App() {
       }
       throw error instanceof Error ? error : new Error("Mutation failed.");
     } finally {
-      setMutationBusy(false);
+      if (options.manageBusy ?? true) {
+        setMutationBusy(false);
+      }
     }
   };
 
@@ -2035,41 +2084,92 @@ export default function App() {
       return;
     }
 
+    const selectedFiles = Array.from(files);
+    let uploadPlan;
+
     try {
-      for (const file of Array.from(files)) {
-        const transferId = crypto.randomUUID();
-        addTransferTask({
-          id: transferId,
-          kind: "upload",
-          label: `${currentLocationLabel}/${file.name}`.replace(/\/{2,}/g, "/"),
-          phase: "preparing",
-          loadedBytes: 0,
-          totalBytes: file.size
-        });
+      uploadPlan = buildUploadSelectionPlan(currentPath, selectedFiles);
+    } catch (error) {
+      setListError(error instanceof Error ? error : new Error("Upload failed."));
+      return;
+    }
+
+    const transferIds = new Map(uploadPlan.files.map((plannedFile) => [
+      plannedFile.destinationPath,
+      addTransferTask({
+        id: crypto.randomUUID(),
+        kind: "upload",
+        label: plannedFile.transferLabel,
+        phase: "queued",
+        loadedBytes: 0,
+        totalBytes: plannedFile.file.size
+      })
+    ]));
+    const shouldSyncUploadedSelection = uploadPlan.files.length === 1;
+    let completedFiles = 0;
+    let createdFolderCount = 0;
+
+    try {
+      setMutationBusy(true);
+      for (const folderPath of uploadPlan.foldersToCreate) {
         try {
-          const contentBase64 = await readFileAsBase64WithProgress(file, (loadedBytes, totalBytes) => {
+          await executeMutation(
+            () => createFolder({ path: dirname(folderPath), name: basename(folderPath) }, token).then((response) => response.result),
+            { refreshFolder: false, successStatus: false, syncSelection: false, manageBusy: false }
+          );
+          createdFolderCount += 1;
+        } catch (error) {
+          if (!isFolderAlreadyExistsError(error)) {
+            throw error;
+          }
+        }
+      }
+
+      for (const plannedFile of uploadPlan.files) {
+        const transferId = transferIds.get(plannedFile.destinationPath);
+        if (!transferId) {
+          continue;
+        }
+
+        try {
+          updateTransferTask(transferId, { phase: "preparing", loadedBytes: 0, totalBytes: plannedFile.file.size });
+          const contentBase64 = await readFileAsBase64WithProgress(plannedFile.file, (loadedBytes, totalBytes) => {
             updateTransferTask(transferId, { loadedBytes, totalBytes, phase: "preparing" });
           });
 
           updateTransferTask(transferId, { phase: "transferring", loadedBytes: 0, totalBytes: undefined });
           await executeMutation(() => uploadFileWithProgress(
-            { path: currentPath, name: file.name, mimeType: file.type || "application/octet-stream", contentBase64 },
+            {
+              path: plannedFile.destinationParentPath,
+              name: plannedFile.file.name,
+              mimeType: plannedFile.file.type || "application/octet-stream",
+              contentBase64
+            },
             token,
             (loadedBytes, totalBytes) => updateTransferTask(transferId, { loadedBytes, totalBytes, phase: "transferring" })
-          ).then((response) => response.result));
+          ).then((response) => response.result), { refreshFolder: false, successStatus: false, syncSelection: shouldSyncUploadedSelection, manageBusy: false });
+          completedFiles += 1;
           updateTransferTask(transferId, { phase: "done", finishedAt: new Date().toISOString() });
         } catch (error) {
           updateTransferTask(transferId, { phase: "error", finishedAt: new Date().toISOString(), errorMessage: error instanceof Error ? error.message : "Upload failed." });
           throw error;
         }
       }
-      if (source === "drop") {
-        setStatus(`Uploaded ${Array.from(files).length} item${Array.from(files).length === 1 ? "" : "s"} into ${currentLocationLabel} via drag and drop.`);
-      }
+
+      await loadFolder(currentPath, { preferCache: false });
+      setStatus(buildUploadSuccessMessage(uploadPlan.files.length, uploadPlan.directoryRoots.length, currentLocationLabel, source));
     } catch (error) {
+      if (completedFiles > 0 || createdFolderCount > 0) {
+        await loadFolder(currentPath, { preferCache: false }).catch(() => undefined);
+      }
       if (!isUnauthorized(error)) {
+        if (completedFiles > 0) {
+          setStatus(buildUploadPartialFailureMessage(completedFiles, uploadPlan.files.length, currentLocationLabel));
+        }
         setListError(error instanceof Error ? error : new Error("Upload failed."));
       }
+    } finally {
+      setMutationBusy(false);
     }
   };
 
@@ -2443,10 +2543,11 @@ export default function App() {
                 </label>
                 <button disabled={!canCreateFolder || mutationBusy} onClick={handleCreateFolder} type="button">Create folder</button>
                 <label className={`upload-label ${!canUploadFiles || mutationBusy ? "disabled" : ""}`}>
-                  Upload file
+                  Upload files
                   <input
-                    aria-label="Upload file"
+                    aria-label="Upload files"
                     disabled={!canUploadFiles || mutationBusy}
+                    multiple
                     onChange={(event) => {
                       void handleUpload(event.currentTarget.files);
                       event.currentTarget.value = "";
@@ -2454,8 +2555,21 @@ export default function App() {
                     type="file"
                   />
                 </label>
+                <label className={`upload-label ${!canUploadFiles || mutationBusy ? "disabled" : ""}`}>
+                  Upload folder
+                  <input
+                    aria-label="Upload folder"
+                    disabled={!canUploadFiles || mutationBusy}
+                    onChange={(event) => {
+                      void handleUpload(event.currentTarget.files);
+                      event.currentTarget.value = "";
+                    }}
+                    ref={applyDirectoryUploadAttributes}
+                    type="file"
+                  />
+                </label>
               </div>
-              <p className={`status drop-upload-note${folderDropActive ? " active" : ""}`}>{canUploadFiles ? `Tip: drag and drop files anywhere in this folder view to upload into ${currentLocationLabel}.` : cacheOnlyMode ? "Uploads are unavailable while cached-shell mode is active." : "Uploads are unavailable when this account is read-only."}</p>
+              <p className={`status drop-upload-note${folderDropActive ? " active" : ""}`}>{canUploadFiles ? `Tip: drag and drop files anywhere in this folder view, or use Upload folder to keep directory structure under ${currentLocationLabel}.` : cacheOnlyMode ? "Uploads are unavailable while cached-shell mode is active." : "Uploads are unavailable when this account is read-only."}</p>
             </div>
           </section>
 

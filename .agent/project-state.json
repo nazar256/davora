@@ -38,17 +38,17 @@
   "validation": {
     "currentPass": {
       "date": "2026-05-23",
-      "typecheck": "passed_packet12_milestone1_items39_44_2026-05-23",
-      "unitTests": "passed_packet12_milestone1_items39_44_2026-05-23",
-      "build": "passed_packet12_milestone1_items39_44_2026-05-23",
-      "playwright": "passed_packet12_milestone1_items39_44_2026-05-23",
+      "typecheck": "passed_packet12_item40_multi_file_and_directory_uploads_2026-05-23",
+      "unitTests": "passed_packet12_item40_multi_file_and_directory_uploads_2026-05-23",
+      "build": "passed_packet12_item40_multi_file_and_directory_uploads_2026-05-23",
+      "playwright": "passed_packet12_item40_multi_file_and_directory_uploads_2026-05-23",
       "screenshots": "passed_packet12_milestone1_items39_44_2026-05-23",
-      "productionDeploy": "passed_packet12_milestone1_items39_44_2026-05-23_head_bf63583_including_stable_commit_edff0d0_worker_f07e6c6c_df42_42ca_bbfe_b6f2c47e8af6_pages_55ec9dfd",
+      "productionDeploy": "not_run_packet12_item40_pre_deploy_commit_requested",
       "workerWranglerDev": "not_rerun_packet_11a_local_node_runtime_path_unchanged",
       "workerDeployDryRun": "passed_packet_11a_session_stability_2026-05-23_with_durable_object_binding",
       "pagesDeployPath": "not_rerun_packet_11a_worker_only_runtime_fix",
       "realBackend": "not_rerun_packet_11_item38_downloads",
-      "docsCheckpoint": "aligned_packet12_milestone1_items39_44_2026-05-23"
+      "docsCheckpoint": "aligned_packet12_item40_multi_file_and_directory_uploads_2026-05-23"
     },
     "realBackendLastValidatedAt": "2026-05-23",
     "realBackendGuardrail": "Rerun `rtk npm run validate:real` whenever Packet 10+ deploy/runtime changes affect live Nextcloud validation, allowlist policy, or Worker session/bootstrap behavior.",
@@ -86,7 +86,7 @@
     "packet11OpenFeedbackBatch": "done_2026-05-23_items35_36_37_38_done",
     "packet11aReconnectSessionStability": "done_2026-05-23_deployed_worker_durable_object_account_store_plus_local_transient_failure_regressions_and_final_live_worker_redeploy",
     "packet11aStableCommit": "74903e6_fix_persist_deployed_accounts_across_worker_isolates",
-    "packet12OpenFeedbackBatch": "partial_2026-05-23_items39_and44_released_done__items40_and41_pending",
+    "packet12OpenFeedbackBatch": "partial_2026-05-23_items39_40_44_implemented__items39_and44_deployed_done__item40_pre_deploy_validated_commit_ready__item41_pending",
     "packet13OpenFeedbackBatch": "pending_2026-05-23_server_side_secret_design_review__oss_publish_review_round__team_visual_manual_review_loops",
     "improvementLoopExecutionMode": "pm_delegates_all_work__sequential_by_default_parallelize_only_when_definitely_harmless",
     "stableStateCommitWorkflow": "active_git_initialized_on_main_2026-05-23__packet12_stable_code_anchor_edff0d0__continue_committing_each_stable_state"

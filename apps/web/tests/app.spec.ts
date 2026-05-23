@@ -438,8 +438,37 @@ test("folder view accepts drag-and-drop uploads", async ({ page }) => {
   await fileListPanel.dispatchEvent("dragenter", { dataTransfer });
   await expect(fileListPanel).toHaveClass(/file-list-panel-drop-active/);
   await fileListPanel.dispatchEvent("drop", { dataTransfer });
-  await expect(page.getByText(/Uploaded 1 item into \/ via drag and drop/i)).toBeVisible();
+  await expect(page.getByText(/Uploaded 1 file into \/ via drag and drop/i)).toBeVisible();
   await expect(page.getByRole("button", { name: /Open file dragged.txt/i })).toBeVisible();
+});
+
+test("normal picker flow uploads multiple files in one action", async ({ page }) => {
+  await connectAccount(page, "Multi upload workspace");
+
+  const fileChooser = page.waitForEvent("filechooser");
+  await page.getByLabel("Upload files").click();
+  const chooser = await fileChooser;
+  await chooser.setFiles([
+    { name: "alpha.txt", mimeType: "text/plain", buffer: Buffer.from("alpha") },
+    { name: "beta.txt", mimeType: "text/plain", buffer: Buffer.from("beta") }
+  ]);
+
+  await expect(page.getByText(/Uploaded 2 files into \//i)).toBeVisible();
+  await expect(page.getByRole("button", { name: /Open file alpha.txt/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Open file beta.txt/i })).toBeVisible();
+});
+
+test("normal picker flow uploads directories while preserving nested relative paths", async ({ page }) => {
+  await connectAccount(page, "Folder upload workspace");
+
+  await page.locator('input[aria-label="Upload folder"]').setInputFiles("tests/fixtures/folder-upload/Mixtape");
+
+  await expect(page.getByText(/Uploaded 2 files from 1 folder into \//i)).toBeVisible();
+  await page.getByRole("button", { name: /Open folder Mixtape/i }).click();
+  await expect(page.getByRole("button", { name: /Open folder assets/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Open file track.txt/i })).toBeVisible();
+  await page.getByRole("button", { name: /Open folder assets/i }).click();
+  await expect(page.getByRole("button", { name: /Open file cover.txt/i })).toBeVisible();
 });
 
 test("mutation flow still works for the active account", async ({ page }, testInfo) => {
@@ -454,10 +483,10 @@ test("mutation flow still works for the active account", async ({ page }, testIn
   await page.getByRole("button", { name: /Open folder Playwright Folder/i }).click();
 
   const fileChooser = page.waitForEvent("filechooser");
-  await page.getByLabel("Upload file").click();
+  await page.getByLabel("Upload files").click();
   const chooser = await fileChooser;
   await chooser.setFiles({ name: "draft.txt", mimeType: "text/plain", buffer: Buffer.from("draft via playwright") });
-  await expect(page.getByText(/upload completed/i)).toBeVisible();
+  await expect(page.getByText(/Uploaded 1 file into \/Playwright Folder/i)).toBeVisible();
   await expect(page.getByRole("button", { name: /Open file draft.txt/i })).toBeVisible();
 
   if (isMobile) {

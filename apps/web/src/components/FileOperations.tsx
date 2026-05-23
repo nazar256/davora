@@ -8,10 +8,23 @@ export interface FileOperationsProps {
   mutationBusy: boolean;
   selectedEntry?: FileEntry;
   onCreateFolder: () => void;
-  onUpload: (files: FileList | null) => void;
+  onUpload: (files: FileList | File[] | null) => void;
   onMoveSelected: () => void;
   onCopySelected: () => void;
   onDeleteSelected: () => void;
+}
+
+function applyDirectoryUploadAttributes(input: HTMLInputElement | null) {
+  if (!input) {
+    return;
+  }
+
+  input.multiple = true;
+  input.setAttribute("multiple", "");
+  input.setAttribute("webkitdirectory", "");
+  input.setAttribute("directory", "");
+  (input as HTMLInputElement & { webkitdirectory?: boolean; directory?: boolean }).webkitdirectory = true;
+  (input as HTMLInputElement & { webkitdirectory?: boolean; directory?: boolean }).directory = true;
 }
 
 export function FileOperations(props: FileOperationsProps) {
@@ -37,8 +50,12 @@ export function FileOperations(props: FileOperationsProps) {
           <div className="action-row">
             <button disabled={!props.canMutate || props.mutationBusy} onClick={props.onCreateFolder}>Create folder</button>
             <label className={`upload-label ${!props.canMutate || props.mutationBusy ? "disabled" : ""}`}>
-              Upload file
-              <input aria-label="Upload file" disabled={!props.canMutate || props.mutationBusy} onChange={onFileInput} type="file" />
+              Upload files
+              <input aria-label="Upload files" disabled={!props.canMutate || props.mutationBusy} multiple onChange={onFileInput} type="file" />
+            </label>
+            <label className={`upload-label ${!props.canMutate || props.mutationBusy ? "disabled" : ""}`}>
+              Upload folder
+              <input aria-label="Upload folder" disabled={!props.canMutate || props.mutationBusy} onChange={onFileInput} ref={applyDirectoryUploadAttributes} type="file" />
             </label>
           </div>
         </div>
