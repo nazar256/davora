@@ -98,7 +98,7 @@ Before claiming another Davora UI/account pass is done, always:
   - Item 38 — completed: downloads now use a fetch + blob + anchor download flow instead of the prior iframe/form submission path, improving Chrome Android behavior.
 - Packet 12 (milestone 1 partially completed on 2026-05-23):
   - Item 39 — completed in milestone 1: reopening the same audio file in the same browser/account now restores the last known position on a best-effort basis using browser-local storage keyed by account + path; if storage is unavailable, invalid, rejected by the browser, or no longer usable for the media duration, preview starts quietly at `0:00` with no resume claim.
-  - Item 40 — local pre-deploy milestone completed on 2026-05-23: the current-folder actions now expose separate `Upload files` and `Upload folder` controls; normal picker flow accepts multiple files in one action, directory uploads preserve nested relative paths under the current folder by creating any missing parents first, and the transfer tray remains per-file so progress stays honest. Source-of-truth backlog status stays `PENDING` until the later deploy step is actually run.
+  - Item 40 — completed on 2026-05-23: the current-folder actions now expose separate `Upload files` and `Upload folder` controls; normal picker flow accepts multiple files in one action, directory uploads preserve nested relative paths under the current folder by creating any missing parents first, and the transfer tray remains per-file so progress stays honest. Stable product commit `c08e43c` was later included in the successful deploy of current HEAD `8ecc9c1`, publishing Worker version `4ba02fa9-632e-48ab-bf02-d9784bc52a98` at `https://api.example.invalid` plus Pages deploy `https://92f36b69.davora.pages.dev`.
   - Item 41 — downloading multiple files/directories is must-have; directory downloads may zip client-side if needed.
   - Item 44 — completed in milestone 1: once an account is connected, the in-app chrome no longer shows a persistent `Davora` wordmark, keeping that compact header space for location/status/install/settings/transfer affordances instead while preserving the zero-state product naming.
 - Packet 13 (recorded as open/pending on 2026-05-23):
@@ -109,7 +109,7 @@ Before claiming another Davora UI/account pass is done, always:
 ## Current workflow requirements for the next improvement loop
 - PM delegates all work; execute sequentially by default and parallelize only when definitely harmless.
 - Each stable working state should be committed to git.
-- Git is now initialized on `main`; the workflow started from the baseline commit `chore: initialize git baseline`, and the latest stable product code state recorded here is commit `48901e5` (`feat: add transfer tray for background transfers`).
+- Git is now initialized on `main`; the workflow started from the baseline commit `chore: initialize git baseline`, and the latest stable product code state recorded here is commit `c08e43c` (`feat: add multi-file and directory uploads`).
 
 ## Future limitations / non-goals (not open backlog for this delivery)
 - The managed UX feedback backlog above is complete through Packet 10, with Packets 11-13 now recorded as open backlog; the items below remain intentionally out of scope unless future product scope changes.
