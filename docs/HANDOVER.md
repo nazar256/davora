@@ -99,7 +99,11 @@ Before claiming another Davora UI/account pass is done, always:
 - Packet 12 (milestone 1 partially completed on 2026-05-23):
   - Item 39 — completed in milestone 1: reopening the same audio file in the same browser/account now restores the last known position on a best-effort basis using browser-local storage keyed by account + path; if storage is unavailable, invalid, rejected by the browser, or no longer usable for the media duration, preview starts quietly at `0:00` with no resume claim.
   - Item 40 — completed on 2026-05-23: the current-folder actions now expose separate `Upload files` and `Upload folder` controls; normal picker flow accepts multiple files in one action, directory uploads preserve nested relative paths under the current folder by creating any missing parents first, and the transfer tray remains per-file so progress stays honest. Stable product commit `c08e43c` was later included in the successful deploy of current HEAD `8ecc9c1`, publishing Worker version `4ba02fa9-632e-48ab-bf02-d9784bc52a98` at `https://api.example.invalid` plus Pages deploy `https://92f36b69.davora.pages.dev`.
-  - Item 41 — downloading multiple files/directories is must-have; directory downloads may zip client-side if needed.
+  - Item 41 — local stable pre-deploy milestone completed on 2026-05-23: the file list now adds explicit row-level batch-download selection (checkboxes only for this download use case, not a broader generic bulk-action system), selected files/folders can be downloaded together through one `Download selected` workflow, and any folder/batch result is packaged client-side as a ZIP while existing single-item open/details/download flows stay on their direct path.
+    - Mixed selections: selecting both files and folders produces one ZIP that preserves folder structure and includes standalone files at the current-folder/search-relative root.
+    - Scope guardrail: this deliberately does **not** introduce generalized bulk move/copy/delete behavior; batch selection exists only to satisfy item 41's download requirement.
+    - Progress/status honesty: the transfer tray reports queued/preparing/transferring/done for the batch archive, uses real streamed file-download progress while fetching selected files, and falls back to an honest preparing state while the browser is generating the ZIP.
+    - Remaining closure step: item 41 still stays `PENDING` in `docs/TASKS.md` until the deferred deploy step is intentionally run.
   - Item 44 — completed in milestone 1: once an account is connected, the in-app chrome no longer shows a persistent `Davora` wordmark, keeping that compact header space for location/status/install/settings/transfer affordances instead while preserving the zero-state product naming.
 - Packet 13 (recorded as open/pending on 2026-05-23):
   - Item 42 — clarify the actual server-side secret/design requirement: deployed runtime requires `SESSION_SECRET`, while Nextcloud credentials are entered in-app and stay out of browser persistence and server-start env config. The decision artifact is `docs/adr/003-worker-keeps-user-entered-nextcloud-credentials-server-side.md`.
@@ -109,7 +113,7 @@ Before claiming another Davora UI/account pass is done, always:
 ## Current workflow requirements for the next improvement loop
 - PM delegates all work; execute sequentially by default and parallelize only when definitely harmless.
 - Each stable working state should be committed to git.
-- Git is now initialized on `main`; the workflow started from the baseline commit `chore: initialize git baseline`, and the latest stable product code state recorded here is commit `c08e43c` (`feat: add multi-file and directory uploads`).
+- Git is now initialized on `main`; the workflow started from the baseline commit `chore: initialize git baseline`, and the next stable state after Packet 12 item 40 should be the Packet 12 item 41 batch-download milestone commit once this recovered pre-deploy pass is validated and committed.
 
 ## Future limitations / non-goals (not open backlog for this delivery)
 - The managed UX feedback backlog above is complete through Packet 10, with Packets 11-13 now recorded as open backlog; the items below remain intentionally out of scope unless future product scope changes.

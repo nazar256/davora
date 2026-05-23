@@ -36,7 +36,9 @@ vi.mock("./lib/api", async () => {
     getFile: vi.fn(),
     searchFiles: vi.fn(),
     downloadFile: vi.fn(),
+    fetchDownloadBlob: vi.fn(),
     fetchOriginalFile: vi.fn(),
+    triggerBrowserDownload: vi.fn(),
     createFolder: vi.fn(),
     uploadFile: vi.fn(),
     uploadFileWithProgress: vi.fn(),
@@ -226,7 +228,9 @@ beforeEach(() => {
     path: "",
     items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain", score: 75 }]
   });
+  mockedApi.fetchDownloadBlob.mockResolvedValue({ blob: new Blob(["download"], { type: "application/octet-stream" }), filename: undefined });
   mockedApi.fetchOriginalFile.mockResolvedValue({ blob: new Blob(["binary"], { type: "image/png" }), mimeType: "image/png", filename: "photo.png" });
+  mockedApi.triggerBrowserDownload.mockImplementation(() => undefined);
   mockedApi.createFolder.mockResolvedValue({ result: { action: "createFolder", parentPath: "", path: "Plans" } });
   mockedApi.uploadFileWithProgress.mockResolvedValue({ result: { action: "upload", parentPath: "", path: "Projects/roadmap.txt" } });
   mockedApi.moveFile.mockResolvedValue({ result: { action: "move", parentPath: "", path: "Projects/roadmap.txt", destinationPath: "Projects/renamed.txt" } });
@@ -408,6 +412,75 @@ describe("App", () => {
     expect(mockedApi.uploadFileWithProgress).toHaveBeenNthCalledWith(1, expect.objectContaining({ path: "Mixtape/assets", name: "cover.png" }), "token-alpha", expect.any(Function));
     expect(mockedApi.uploadFileWithProgress).toHaveBeenNthCalledWith(2, expect.objectContaining({ path: "Mixtape", name: "track.mp3" }), "token-alpha", expect.any(Function));
     expect(await screen.findByText(/Uploaded 2 files from 1 folder into \//i)).toBeInTheDocument();
+  });
+
+  it("downloads a mixed file and folder batch as one zip archive", async () => {
+    const account = buildAccount("alpha", { displayName: "Batch download workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockImplementation(async (path: string) => {
+      if (path === "Archive") {
+        return {
+          path,
+          items: [{ path: "Archive/photo.png", name: "photo.png", isFolder: false, size: 12, mimeType: "image/png" }]
+        };
+      }
+
+      return {
+        path,
+        items: [
+          { path: "Archive", name: "Archive", isFolder: true },
+          { path: "notes.txt", name: "notes.txt", isFolder: false, size: 9, mimeType: "text/plain" }
+        ]
+      };
+    });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Create folder/i });
+    fireEvent.click(screen.getByLabelText(/Select Archive folder for batch download/i));
+    fireEvent.click(screen.getByLabelText(/Select notes.txt file for batch download/i));
+
+    expect(await screen.findByText(/2 items selected for download \(1 file and 1 folder\)/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Download selected$/i }));
+
+    await waitFor(() => expect(mockedApi.fetchDownloadBlob).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mockedApi.triggerBrowserDownload).toHaveBeenCalled());
+    expect(mockedApi.fetchDownloadBlob).toHaveBeenNthCalledWith(1, "Archive/photo.png", "token-alpha", expect.any(Object));
+    expect(mockedApi.fetchDownloadBlob).toHaveBeenNthCalledWith(2, "notes.txt", "token-alpha", expect.any(Object));
+    expect(mockedApi.triggerBrowserDownload).toHaveBeenCalledWith(expect.any(Blob), "davora-home-download.zip");
+    expect(await screen.findByText(/Downloaded 1 file and 1 folder as davora-home-download.zip in Batch download workspace\./i)).toBeInTheDocument();
+  });
+
+  it("keeps single-item details download on the existing direct file path", async () => {
+    const account = buildAccount("alpha", { displayName: "Single download workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Create folder/i });
+    fireEvent.click(screen.getByRole("button", { name: /Show details for roadmap.txt/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Download$/i }));
+
+    await waitFor(() => expect(mockedApi.downloadFile).toHaveBeenCalledWith("Projects/roadmap.txt", "token-alpha", expect.any(Object)));
+    expect(mockedApi.fetchDownloadBlob).not.toHaveBeenCalled();
+    expect(mockedApi.triggerBrowserDownload).not.toHaveBeenCalled();
+  });
+
+  it("disables batch-download checkboxes when downloads are unavailable", async () => {
+    const account = buildAccount("alpha", { displayName: "Read only cached workspace" });
+    seedAccounts([{ account }], account.id);
+    Object.defineProperty(window.navigator, "onLine", { value: false, configurable: true });
+    mockedCache.readFolderCacheEnvelope.mockReturnValue({
+      cachedAt: "2026-05-21T10:00:00.000Z",
+      value: [{ path: "Projects", name: "Projects", isFolder: true }]
+    });
+
+    render(<App />);
+
+    const checkbox = await screen.findByLabelText(/Select Projects folder for batch download/i);
+    expect(checkbox).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /Show details for Projects/i }));
+    expect(screen.getByRole("button", { name: /Add to batch download/i })).toBeDisabled();
   });
 
   it("keeps an offline cached shell usable while the live session is unavailable", async () => {

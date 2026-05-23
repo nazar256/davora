@@ -23,6 +23,7 @@ import {
   deleteConnectedAccount,
   deleteFile,
   downloadFile,
+  fetchDownloadBlob,
   fetchOriginalFile,
   getFile,
   getHealth,
@@ -33,8 +34,10 @@ import {
   removeAccountFromStorage,
   saveActiveAccount,
   searchFiles,
+  triggerBrowserDownload,
   uploadFileWithProgress
 } from "./lib/api";
+import { downloadSelectionAsZip, type BatchDownloadPlan } from "./lib/batchDownload";
 import { buildUploadSelectionPlan } from "./lib/uploadPlan";
 import {
   cacheFolder,
@@ -190,6 +193,19 @@ function buildUploadSuccessMessage(fileCount: number, directoryCount: number, cu
 
 function buildUploadPartialFailureMessage(completedFileCount: number, totalFileCount: number, currentLocationLabel: string): string {
   return `Upload stopped after ${pluralize(completedFileCount, "file")} of ${totalFileCount} into ${currentLocationLabel}`;
+}
+
+function buildDownloadSelectionLabel(fileCount: number, directoryCount: number): string {
+  const parts = [fileCount > 0 ? pluralize(fileCount, "file") : undefined, directoryCount > 0 ? pluralize(directoryCount, "folder") : undefined].filter(Boolean);
+  return parts.join(" and ") || "0 items";
+}
+
+function buildBatchDownloadReadyMessage(plan: BatchDownloadPlan, activeAccountName: string): string {
+  return `Preparing ${buildDownloadSelectionLabel(plan.selectedFileCount, plan.selectedDirectoryCount)} as ${plan.archiveName} in ${activeAccountName}.`;
+}
+
+function buildBatchDownloadSuccessMessage(plan: BatchDownloadPlan, activeAccountName: string): string {
+  return `Downloaded ${buildDownloadSelectionLabel(plan.selectedFileCount, plan.selectedDirectoryCount)} as ${plan.archiveName} in ${activeAccountName}.`;
 }
 
 function applyDirectoryUploadAttributes(input: HTMLInputElement | null) {
@@ -1044,6 +1060,7 @@ export default function App() {
   const [currentPath, setCurrentPath] = useState("");
   const [items, setItems] = useState<FileEntry[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<FileEntry | undefined>();
+  const [downloadSelection, setDownloadSelection] = useState<FileEntry[]>([]);
   const [openedEntry, setOpenedEntry] = useState<FileEntry | undefined>();
   const [selected, setSelected] = useState<FilePreview | undefined>();
   const [selectedBlobUrl, setSelectedBlobUrl] = useState<string | undefined>();
@@ -1179,6 +1196,7 @@ export default function App() {
     setSelected(undefined);
     clearSelectedBlob();
     setSelectedEntry(undefined);
+    setDownloadSelection([]);
     setMobileDetailsOpen(false);
     setCurrentPath("");
     setSearchQuery("");
@@ -1278,6 +1296,7 @@ export default function App() {
     clearSelectedBlob();
     setSelected(undefined);
     setSelectedEntry(undefined);
+    setDownloadSelection([]);
     setMobileDetailsOpen(false);
     setOpenedEntry(undefined);
     setPreviewOpen(false);
@@ -1515,6 +1534,7 @@ export default function App() {
     setSelected(undefined);
     clearSelectedBlob();
     setSelectedEntry(undefined);
+    setDownloadSelection([]);
     setMobileDetailsOpen(false);
     setOpenedEntry(undefined);
     setCurrentPath(path);
@@ -1700,6 +1720,33 @@ export default function App() {
     setMobileDetailsOpen(isNarrowScreen);
   };
 
+  const toggleDownloadSelection = (entry: FileEntry) => {
+    setDownloadSelection((previous) => {
+      const exists = previous.some((item) => item.path === entry.path);
+      const next = exists ? previous.filter((item) => item.path !== entry.path) : [...previous, entry];
+      if (selectedEntry?.path === entry.path) {
+        if (exists) {
+          setSelectedEntry(undefined);
+          setMobileDetailsOpen(false);
+        }
+        return next;
+      }
+      if (!exists) {
+        setSelectedEntry(entry);
+        setMobileDetailsOpen(false);
+      }
+      return next;
+    });
+  };
+
+  const clearDownloadSelection = () => {
+    setDownloadSelection([]);
+    if (selectedEntry && !selected) {
+      setSelectedEntry(undefined);
+      setMobileDetailsOpen(false);
+    }
+  };
+
   const startDownloadWithTransfer = async (path: string, displayPath: string) => {
     if (!activeAccount || !token) {
       setListError(new Error("No session available for this action."));
@@ -1738,6 +1785,81 @@ export default function App() {
       }
       updateTransferTask(transferId, { phase: "error", finishedAt: new Date().toISOString(), errorMessage: error instanceof Error ? error.message : "Unable to download file." });
       setListError(error instanceof Error ? error : new Error("Unable to download file."));
+    }
+  };
+
+  const startBatchDownloadWithTransfer = async (entries: FileEntry[]) => {
+    if (entries.length === 1 && !entries[0]?.isFolder) {
+      await startDownloadWithTransfer(entries[0].path, toDisplayPath(entries[0].path));
+      return;
+    }
+    if (!activeAccount || !token) {
+      setListError(new Error("No session available for this action."));
+      return;
+    }
+    if (cacheOnlyMode) {
+      setListError(new Error(offline
+        ? "Offline downloads are disabled. Reconnect to download files."
+        : "Downloads are disabled while the local server is unavailable. Restore the server and retry."));
+      return;
+    }
+
+    const transferId = crypto.randomUUID();
+    addTransferTask({
+      id: transferId,
+      kind: "download",
+      label: `${pluralize(entries.length, "item")} selected`,
+      phase: "queued",
+      totalBytes: undefined
+    });
+
+    try {
+      updateTransferTask(transferId, { phase: "preparing" });
+      const { blob, plan } = await downloadSelectionAsZip({
+        entries,
+        currentPath,
+        searchActive,
+        listFiles: (path) => listFiles(path, token),
+        fetchFile: (path, callbacks) => fetchDownloadBlob(path, token, callbacks),
+        onPlanReady: (plan) => {
+          updateTransferTask(transferId, {
+            label: plan.archiveName,
+            phase: "transferring",
+            loadedBytes: 0,
+            totalBytes: plan.totalBytes
+          });
+          setStatus(buildBatchDownloadReadyMessage(plan, activeAccountName));
+        },
+        onFileProgress: (loadedBytes, totalBytes) => {
+          updateTransferTask(transferId, {
+            phase: "transferring",
+            loadedBytes,
+            totalBytes
+          });
+        },
+        onArchiveProgress: () => {
+          updateTransferTask(transferId, {
+            phase: "preparing",
+            loadedBytes: 0,
+            totalBytes: undefined
+          });
+        }
+      });
+
+      triggerBrowserDownload(blob, plan.archiveName);
+      updateTransferTask(transferId, { label: plan.archiveName, phase: "done", finishedAt: new Date().toISOString() });
+      setStatus(buildBatchDownloadSuccessMessage(plan, activeAccountName));
+    } catch (error) {
+      if (isUnauthorized(error)) {
+        resetActiveSession("Session expired. Create a fresh session for this account.");
+        return;
+      }
+      if (error instanceof ApiRequestError && error.code === "account_reconnect_required") {
+        resetActiveSession("This account needs to be reconnected before downloading files.", true);
+        return;
+      }
+      updateTransferTask(transferId, { phase: "error", finishedAt: new Date().toISOString(), errorMessage: error instanceof Error ? error.message : "Unable to prepare download." });
+      setListError(error instanceof Error ? error : new Error("Unable to prepare download."));
     }
   };
 
@@ -1988,6 +2110,7 @@ export default function App() {
 
   const syncSelectionWithMutation = (result: MutationResult) => {
     if (result.action === "delete") {
+      setDownloadSelection((previous) => previous.filter((entry) => entry.path !== result.path && !entry.path.startsWith(`${result.path}/`)));
       setSelected(undefined);
       clearSelectedBlob();
       closePreview();
@@ -2000,6 +2123,9 @@ export default function App() {
       if (result.item) {
         setSelectedEntry(result.item);
       }
+      if (result.item) {
+        setDownloadSelection((previous) => previous.map((entry) => entry.path === result.path ? result.item! : entry));
+      }
       return;
     }
 
@@ -2011,6 +2137,7 @@ export default function App() {
         name: nextName
       };
       setSelectedEntry(nextEntry);
+      setDownloadSelection((previous) => previous.map((entry) => entry.path === result.path ? nextEntry : entry));
       if (selected && selected.path === result.path) {
         setSelected({
           ...selected,
@@ -2259,6 +2386,7 @@ export default function App() {
     setSelected(undefined);
     clearSelectedBlob();
     setSelectedEntry(undefined);
+    setDownloadSelection([]);
     setMobileDetailsOpen(false);
     closePreview();
     await refreshCacheSummary();
@@ -2267,6 +2395,10 @@ export default function App() {
 
   const searchActive = Boolean(searchQuery.trim());
   const visibleItems = useMemo(() => (searchActive ? searchResults : items) ?? [], [items, searchActive, searchResults]);
+  const downloadSelectionCount = downloadSelection.length;
+  const downloadSelectionFileCount = downloadSelection.filter((item) => !item.isFolder).length;
+  const downloadSelectionDirectoryCount = downloadSelection.filter((item) => item.isFolder).length;
+  const downloadSelectionLabel = buildDownloadSelectionLabel(downloadSelectionFileCount, downloadSelectionDirectoryCount);
   const folderBanner = classifyState(listError, cacheOnlyMode, staleFolder, refreshingFolder, offline);
   const folderEnvelope = cacheNamespace ? readFolderCacheEnvelope<FileEntry[]>(cacheNamespace, currentPath) : undefined;
   const staleInfo = folderEnvelope ? `Cached ${formatCacheTimestamp(folderEnvelope.cachedAt)}` : undefined;
@@ -2281,18 +2413,21 @@ export default function App() {
         : normalizeMimeType(selectedDetails.mimeType) ?? "File"
     : undefined;
   const showMobileSelectionSheet = isNarrowScreen && Boolean(selectedDetails && mobileDetailsOpen);
-  const detailsPanelLabel = selectedDetails ? `Details for ${selectedDetails.name}` : "Workspace details";
+  const detailsPanelLabel = selectedDetails ? `Details for ${selectedDetails.name}` : downloadSelectionCount > 0 ? `Batch download details for ${downloadSelectionCount} items` : "Workspace details";
   const currentFolderLabel = currentPath ? currentPath.split("/").pop() ?? currentPath : "Home";
   const currentLocationLabel = toDisplayPath(currentPath);
   const itemCountLabel = `${visibleItems.length} ${visibleItems.length === 1 ? "item" : "items"}`;
   const resultCountLabel = `${visibleItems.length} ${visibleItems.length === 1 ? "result" : "results"}`;
   const browseStatusLabel = searchActive ? `${resultCountLabel} for “${searchQuery.trim()}” in ${currentLocationLabel}` : `${itemCountLabel} in ${currentLocationLabel}`;
+  const batchDownloadSummaryLabel = downloadSelectionCount > 0 ? `${pluralize(downloadSelectionCount, "item")} selected for download (${downloadSelectionLabel})` : undefined;
   const canCreateFolder = !cacheOnlyMode && Boolean(capabilities?.createFolder);
   const canUploadFiles = !cacheOnlyMode && Boolean(capabilities?.upload);
   const canMoveSelected = !cacheOnlyMode && Boolean(capabilities?.move) && Boolean(selectedEntry);
   const canCopySelected = !cacheOnlyMode && Boolean(capabilities?.copy) && Boolean(selectedEntry);
   const canDeleteSelected = !cacheOnlyMode && Boolean(capabilities?.delete) && Boolean(selectedEntry);
   const canDownloadSelected = Boolean(capabilities?.download) && Boolean(selectedFilePath && token);
+  const canDownloadBatchSelection = Boolean(capabilities?.download) && Boolean(downloadSelectionCount > 0 && token);
+  const canMarkForBatchDownload = Boolean(capabilities?.download && token);
   const canOpenSelected = Boolean(selectedEntry);
   const listRecoveryAvailable = Boolean(listError) && !loadingFolder && !cacheOnlyMode;
   const activeAccountName = activeAccount?.displayName ?? "current account";
@@ -2511,6 +2646,15 @@ export default function App() {
                 {staleInfo ? <span className="status">• {staleInfo}</span> : null}
                 {searchActive ? <button className="quiet-button" onClick={() => setSearchQuery("")} type="button">Clear search</button> : null}
               </div>
+              {batchDownloadSummaryLabel ? (
+                <div className="browse-selection-row">
+                  <span className="status">{batchDownloadSummaryLabel}</span>
+                  <div className="browse-selection-actions">
+                    <button disabled={!canDownloadBatchSelection} onClick={() => void startBatchDownloadWithTransfer(downloadSelection)} type="button">Download selected</button>
+                    <button className="quiet-button" onClick={clearDownloadSelection} type="button">Clear selection</button>
+                  </div>
+                </div>
+              ) : null}
               <p className="status browse-status-note">{status}</p>
             </div>
 
@@ -2612,21 +2756,32 @@ export default function App() {
             }}
           >
             <div aria-hidden="true" className="list-head">
-              <span>Name</span>
-              <span>Modified</span>
-              <span>Size</span>
-              <span>Info</span>
-            </div>
+                  <span>Select</span>
+                  <span>Name</span>
+                  <span>Modified</span>
+                  <span>Size</span>
+                  <span>Actions</span>
+                </div>
 
             <ul className="file-list-items">
               {visibleItems.map((item) => {
                 const isSelected = selectedEntry?.path === item.path;
+                const isMarkedForDownload = downloadSelection.some((entry) => entry.path === item.path);
                 const openLabel = `${item.isFolder ? "Open folder" : "Open file"} ${item.name}`;
                 const detailLabel = `${isSelected ? "Hide" : "Show"} details for ${item.name}`;
+                const selectForDownloadLabel = `${isMarkedForDownload ? "Remove" : "Select"} ${item.name} ${item.isFolder ? "folder" : "file"} for batch download`;
 
                 return (
                   <li key={item.path}>
-                    <div className={`item-row ${isSelected ? "selected" : ""}`}>
+                    <div className={`item-row ${isSelected ? "selected" : ""}${isMarkedForDownload ? " batch-selected" : ""}`}>
+                      <input
+                        aria-label={selectForDownloadLabel}
+                        checked={isMarkedForDownload}
+                        className="item-batch-checkbox"
+                        disabled={!canMarkForBatchDownload}
+                        onChange={() => toggleDownloadSelection(item)}
+                        type="checkbox"
+                      />
                       <button
                         aria-label={openLabel}
                         className="item-open-button"
@@ -2690,7 +2845,7 @@ export default function App() {
             <div className="panel-header">
               <div>
                 <p className="eyebrow section-eyebrow">Details</p>
-                <h2>{selectedDetails ? selectedDetails.isFolder ? "Selected folder" : "Selected file" : "Workspace details"}</h2>
+                <h2>{selectedDetails ? selectedDetails.isFolder ? "Selected folder" : "Selected file" : downloadSelectionCount > 0 ? "Batch download" : "Workspace details"}</h2>
               </div>
               {selectedDetails ? (
                 showMobileSelectionSheet ? (
@@ -2710,10 +2865,11 @@ export default function App() {
               ) : null}
             </div>
 
-            {selectedDetails ? (
+              {selectedDetails ? (
               <>
                 <p className="selection-name">{selectedDetails.name}</p>
                 <p className="status details-path">{toDisplayPath(selectedDetails.path)}</p>
+                <p className="status details-selection-note">{downloadSelection.some((entry) => entry.path === selectedDetails.path) ? "Included in batch download selection." : "Not included in batch download selection yet."}</p>
                 <dl className="metadata context-metadata">
                   <div>
                     <dt>Kind</dt>
@@ -2738,12 +2894,26 @@ export default function App() {
                     {selectedDetails.isFolder && selectedEntry ? <button onClick={() => navigateToPath(selectedEntry.path)} type="button">Open folder</button> : null}
                     {!selectedDetails.isFolder && selectedEntry ? <button onClick={() => void openFile(selectedEntry)} type="button">Open</button> : null}
                     {canDownloadSelected && selectedFilePath ? <button onClick={() => void startDownloadWithTransfer(selectedFilePath, toDisplayPath(selectedFilePath))} type="button">Download</button> : null}
+                    <button disabled={!canMarkForBatchDownload} onClick={() => selectedEntry ? toggleDownloadSelection(selectedEntry) : undefined} type="button">{downloadSelection.some((entry) => entry.path === selectedDetails.path) ? "Remove from batch download" : "Add to batch download"}</button>
+                    {canDownloadBatchSelection ? <button onClick={() => void startBatchDownloadWithTransfer(downloadSelection)} type="button">Download selected batch</button> : null}
                     <button disabled={!canMoveSelected || mutationBusy} onClick={handleMove} type="button">Rename or move</button>
                     <button disabled={!canCopySelected || mutationBusy} onClick={handleCopy} type="button">Copy</button>
                     <button className={canDeleteSelected ? "button-danger" : undefined} disabled={!canDeleteSelected || mutationBusy} onClick={handleDelete} type="button">Delete</button>
                   </div>
                 </div>
               </>
+            ) : downloadSelectionCount > 0 ? (
+              <div className="details-summary">
+                <p className="selection-name">{pluralize(downloadSelectionCount, "item")} selected</p>
+                <p className="status details-path">{downloadSelectionLabel}</p>
+                <div className="context-action-group">
+                  <span className="action-group-label">Batch download</span>
+                  <div className="context-actions">
+                    <button disabled={!canDownloadBatchSelection} onClick={() => void startBatchDownloadWithTransfer(downloadSelection)} type="button">Download selected</button>
+                    <button className="quiet-button" onClick={clearDownloadSelection} type="button">Clear selection</button>
+                  </div>
+                </div>
+              </div>
             ) : (
               <div className="details-summary">
                 <p className="selection-name">{currentFolderLabel}</p>

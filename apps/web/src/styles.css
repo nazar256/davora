@@ -619,7 +619,7 @@ textarea {
 .list-head,
 .item-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 150px 96px 108px;
+  grid-template-columns: 28px minmax(0, 1fr) 150px 96px 108px;
   gap: 0.75rem;
   align-items: center;
 }
@@ -662,6 +662,17 @@ ul {
 .item-row.selected {
   background: rgba(15, 23, 42, 0.9);
   box-shadow: inset 2px 0 0 rgba(96, 165, 250, 0.95);
+}
+
+.item-row.batch-selected {
+  box-shadow: inset 4px 0 0 rgba(34, 197, 94, 0.78);
+}
+
+.item-batch-checkbox {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: #60a5fa;
 }
 
 .item-open-button {
@@ -734,6 +745,10 @@ ul {
   overflow-wrap: anywhere;
 }
 
+.details-selection-note {
+  margin-top: -0.35rem;
+}
+
 .details-summary {
   display: grid;
   gap: 0.6rem;
@@ -743,6 +758,21 @@ ul {
   margin-top: 1rem;
   display: grid;
   gap: 0.65rem;
+}
+
+.browse-selection-row {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.25rem;
+}
+
+.browse-selection-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .metadata {
@@ -1401,11 +1431,16 @@ pre,
   }
 
   .item-row {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: 28px minmax(0, 1fr) auto;
     grid-template-areas:
-      "primary details"
-      "modified size";
+      "checkbox primary details"
+      "checkbox modified size";
     row-gap: 0.35rem;
+  }
+
+  .item-batch-checkbox {
+    grid-area: checkbox;
+    align-self: start;
   }
 
   .item-open-button {
@@ -1443,6 +1478,12 @@ pre,
 
   .context-actions button {
     width: 100%;
+  }
+
+  .browse-selection-row,
+  .browse-selection-actions {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .preview-header-context,
