@@ -53,6 +53,7 @@ Append one line per milestone commit + deploy.
 - 2026-05-23 Packet 12 / Item 40: stable product commit `c08e43c` was included in successful deploy of current HEAD `8ecc9c1`. Worker version `4ba02fa9-632e-48ab-bf02-d9784bc52a98` at `https://davora.xyofn8h7t.workers.dev`; Pages deploy `https://92f36b69.davora.pages.dev`.
 - 2026-05-23 Packet 12 / Item 41: stable product commit `143a97b` was included in successful deploy of current HEAD `7bac20c`. Worker version `d130505e-f946-4174-8878-5f37e15b783b` at `https://davora.xyofn8h7t.workers.dev`; Pages deploy `https://782fb753.davora.pages.dev`.
 - 2026-05-23 Packet 12 / Item 44: stable product commit `edff0d0` was included in successful deploy of current HEAD `bf63583`. Worker version `f07e6c6c-df42-42ca-bbfe-b6f2c47e8af6` at `https://davora.xyofn8h7t.workers.dev`; Pages deploy `https://55ec9dfd.davora.pages.dev`.
+- 2026-05-25 Docs/state checkpoint: stable product commit `143a97b` remained live and was included in successful deploy of current HEAD `cd976fb` via `npm run deploy`. Worker version `284a030d-1e0a-45c1-847e-ee11c7f72acf` at `https://davora.xyofn8h7t.workers.dev`; Pages deploy `https://b470876b.davora.pages.dev`. Wrangler warned that the root `wrangler.toml` lacks `pages_build_output_dir`, so Pages ignored that config file for this successful deploy.
 - (pending) Packet 13 / Item 42
 - (pending) Packet 13 / Item 43
 - (pending) Packet 13 / Item 45

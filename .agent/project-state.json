@@ -7,13 +7,13 @@
     "defaultBranch": "main",
     "currentStableCommit": {
       "short": "143a97b",
-      "full": "143a97b5924daac8c30b6bf5c353c88d8b00f367",
+      "full": "143a97b8f35353e8fe16084ed434b2f7b180ca82",
       "summary": "feat: add batch file and folder downloads"
     },
     "lastDeployHead": {
-      "short": "7bac20c",
-      "full": "7bac20c57e273e562e54eec29d4d27725089f8c6",
-      "summary": "docs: checkpoint screenshot evidence"
+      "short": "cd976fb",
+      "full": "cd976fb7063ac5b5103fc9a370bc9eeb84b0c1e1",
+      "summary": "docs: record Packet 12 item 41 release"
     },
     "workspace": [
       "apps/web",
@@ -43,12 +43,12 @@
       "build": "passed_packet12_item41_batch_downloads_2026-05-23",
       "playwright": "passed_packet12_item41_batch_downloads_2026-05-23",
       "screenshots": "passed_packet12_item41_checkpoint_evidence_2026-05-23",
-      "productionDeploy": "passed_packet12_item41_release_handling_2026-05-23_head_7bac20c_worker_d130505e-f946-4174-8878-5f37e15b783b_pages_782fb753",
+      "productionDeploy": "passed_docs_state_checkpoint_deploy_2026-05-25_head_cd976fb_worker_284a030d-1e0a-45c1-847e-ee11c7f72acf_pages_b470876b",
       "workerWranglerDev": "not_rerun_packet_11a_local_node_runtime_path_unchanged",
       "workerDeployDryRun": "passed_packet_11a_session_stability_2026-05-23_with_durable_object_binding",
       "pagesDeployPath": "not_rerun_packet_11a_worker_only_runtime_fix",
       "realBackend": "not_rerun_packet_11_item38_downloads",
-      "docsCheckpoint": "aligned_packet12_item41_release_handling_2026-05-23"
+      "docsCheckpoint": "aligned_docs_state_checkpoint_deploy_2026-05-25"
     },
     "realBackendLastValidatedAt": "2026-05-23",
     "realBackendGuardrail": "Rerun `rtk npm run validate:real` whenever Packet 10+ deploy/runtime changes affect live Nextcloud validation, allowlist policy, or Worker session/bootstrap behavior.",
