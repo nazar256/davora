@@ -116,6 +116,7 @@ test("captures the browse preview workspace", async ({ page }, testInfo) => {
   await page.getByRole("button", { name: /Open folder Archive/i }).click();
   await page.getByRole("button", { name: /Open file guide.pdf/i }).click();
   await expect(page.getByRole("dialog", { name: /Preview guide.pdf/i })).toBeVisible();
+  await expect(page.getByTitle(/PDF preview guide.pdf/i)).toBeVisible();
   await saveScreenshot(page, "davora-browse-preview.png");
 });
 
@@ -125,6 +126,7 @@ test("captures the focused preview overlay", async ({ page }, testInfo) => {
   await page.getByRole("button", { name: /Open folder Archive/i }).click();
   await page.getByRole("button", { name: /Open file photo.png/i }).click();
   await expect(page.getByRole("dialog", { name: /Preview photo.png/i })).toBeVisible();
+  await expect(page.locator("img.media-preview-image").or(page.getByText(/Image preview is unavailable right now/i))).toBeVisible();
   await saveScreenshot(page, "davora-focused-preview.png");
 });
 

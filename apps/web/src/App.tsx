@@ -721,7 +721,7 @@ function PreviewModal(props: PreviewModalProps) {
   const [imagePreviewFailed, setImagePreviewFailed] = useState(false);
   const audioPreviewRef = useRef<HTMLAudioElement | null>(null);
   const lastPersistedAudioSecondRef = useRef<number | undefined>();
-  const previewViewer = props.file?.viewer;
+  const previewViewer = props.file?.viewer ?? getViewerKind(props.entry?.mimeType);
   const showGalleryControls = isMediaGalleryViewer(previewViewer) && (props.onPrevious || props.onNext);
   const imageStageAdvances = previewViewer === "image" && Boolean(props.onNext);
   const audioResumeAccountId = props.open && props.accountId && props.file?.viewer === "audio" ? props.accountId : undefined;
@@ -976,7 +976,7 @@ function PreviewModal(props: PreviewModalProps) {
 
         <section className={`preview-stage ${immersivePreview ? "preview-stage-immersive" : ""}`}>
           <div className={`preview-stage-shell ${immersivePreview ? "preview-stage-shell-immersive" : ""}`}>
-            {props.loading ? <StateBanner kind="loading" message="Opening file…" /> : null}
+            {props.loading ? <div className="preview-transient-status"><StateBanner kind="loading" message="Opening file…" /></div> : null}
             {previewNotice ? (
               <div className="preview-cache-status">
                 <StateBanner kind={previewNotice.kind} message={previewNotice.message} />
@@ -987,8 +987,8 @@ function PreviewModal(props: PreviewModalProps) {
                 ) : null}
               </div>
             ) : null}
-            {props.error ? <StateBanner kind={props.error instanceof ApiRequestError && (props.error.status === 401 || props.error.status === 403) ? "permission" : "error"} message={props.error.message} /> : null}
-            {originalOpenError ? <StateBanner kind="error" message={originalOpenError} /> : null}
+            {props.error ? <div className="preview-transient-status"><StateBanner kind={props.error instanceof ApiRequestError && (props.error.status === 401 || props.error.status === 403) ? "permission" : "error"} message={props.error.message} /></div> : null}
+            {originalOpenError ? <div className="preview-transient-status"><StateBanner kind="error" message={originalOpenError} /></div> : null}
             {props.file?.truncated ? <p className="status preview-notice">Showing the first {props.file.bytesRead} bytes.</p> : null}
             {props.file ? (
               <>

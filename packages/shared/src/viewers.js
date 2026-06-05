@@ -12,9 +12,6 @@ export function getViewerKind(mimeType) {
     if (normalizedMimeType.startsWith("text/")) {
         return "text";
     }
-    if (["json", "xml", "javascript"].some((part) => normalizedMimeType.includes(part))) {
-        return "text";
-    }
     if (normalizedMimeType.startsWith("image/")) {
         return "image";
     }
@@ -23,6 +20,9 @@ export function getViewerKind(mimeType) {
     }
     if (normalizedMimeType.startsWith("video/")) {
         return "video";
+    }
+    if (["json", "xml", "javascript"].some((part) => normalizedMimeType.includes(part))) {
+        return "text";
     }
     return "unsupported";
 }

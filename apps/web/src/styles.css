@@ -540,7 +540,7 @@ textarea {
 
 .workspace-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 288px;
+  grid-template-columns: minmax(0, 1fr) 264px;
   gap: 0.9rem;
   align-items: start;
 }
@@ -549,6 +549,8 @@ textarea {
   display: grid;
   gap: 0.85rem;
   align-self: start;
+  position: sticky;
+  top: 0.9rem;
 }
 
 .browse-title-row,
@@ -645,6 +647,7 @@ ul {
 }
 
 .item-row {
+  min-height: 3.25rem;
   padding: 0.45rem 1rem;
   border-top: 1px solid rgba(148, 163, 184, 0.08);
   background: transparent;
@@ -752,6 +755,31 @@ ul {
 .details-summary {
   display: grid;
   gap: 0.6rem;
+}
+
+.details-panel {
+  padding: 0.9rem;
+}
+
+.details-panel .panel-header h2 {
+  font-size: 1rem;
+  margin-bottom: 0;
+}
+
+.details-panel .metadata div,
+.details-panel .cache-metadata div {
+  grid-template-columns: 1fr;
+  gap: 0.22rem;
+  padding: 0.48rem 0;
+}
+
+.details-panel .context-action-group {
+  margin-top: 0.75rem;
+}
+
+.details-panel .context-actions {
+  display: grid;
+  gap: 0.5rem;
 }
 
 .context-action-group {
@@ -963,13 +991,14 @@ ul {
 }
 
 .preview-modal {
-  width: min(98vw, 1480px);
-  height: min(96vh, 980px);
+  width: min(100vw, 1560px);
+  height: min(100vh, 1040px);
   overflow: hidden;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  padding: 1rem 1rem 1.1rem;
+  padding: 0.75rem;
   box-shadow: 0 28px 80px rgba(2, 6, 23, 0.55);
+  position: relative;
 }
 
 .preview-header-context {
@@ -985,8 +1014,8 @@ ul {
 
 .preview-header {
   align-items: flex-start;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  padding: 0.15rem 0.15rem 0.65rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
 }
 
 .preview-title-block {
@@ -999,7 +1028,7 @@ ul {
 .preview-context-row {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.55rem;
   flex-wrap: wrap;
 }
 
@@ -1014,9 +1043,14 @@ ul {
   margin: 0;
 }
 
+.preview-title-block h2 {
+  font-size: 1.05rem;
+}
+
 .preview-header-actions {
   align-items: flex-start;
   justify-content: flex-end;
+  gap: 0.45rem;
 }
 
 .preview-dismiss-button {
@@ -1040,7 +1074,7 @@ ul {
 
 .preview-details-disclosure {
   min-width: 0;
-  max-width: min(24rem, 100%);
+  max-width: min(20rem, 100%);
   border: 1px solid rgba(148, 163, 184, 0.16);
   border-radius: 0.85rem;
   background: rgba(7, 13, 24, 0.4);
@@ -1072,6 +1106,7 @@ ul {
   border-radius: 1rem;
   background: linear-gradient(180deg, rgba(6, 12, 23, 0.98), rgba(4, 8, 17, 0.96));
   overflow: auto;
+  position: relative;
 }
 
 .preview-stage-immersive {
@@ -1082,14 +1117,15 @@ ul {
 .preview-stage-shell {
   min-height: 100%;
   padding: 1rem 1.1rem 1.1rem;
+  position: relative;
 }
 
 .preview-stage-shell-immersive {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 0.35rem;
+  gap: 0;
+  padding: 0.25rem;
 }
 
 .preview-stage-shell-immersive > .preview-media-stage {
@@ -1165,10 +1201,22 @@ ul {
   margin-bottom: 1rem;
 }
 
-.preview-cache-status {
+.preview-cache-status,
+.preview-transient-status {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: min(27rem, calc(100% - 1.5rem));
   display: grid;
   gap: 0.6rem;
-  margin-bottom: 0.75rem;
+  margin: 0;
+  z-index: 4;
+  box-shadow: 0 16px 38px rgba(2, 6, 23, 0.45);
+}
+
+.preview-cache-status .banner-state,
+.preview-transient-status .banner-state {
+  margin: 0;
 }
 
 .pdf-preview {
@@ -1222,8 +1270,8 @@ pre,
 }
 
 .media-preview-image {
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
 }
 
 
@@ -1258,6 +1306,7 @@ pre,
   .workspace-rail {
     grid-column: 1 / -1;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    position: static;
   }
 
   .browse-header {
@@ -1487,11 +1536,36 @@ pre,
   }
 
   .preview-header-context,
-  .preview-header-actions,
   .preview-title-row,
   .preview-context-row {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .preview-header-actions {
+    position: absolute;
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    z-index: 6;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    padding: 0.6rem;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 1rem;
+    background: rgba(7, 13, 24, 0.92);
+    box-shadow: 0 18px 48px rgba(2, 6, 23, 0.58);
+    backdrop-filter: blur(16px);
+  }
+
+  .preview-header-actions > button,
+  .preview-header-actions > details {
+    width: 100%;
+  }
+
+  .preview-header-actions > details {
+    grid-column: 1 / -1;
   }
 
   .preview-details-disclosure {
@@ -1525,10 +1599,30 @@ pre,
     right: 0.75rem;
     bottom: 0.75rem;
     z-index: 18;
-    max-height: min(70vh, 34rem);
+    max-height: min(72vh, 38rem);
     overflow: auto;
     border-radius: 1.2rem;
     box-shadow: 0 24px 60px rgba(2, 6, 23, 0.52);
+  }
+
+  .details-panel.details-panel-sheet-open .context-action-group {
+    margin-inline: -0.25rem;
+    padding: 0.65rem 0.25rem 0.25rem;
+    background: transparent;
+  }
+
+  .details-panel.details-panel-sheet-open .context-actions {
+    gap: 0.45rem;
+  }
+
+  .details-panel.details-panel-sheet-open .context-actions button {
+    min-height: 2.65rem;
+    padding-block: 0.45rem;
+    font-size: 0.95rem;
+  }
+
+  .details-panel.details-panel-sheet-open .context-metadata {
+    display: none;
   }
 
   .details-panel.details-panel-sheet-open::before {
@@ -1542,12 +1636,20 @@ pre,
   }
 
   .preview-modal {
-    width: calc(100vw - 1rem);
-    height: calc(100vh - 1rem);
+    width: 100vw;
+    height: 100vh;
     max-width: none;
     max-height: none;
-    border-radius: 1rem;
-    padding: 0.85rem 0.75rem 0.9rem;
+    border-radius: 0;
+    padding: 0.55rem;
+  }
+
+  .preview-header {
+    padding-bottom: 0.45rem;
+  }
+
+  .preview-title-block h2 {
+    font-size: 1rem;
   }
 
   .preview-stage-shell {
@@ -1555,11 +1657,21 @@ pre,
   }
 
   .preview-stage-shell-immersive {
-    padding: 0.25rem;
+    padding: 0.15rem;
+    padding-bottom: 5.75rem;
+  }
+
+  .preview-cache-status,
+  .preview-transient-status {
+    top: auto;
+    right: 0.6rem;
+    left: 0.6rem;
+    bottom: 5.85rem;
+    width: auto;
   }
 
   .modal-scrim {
-    padding: 0.5rem;
+    padding: 0;
   }
 }
 

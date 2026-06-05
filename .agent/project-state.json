@@ -48,11 +48,12 @@
       "workerDeployDryRun": "passed_packet_11a_session_stability_2026-05-23_with_durable_object_binding",
       "pagesDeployPath": "not_rerun_packet_11a_worker_only_runtime_fix",
       "realBackend": "not_rerun_packet_11_item38_downloads",
-      "docsCheckpoint": "aligned_docs_state_checkpoint_deploy_2026-05-25"
+      "docsCheckpoint": "aligned_docs_state_checkpoint_deploy_2026-05-25",
+      "packet13UxLoop": "in_progress_2026-06-05_typecheck_test_build_screenshots_real_validation_passed__system_chromium_cdp_9222_verified__pwa_not_rerun_due_live_8787_port_conflict"
     },
     "realBackendLastValidatedAt": "2026-05-23",
     "realBackendGuardrail": "Rerun `rtk npm run validate:real` whenever Packet 10+ deploy/runtime changes affect live Nextcloud validation, allowlist policy, or Worker session/bootstrap behavior.",
-    "feedbackRecording": "2026-05-23_packet11a_checkpoint_feedback_recording_complete_and_account_store_retention_documented"
+    "feedbackRecording": "2026-06-05_packet13_ux_refinement_recorded_in_agents_tasks_progress_ux_review"
   },
     "v1Status": {
     "multiAccountDocs": "done",
@@ -87,7 +88,9 @@
     "packet11aReconnectSessionStability": "done_2026-05-23_deployed_worker_durable_object_account_store_plus_local_transient_failure_regressions_and_final_live_worker_redeploy",
     "packet11aStableCommit": "74903e6_fix_persist_deployed_accounts_across_worker_isolates",
     "packet12OpenFeedbackBatch": "done_2026-05-23_items39_40_41_44_deployed_done",
-    "packet13OpenFeedbackBatch": "pending_2026-05-23_server_side_secret_design_review__oss_publish_review_round__team_visual_manual_review_loops",
+    "packet13OpenFeedbackBatch": "in_progress_2026-06-05_ux_refinement_loop_added_from_nextcloud_comparison_feedback__items42_43_45_still_pending",
+    "packet13UxRefinementLoop": "in_progress_mobile_browse_first_action_sheet_full_screen_preview_compact_preview_notices__typecheck_test_build_screenshots_real_validation_passed__focused_image_and_mobile_sheet_evidence_rechecked_green__manual_user_review_still_open",
+    "agentsHandoff": "AGENTS.md_created_2026-06-05_for_context_compaction_recovery",
     "improvementLoopExecutionMode": "pm_delegates_all_work__sequential_by_default_parallelize_only_when_definitely_harmless",
     "stableStateCommitWorkflow": "active_git_initialized_on_main_2026-05-23__packet12_stable_code_anchor_143a97b__continue_committing_each_stable_state"
   }

@@ -1,5 +1,20 @@
 # Progress
 
+## 2026-06-05
+- Started a Packet 13 UX refinement loop from the user's direct Nextcloud comparison feedback. Concrete goals recorded for continuation: mobile browse-first layout, action-first bottom sheets, full-screen/space-efficient previews, compact preview/cache notices, and details/metadata that do not consume prime preview space.
+- Researched current comparable cloud-file UX patterns using Nextcloud documentation and Dropbox preview references. Applied direction: list-first browsing, current-folder actions near the list, contextual details/actions, full-screen or focused file preview, and secondary/collapsible metadata.
+- Implemented an initial web UX pass in `apps/web/src/styles.css`: reduced desktop details rail width/weight, made the rail sticky only on desktop, enlarged preview modal/stage usage, floated preview/cache/loading notices instead of letting banners consume the preview stage, moved mobile preview actions into a bottom action surface, and started converting the mobile selected-item sheet to action-first behavior.
+- Implemented a preview correctness fix in `apps/web/src/App.tsx`: preview mode is now inferred from the selected file MIME type while content is still loading, so image/PDF previews do not temporarily label themselves as text previews.
+- Updated screenshot capture in `apps/web/tests/screenshots.spec.ts` so PDF/image preview screenshots wait for actual content or fallback before capture, instead of capturing transient loading states.
+- Validation run so far: `npm run typecheck` passed, `npm test` passed, `npm run build` passed, `PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium-browser npm run test:screenshots` passed, and `npm run validate:real` passed using the updated project-root `.env` testing account while staying inside `.davora-agent-test`.
+- Browser/runtime notes for continuation: sandbox blocks binding local ports, so `npm run dev` needs approval/escalation; local dev served Worker `http://127.0.0.1:8787` and web `http://127.0.0.1:4173`; system Chromium is available at `/usr/bin/chromium-browser`, while `/usr/bin/google-chrome` and Playwright's downloaded Chromium cache are unavailable.
+- Screenshot evidence was rerun and inspected after follow-up fixes: the focused preview screenshot now renders a large browser-visible image stage instead of fallback/loading content, and the mobile selected-item sheet shows an action-first bottom sheet with the full action set visible and no metadata overlap.
+- Fixed a MIME classification issue found during this pass: `image/svg+xml` was previously treated as text because XML detection ran before image detection. `packages/shared/src/viewers.ts`, the checked-in JS mirror, mock viewer logic, and tests now classify SVG as image.
+- Headed Chromium was started separately with `--user-data-dir=/tmp/davora-chrome-cdp --remote-debugging-port=9222`, and the CDP endpoint was verified at `http://127.0.0.1:9222/json/version`.
+- `npm run test:pwa` was not rerun in this checkpoint because the active dev server already uses Worker port `8787`, while the PWA config also requires port `8787` with `reuseExistingServer: false`; rerun it after stopping the live dev server if PWA evidence is needed.
+- The user added a new project-root `.env` with credentials. Treat it as sensitive: do not print values; use it only for real-backend validation after local UI evidence is stable.
+- Added `AGENTS.md` as a concise root handoff file for future agents and context compaction recovery.
+
 ## 2026-05-19
 - Initialized required docs/state scaffolding and then rewrote them to match the actual v1 mission scope.
 - Replaced the incorrect username assumption with the explicit live username `ynvio` across docs/state and live validation scripts.
