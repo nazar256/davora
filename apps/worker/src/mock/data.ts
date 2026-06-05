@@ -90,10 +90,10 @@ const INITIAL_ENTRIES: MockNode[] = [
     name: "photo.png",
     isFolder: false,
     size: 68,
-    mimeType: "image/png",
+    mimeType: "image/svg+xml",
     lastModified: createTimestamp(21),
     etag: "photo-png",
-    binaryContent: base64Bytes("iVBORw0KGgoAAAANSUhEUgAAAAEAAAACCAYAAAABytg0AAAAFElEQVR4nGP8z8Dwn4GBgYGJAQoAHxcCAr7vGjAAAAAASUVORK5CYII=")
+    binaryContent: textBytes('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><defs><linearGradient id="sky" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#38bdf8"/><stop offset="0.45" stop-color="#2563eb"/><stop offset="1" stop-color="#0f172a"/></linearGradient></defs><rect width="1200" height="800" fill="url(#sky)"/><circle cx="930" cy="170" r="96" fill="#fde68a" opacity="0.92"/><path d="M0 690 260 430 430 590 610 360 1200 735v65H0z" fill="#082f49"/><path d="M0 745 330 530 535 660 720 500 1200 770v30H0z" fill="#0f766e" opacity="0.82"/></svg>')
   },
   {
     path: "Archive/guide.pdf",
@@ -246,9 +246,6 @@ function determineViewer(mimeType: string | undefined): ViewerKind {
   if (normalizedMimeType.startsWith("text/")) {
     return "text";
   }
-  if (normalizedMimeType.includes("json") || normalizedMimeType.includes("xml") || normalizedMimeType.includes("javascript")) {
-    return "text";
-  }
   if (normalizedMimeType.startsWith("image/")) {
     return "image";
   }
@@ -257,6 +254,9 @@ function determineViewer(mimeType: string | undefined): ViewerKind {
   }
   if (normalizedMimeType.startsWith("video/")) {
     return "video";
+  }
+  if (normalizedMimeType.includes("json") || normalizedMimeType.includes("xml") || normalizedMimeType.includes("javascript")) {
+    return "text";
   }
   return "unsupported";
 }

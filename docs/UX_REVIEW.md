@@ -1,5 +1,33 @@
 # UX Review
 
+## 2026-06-05 Packet 13 UX refinement loop status
+
+Status: IN PROGRESS. Current local implementation/evidence pass is green, but broader manual/user review is still open.
+
+User feedback driving this loop:
+- Nextcloud's current UX still feels better in important ways: actions are tappable near the bottom, the file list stays at the top, and navigation/menu behavior feels more spatially natural.
+- Davora screenshots showed visible issues: image preview too small or unavailable, cached-preview messaging consuming too much screen, file details occupying prime preview space, and mobile layout not optimizing screen usefulness.
+
+Current design direction:
+- Keep file browsing as the primary surface.
+- Make mobile selected-item surfaces action-first; details should not compete with actions or the file list.
+- Make preview an explicit focused mode with content taking most available space.
+- Keep preview details behind disclosure and move cache/loading/error notices into compact floating status surfaces.
+- Prefer browser-rendered evidence over code-only judgment.
+
+Evidence and validation so far:
+- `npm run typecheck`: PASS.
+- `npm test`: PASS.
+- `npm run build`: PASS.
+- `PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium-browser npm run test:screenshots`: PASS.
+- `npm run validate:real`: PASS with the updated project-root `.env` testing account, constrained to `.davora-agent-test`.
+- Headed Chromium/CDP: PASS for launch and endpoint verification. Chromium was started with `--user-data-dir=/tmp/davora-chrome-cdp --remote-debugging-port=9222`, and `http://127.0.0.1:9222/json/version` returned Chrome/CDP metadata.
+
+Current evidence gaps:
+- Independent/user visual review is still pending.
+- `npm run test:pwa` was not rerun in this checkpoint because the live dev server occupies Worker port `8787`, and the PWA config also requires `8787` with `reuseExistingServer: false`.
+- The current screenshots prove the focused image preview and action-first mobile sheet are improved, but they do not prove the broader requested UX is final.
+
 ## Scenario matrix
 
 | Scenario | Device / Viewport | Steps | Result |

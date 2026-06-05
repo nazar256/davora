@@ -23,6 +23,7 @@ describe("shared capability and viewer helpers", () => {
     expect(getViewerKind("text/markdown;charset=UTF-8")).toBe("markdown");
     expect(getViewerKind("application/pdf")).toBe("pdf");
     expect(getViewerKind("image/png")).toBe("image");
+    expect(getViewerKind("image/svg+xml")).toBe("image");
     expect(getViewerKind("audio/mpeg")).toBe("audio");
     expect(getViewerKind("video/mp4")).toBe("video");
     expect(getViewerKind("application/octet-stream")).toBe("unsupported");
