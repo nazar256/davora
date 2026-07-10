@@ -15,6 +15,7 @@ import {
   type SearchResponse,
   type SessionRequest,
   type SessionResponse,
+  type StreamTokenResponse,
   type UploadFileRequest
 } from "@davora/shared";
 
@@ -32,6 +33,7 @@ import {
   createMockFolder,
   deleteMockResource,
   downloadMockFile,
+  getMockOriginalRange,
   getMockMetadata,
   getMockOriginal,
   listMockFolder,
@@ -43,8 +45,10 @@ import {
 } from "./mock/data";
 import { NextcloudClient } from "./nextcloud/client";
 import { errorResponse, json, originMatchesAllowedOrigin, withCors } from "./security/http";
-import { signSessionToken, verifySessionToken } from "./security/token";
+import { signSessionToken, signStreamToken, verifySessionToken, verifyStreamToken } from "./security/token";
 import type { AuthorizedAccountContext, SessionPayload, WorkerEnv } from "./types";
+
+const STREAM_TOKEN_TTL_SECONDS = 120;
 
 function parseAllowedOrigins(rawEnv: Record<string, unknown>): string[] {
   const allowedOrigins = typeof rawEnv.ALLOWED_ORIGINS === "string" ? rawEnv.ALLOWED_ORIGINS : "";
@@ -99,6 +103,29 @@ async function requireSession(request: Request, env: WorkerEnv): Promise<Session
     throw new Error("Missing bearer token.");
   }
   return verifySessionToken(token, env.SESSION_SECRET);
+}
+
+async function requireStreamSession(request: Request, env: WorkerEnv): Promise<SessionPayload> {
+  const url = new URL(request.url);
+  const token = url.searchParams.get("streamToken")?.trim();
+  if (!token) {
+    throw new Error("Missing stream token.");
+  }
+
+  const payload = await verifyStreamToken(token, env.SESSION_SECRET);
+  const path = url.searchParams.get("path") ?? "";
+  if (payload.path !== path) {
+    throw new Error("Stream token does not match the requested path.");
+  }
+
+  return {
+    scope: "davora",
+    accountId: payload.accountId,
+    backend: payload.backend,
+    rootPath: payload.rootPath,
+    accountNonce: payload.accountNonce,
+    exp: payload.exp
+  };
 }
 
 function assertAllowedOrigin(request: Request, env: WorkerEnv): void {
@@ -161,6 +188,31 @@ async function handleAuthorizedRequest(request: Request, env: WorkerEnv, session
     return errorResponse(401, "session_mismatch", "Session no longer matches the selected account configuration.");
   }
 
+  if (url.pathname === "/api/file/stream-token" && request.method === "POST") {
+    const now = Math.floor(Date.now() / 1000);
+    const exp = Math.min(session.exp, now + STREAM_TOKEN_TTL_SECONDS);
+    const token = await signStreamToken(
+      {
+        scope: "davora-stream",
+        accountId: session.accountId,
+        backend: session.backend,
+        rootPath: session.rootPath,
+        accountNonce: session.accountNonce,
+        path,
+        exp
+      },
+      env.SESSION_SECRET
+    );
+    const payload: ApiEnvelope<StreamTokenResponse> = {
+      data: {
+        token,
+        path,
+        expiresAt: new Date(exp * 1000).toISOString()
+      }
+    };
+    return json(payload);
+  }
+
   try {
     if (context.account.backend === "mock") {
       if (url.pathname === "/api/files") {
@@ -193,6 +245,23 @@ async function handleAuthorizedRequest(request: Request, env: WorkerEnv, session
             "content-type": original.metadata.mimeType ?? "application/octet-stream",
             "content-disposition": `inline; filename*=UTF-8''${encodeURIComponent(original.metadata.name)}`,
             "cache-control": "no-store"
+          }
+        });
+      }
+      if (url.pathname === "/api/file/stream") {
+        const original = getMockOriginalRange(context.account.id, path, request.headers.get("range"));
+        if (!original) {
+          return errorResponse(404, "not_found", "File not found.");
+        }
+        return new Response(Buffer.from(original.body), {
+          status: original.status,
+          headers: {
+            "content-type": original.metadata.mimeType ?? "application/octet-stream",
+            "content-disposition": `inline; filename*=UTF-8''${encodeURIComponent(original.metadata.name)}`,
+            "cache-control": "no-store",
+            "accept-ranges": "bytes",
+            "content-length": String(original.body.byteLength),
+            ...(original.contentRange ? { "content-range": original.contentRange } : {})
           }
         });
       }
@@ -268,6 +337,18 @@ async function handleAuthorizedRequest(request: Request, env: WorkerEnv, session
           "content-disposition": `inline; filename*=UTF-8''${encodeURIComponent(file.metadata.name)}`,
           "cache-control": "no-store"
         }
+      });
+    }
+    if (url.pathname === "/api/file/stream") {
+      const file = await client.streamOriginal(path, request.headers.get("range"));
+      const headers = new Headers(file.response.headers);
+      headers.set("content-type", file.response.headers.get("content-type") ?? file.metadata.mimeType ?? "application/octet-stream");
+      headers.set("content-disposition", `inline; filename*=UTF-8''${encodeURIComponent(file.metadata.name)}`);
+      headers.set("cache-control", "no-store");
+      headers.set("accept-ranges", "bytes");
+      return new Response(file.response.body, {
+        status: file.response.status,
+        headers
       });
     }
     if (url.pathname === "/api/search") {
@@ -464,6 +545,11 @@ export async function handleRequest(request: Request, rawEnv: Record<string, unk
       }
     }
 
+    if (url.pathname === "/api/file/stream" && url.searchParams.has("streamToken")) {
+      const session = await requireStreamSession(request, env);
+      return withCors(await handleAuthorizedRequest(request, env, session), origin, env.ALLOWED_ORIGINS);
+    }
+
     const authorizedRequest = await normalizeAuthorizedRequest(request);
     const session = await requireSession(authorizedRequest, env);
     return withCors(await handleAuthorizedRequest(authorizedRequest, env, session), origin, env.ALLOWED_ORIGINS);
@@ -473,7 +559,7 @@ export async function handleRequest(request: Request, rawEnv: Record<string, unk
       ? 403
       : /reconnect this account/i.test(message)
         ? 409
-        : /bearer token|session token|expired/i.test(message)
+        : /bearer token|session token|stream token|expired/i.test(message)
           ? 401
           : /permission/i.test(message)
             ? 403

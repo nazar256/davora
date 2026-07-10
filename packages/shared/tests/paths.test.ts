@@ -13,6 +13,12 @@ describe("path helpers", () => {
     expect(stripSandboxRoot("team/docs", "team/docs/reports/q1.txt")).toBe("reports/q1.txt");
   });
 
+  it("preserves literal percent characters in raw path segments", () => {
+    expect(resolveSandboxPath("team/docs", "reports/100% complete.txt")).toBe("team/docs/reports/100% complete.txt");
+    expect(stripSandboxRoot("team/docs", "team/docs/reports/bad%file.txt")).toBe("reports/bad%file.txt");
+    expect(basename("team/docs/100% complete.txt")).toBe("100% complete.txt");
+  });
+
   it("returns parent and base names", () => {
     expect(dirname("team/docs/report.txt")).toBe("team/docs");
     expect(basename("team/docs/report.txt")).toBe("report.txt");

@@ -12,7 +12,7 @@ export default defineConfig({
     VitePWA({
       registerType: "prompt",
       injectRegister: false,
-      includeAssets: ["apple-touch-icon.png", "pwa-192.svg", "pwa-512.svg", "pwa-maskable.svg"],
+      includeAssets: ["apple-touch-icon.png", "favicon-16x16.png", "favicon-32x32.png", "favicon-48x48.png", "pwa-192.png", "pwa-512.png", "pwa-512-maskable.png"],
       manifest: {
         id: "/",
         name: "Davora",
@@ -54,7 +54,8 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,svg,png,ico,webmanifest}"],
+        globPatterns: ["**/*.{js,mjs,css,html,svg,png,ico,webmanifest}"],
+        globIgnores: ["**/heicPreviewWorker-*.js"],
         navigateFallbackDenylist: [/^\/api\//],
         clientsClaim: true,
         runtimeCaching: [

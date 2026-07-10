@@ -118,6 +118,11 @@ test("manifest metadata and Chrome installability checks pass outside incognito 
     expect.objectContaining({ src: "/pwa-512.png", sizes: "512x512", form_factor: "wide" })
   ]));
 
+  const serviceWorkerResponse = await request.get("/sw.js");
+  expect(serviceWorkerResponse.ok()).toBeTruthy();
+  const serviceWorkerSource = await serviceWorkerResponse.text();
+  expect(serviceWorkerSource).toMatch(/pdf\.worker\.min-[^"']+\.mjs/);
+
   const client = await context.newCDPSession(page);
   await client.send("Page.enable");
   const installability = await client.send("Page.getInstallabilityErrors") as {
@@ -176,11 +181,11 @@ test("offline preview build keeps cached account data usable after installable-s
   await context.setOffline(true);
   await page.reload();
 
-  await expect(page.locator(".badge.offline")).toBeVisible();
+  await expect(page.getByRole("banner").getByText("Offline", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /Open folder Projects/i })).toBeVisible();
   await page.getByRole("button", { name: /Open folder Projects/i }).click();
-  await expect(page.getByText(/Offline snapshot/i)).toBeVisible();
   await expect(page.getByText(/Showing cached data while offline/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: /Open file roadmap.txt/i })).toBeVisible();
   await expect(page.getByRole("button", { name: /Create folder/i })).toBeDisabled();
   await expect.poll(async () => page.evaluate(() => Boolean(navigator.serviceWorker?.controller))).toBe(true);
 });

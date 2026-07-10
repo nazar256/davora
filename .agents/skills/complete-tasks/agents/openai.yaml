@@ -1,0 +1,4 @@
+interface:
+  display_name: "Complete Tasks"
+  short_description: "Finish Linear tickets through prod proof"
+  default_prompt: "Use $complete-tasks to finish every open Linear ticket, deploy each completed story, and attach proof."

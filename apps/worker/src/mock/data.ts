@@ -30,6 +30,46 @@ function base64Bytes(value: string): Uint8Array {
   return Uint8Array.from(Buffer.from(value, "base64"));
 }
 
+function createPdfBytes(pages: string[][]): Uint8Array {
+  const fontObjectNumber = 3 + pages.length * 2;
+  const pageObjects = pages.map((_, index) => {
+    const contentObjectNumber = 3 + pages.length + index;
+    return `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 420 320] /Contents ${contentObjectNumber} 0 R /Resources << /Font << /F1 ${fontObjectNumber} 0 R >> >> >>`;
+  });
+  const contentObjects = pages.map((lines) => {
+    const escapedLines = lines.map((line) => line.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)"));
+    const textCommands = escapedLines
+      .map((line, index) => `${index === 0 ? "72 250 Td" : "0 -28 Td"} (${line}) Tj`)
+      .join("\n");
+    const stream = `BT\n/F1 18 Tf\n${textCommands}\nET\n`;
+    return `<< /Length ${Buffer.byteLength(stream, "utf8")} >>\nstream\n${stream}endstream`;
+  });
+  const kids = pageObjects.map((_, index) => `${index + 3} 0 R`).join(" ");
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    `<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`,
+    ...pageObjects,
+    ...contentObjects,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(Buffer.byteLength(pdf, "utf8"));
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefOffset = Buffer.byteLength(pdf, "utf8");
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  pdf += offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join("");
+  pdf += `trailer\n<< /Root 1 0 R /Size ${objects.length + 1} >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  return textBytes(pdf);
+}
+
+const GUIDE_PDF_BYTES = createPdfBytes([
+  ["Davora PDF preview", "Readable mock document", "Scroll for the next page"],
+  ["Page two of guide.pdf", "Use page buttons or mouse wheel", "Pinch or fit controls adjust zoom"]
+]);
+
 const INITIAL_ENTRIES: MockNode[] = [
   { path: "", name: "Mock Root", isFolder: true, lastModified: createTimestamp(0), etag: "root" },
   { path: "Projects", name: "Projects", isFolder: true, lastModified: createTimestamp(10), etag: "projects" },
@@ -93,17 +133,27 @@ const INITIAL_ENTRIES: MockNode[] = [
     mimeType: "image/svg+xml",
     lastModified: createTimestamp(21),
     etag: "photo-png",
-    binaryContent: textBytes('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><defs><linearGradient id="sky" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#38bdf8"/><stop offset="0.45" stop-color="#2563eb"/><stop offset="1" stop-color="#0f172a"/></linearGradient></defs><rect width="1200" height="800" fill="url(#sky)"/><circle cx="930" cy="170" r="96" fill="#fde68a" opacity="0.92"/><path d="M0 690 260 430 430 590 610 360 1200 735v65H0z" fill="#082f49"/><path d="M0 745 330 530 535 660 720 500 1200 770v30H0z" fill="#0f766e" opacity="0.82"/></svg>')
+    binaryContent: textBytes('<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800"><defs><linearGradient id="sky" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#38bdf8"/><stop offset="0.45" stop-color="#2563eb"/><stop offset="1" stop-color="#0f172a"/></linearGradient></defs><rect width="1200" height="800" fill="url(#sky)"/><circle cx="930" cy="170" r="96" fill="#fde68a" opacity="0.92"/><path d="M0 690 260 430 430 590 610 360 1200 735v65H0z" fill="#082f49"/><path d="M0 745 330 530 535 660 720 500 1200 770v30H0z" fill="#0f766e" opacity="0.82"/></svg>')
+  },
+  {
+    path: "Archive/photo.heic",
+    name: "photo.heic",
+    isFolder: false,
+    size: 24,
+    mimeType: "image/heic",
+    lastModified: createTimestamp(21),
+    etag: "photo-heic",
+    binaryContent: new Uint8Array([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63, 0x00, 0x00, 0x00, 0x00])
   },
   {
     path: "Archive/guide.pdf",
     name: "guide.pdf",
     isFolder: false,
-    size: 455,
+    size: GUIDE_PDF_BYTES.byteLength,
     mimeType: "application/pdf",
     lastModified: createTimestamp(22),
     etag: "guide-pdf",
-    binaryContent: textBytes("%PDF-1.1\n1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj\n2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj\n3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>endobj\n4 0 obj<< /Length 44 >>stream\nBT /F1 18 Tf 36 120 Td (Davora PDF preview) Tj ET\nendstream endobj\n5 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj\nxref\n0 6\n0000000000 65535 f \ntrailer<< /Root 1 0 R /Size 6 >>\nstartxref\n0\n%%EOF")
+    binaryContent: GUIDE_PDF_BYTES
   },
   {
     path: "Archive/image.bin",
@@ -348,6 +398,33 @@ export function getMockOriginal(accountId: string, path: string): { body: Uint8A
   return {
     body: found.binaryContent ?? textBytes(found.content ?? ""),
     metadata: stripPayload(found)
+  };
+}
+
+export function getMockOriginalRange(accountId: string, path: string, rangeHeader?: string | null): { body: Uint8Array; metadata: FileMetadata; status: number; contentRange?: string } | undefined {
+  const original = getMockOriginal(accountId, path);
+  if (!original) {
+    return undefined;
+  }
+  const total = original.body.byteLength;
+  const match = rangeHeader?.match(/^bytes=(\d*)-(\d*)$/);
+  if (!match) {
+    return { ...original, status: 200 };
+  }
+
+  const requestedStart = match[1] ? Number.parseInt(match[1], 10) : 0;
+  const requestedEnd = match[2] ? Number.parseInt(match[2], 10) : total - 1;
+  const start = Number.isFinite(requestedStart) ? Math.max(0, requestedStart) : 0;
+  const end = Number.isFinite(requestedEnd) ? Math.min(total - 1, requestedEnd) : total - 1;
+  if (start >= total || end < start) {
+    return { body: new Uint8Array(), metadata: original.metadata, status: 416, contentRange: `bytes */${total}` };
+  }
+
+  return {
+    body: original.body.slice(start, end + 1),
+    metadata: original.metadata,
+    status: 206,
+    contentRange: `bytes ${start}-${end}/${total}`
   };
 }
 

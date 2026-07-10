@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 
-import type { SessionPayload } from "../types";
+import type { SessionPayload, StreamTokenPayload } from "../types";
 
 function toBase64Url(bytes: Uint8Array): string {
   return Buffer.from(bytes)
@@ -31,7 +31,7 @@ async function importKey(secret: string): Promise<CryptoKey> {
   );
 }
 
-export async function signSessionToken(payload: SessionPayload, secret: string): Promise<string> {
+async function signToken(payload: SessionPayload | StreamTokenPayload, secret: string): Promise<string> {
   const header = { alg: "HS256", typ: "JWT" };
   const encodedHeader = toBase64Url(new TextEncoder().encode(JSON.stringify(header)));
   const encodedPayload = toBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
@@ -41,7 +41,7 @@ export async function signSessionToken(payload: SessionPayload, secret: string):
   return `${message}.${toBase64Url(new Uint8Array(signature))}`;
 }
 
-export async function verifySessionToken(token: string, secret: string): Promise<SessionPayload> {
+async function verifyToken(token: string, secret: string): Promise<SessionPayload | StreamTokenPayload> {
   const parts = token.split(".");
   if (parts.length !== 3) {
     throw new Error("Malformed session token.");
@@ -56,13 +56,34 @@ export async function verifySessionToken(token: string, secret: string): Promise
     throw new Error("Invalid session token signature.");
   }
 
-  const payload = JSON.parse(Buffer.from(fromBase64Url(encodedPayload)).toString("utf8")) as SessionPayload;
+  const payload = JSON.parse(Buffer.from(fromBase64Url(encodedPayload)).toString("utf8")) as SessionPayload | StreamTokenPayload;
+  if (payload.exp * 1000 <= Date.now()) {
+    throw new Error("Token expired.");
+  }
+
+  return payload;
+}
+
+export async function signSessionToken(payload: SessionPayload, secret: string): Promise<string> {
+  return signToken(payload, secret);
+}
+
+export async function verifySessionToken(token: string, secret: string): Promise<SessionPayload> {
+  const payload = await verifyToken(token, secret);
   if (payload.scope !== "davora") {
     throw new Error("Invalid session token scope.");
   }
-  if (payload.exp * 1000 <= Date.now()) {
-    throw new Error("Session token expired.");
-  }
+  return payload;
+}
 
+export async function signStreamToken(payload: StreamTokenPayload, secret: string): Promise<string> {
+  return signToken(payload, secret);
+}
+
+export async function verifyStreamToken(token: string, secret: string): Promise<StreamTokenPayload> {
+  const payload = await verifyToken(token, secret);
+  if (payload.scope !== "davora-stream") {
+    throw new Error("Invalid stream token scope.");
+  }
   return payload;
 }

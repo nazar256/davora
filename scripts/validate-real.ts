@@ -95,6 +95,21 @@ async function put(path: string, body: string) {
   }
 }
 
+async function putBytes(path: string, body: Uint8Array, contentType: string) {
+  const response = await httpRequest(createDavUrl(path), {
+    method: "PUT",
+    headers: {
+      authorization: authHeader(),
+      "content-type": contentType,
+      "content-length": String(body.byteLength)
+    },
+    body
+  });
+  if (![200, 201, 204].includes(response.status)) {
+    throw new Error(`PUT failed for ${path} with ${response.status}`);
+  }
+}
+
 async function move(sourcePath: string, destinationPath: string) {
   const response = await httpRequest(createDavUrl(sourcePath), {
     method: "MOVE",
@@ -175,6 +190,9 @@ async function main() {
   await put(`${rootPath}/docs/hello.txt`, "hello from davora real validation\nnormalized worker api");
   await move(`${rootPath}/docs/hello.txt`, `${rootPath}/docs/renamed.txt`);
   await copy(`${rootPath}/docs/renamed.txt`, `${rootPath}/docs/copied.txt`);
+  await mkcol(`${rootPath}/docs/100% folder`);
+  await put(`${rootPath}/docs/100% folder/100% complete.txt`, "literal percent path works");
+  await putBytes(`${rootPath}/docs/stream-check.mp3`, Buffer.from("stream-range-validation", "utf8"), "audio/mpeg");
 
   console.log("Starting local worker-backed validation checks...");
   const { spawn } = await import("node:child_process");
@@ -265,6 +283,8 @@ async function main() {
       body: JSON.stringify({ accountId, ...(unlockCode ? { unlockCode } : {}) })
     }) as { data: { session: { token: string } } };
     const token = sessionPayload.data.session.token;
+    const percentFolderPath = "docs/100% folder";
+    const percentFilePath = "docs/100% folder/100% complete.txt";
 
     const listPayload = await expectOk("/api/files?path=docs", {
       headers: requestHeaders(token)
@@ -339,6 +359,37 @@ async function main() {
       headers: requestHeaders(token)
     }) as { data: { file: { content: string } } };
 
+    const percentFolderPayload = await expectOk(`/api/files?path=${encodeURIComponent(percentFolderPath)}`, {
+      headers: requestHeaders(token)
+    }) as { data: { items: Array<{ path: string }> } };
+
+    const percentFilePayload = await expectOk(`/api/file?path=${encodeURIComponent(percentFilePath)}`, {
+      headers: requestHeaders(token)
+    }) as { data: { file: { content: string } } };
+
+    const percentDownloadResponse = await fetch(`http://127.0.0.1:${workerPort}/api/download?path=${encodeURIComponent(percentFilePath)}`, {
+      headers: requestHeaders(token)
+    });
+    if (!percentDownloadResponse.ok) {
+      throw new Error(`Expected literal percent download to succeed, got ${percentDownloadResponse.status}`);
+    }
+    const percentDownloadText = await percentDownloadResponse.text();
+
+    const streamPreviewPayload = await expectOk("/api/file?path=docs/stream-check.mp3", {
+      headers: requestHeaders(token)
+    }) as { data: { file: { viewer: string; requiresOriginalBlob?: boolean } } };
+
+    const streamRangeResponse = await fetch(`http://127.0.0.1:${workerPort}/api/file/stream?path=${encodeURIComponent("docs/stream-check.mp3")}&token=${encodeURIComponent(token)}`, {
+      headers: {
+        origin: "http://127.0.0.1:4173",
+        range: "bytes=7-11"
+      }
+    });
+    if (streamRangeResponse.status !== 206) {
+      throw new Error(`Expected real media stream range to return 206, got ${streamRangeResponse.status}`);
+    }
+    const streamRangeText = await streamRangeResponse.text();
+
     const finalSearchPayload = await expectOk("/api/search?path=docs&q=worker", {
       headers: requestHeaders(token)
     }) as { data: { items: Array<{ path: string }> } };
@@ -361,11 +412,35 @@ async function main() {
     if (!finalListPayload.data.items.some((item) => item.path === "docs/worker-folder")) {
       throw new Error("Real validation create-folder result missing docs/worker-folder");
     }
+    if (!finalListPayload.data.items.some((item) => item.path === percentFolderPath)) {
+      throw new Error("Real validation listing did not include literal percent folder");
+    }
     if (finalListPayload.data.items.some((item) => item.path === "docs/worker-copy.txt")) {
       throw new Error("Real validation delete did not remove docs/worker-copy.txt");
     }
     if (!uploadedFilePayload.data.file.content.includes("worker upload content")) {
       throw new Error(`Real validation upload preview mismatch: ${uploadedFilePayload.data.file.content}`);
+    }
+    if (!percentFolderPayload.data.items.some((item) => item.path === percentFilePath)) {
+      throw new Error("Real validation literal percent folder did not list child file");
+    }
+    if (!percentFilePayload.data.file.content.includes("literal percent path works")) {
+      throw new Error(`Real validation literal percent preview mismatch: ${percentFilePayload.data.file.content}`);
+    }
+    if (!percentDownloadText.includes("literal percent path works")) {
+      throw new Error(`Real validation literal percent download mismatch: ${percentDownloadText}`);
+    }
+    if (streamPreviewPayload.data.file.viewer !== "audio" || !streamPreviewPayload.data.file.requiresOriginalBlob) {
+      throw new Error("Real validation stream-check.mp3 was not classified as streamable audio.");
+    }
+    if (streamRangeResponse.headers.get("accept-ranges") !== "bytes") {
+      throw new Error("Real validation stream response did not advertise byte ranges.");
+    }
+    if (!streamRangeResponse.headers.get("content-range")?.includes("/23")) {
+      throw new Error(`Real validation stream response had unexpected content-range: ${streamRangeResponse.headers.get("content-range")}`);
+    }
+    if (streamRangeText !== "range") {
+      throw new Error(`Real validation stream range mismatch: ${streamRangeText}`);
     }
     if (!finalSearchPayload.data.items.some((item) => item.path === "docs/worker-folder/worker-upload.txt")) {
       throw new Error("Real validation worker search did not include uploaded file");

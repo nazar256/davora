@@ -464,6 +464,65 @@ describe("worker app multi-account foundation", () => {
     expect(response.headers.get("content-disposition")).toMatch(/attachment; filename\*=UTF-8''image\.bin/);
   });
 
+  it("streams media ranges for browser-native playback without exposing account credentials", async () => {
+    const { token } = await createSessionToken();
+    const response = await authorizedRequest(token, "/api/file/stream?path=Projects/song.mp3", {
+      headers: { range: "bytes=1-2" }
+    });
+
+    expect(response.status).toBe(206);
+    expect(response.headers.get("accept-ranges")).toBe("bytes");
+    expect(response.headers.get("content-range")).toBe("bytes 1-2/4");
+    expect(response.headers.get("content-length")).toBe("2");
+    expect(response.headers.get("content-type")).toBe("audio/mpeg");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([0x44, 0x33]));
+  });
+
+  it("uses a path-bound stream token for browser-native media URLs", async () => {
+    const { token } = await createSessionToken();
+    const tokenResponse = await authorizedRequest(token, "/api/file/stream-token?path=Projects/song.mp3", {
+      method: "POST"
+    });
+    expect(tokenResponse.status).toBe(200);
+    const tokenPayload = (await tokenResponse.json()) as { data: { token: string; path: string; expiresAt: string } };
+    expect(tokenPayload.data.path).toBe("Projects/song.mp3");
+
+    const streamResponse = await handleRequest(
+      new Request(`http://127.0.0.1:8787/api/file/stream?path=Projects/song.mp3&streamToken=${encodeURIComponent(tokenPayload.data.token)}`, {
+        headers: {
+          origin: "http://127.0.0.1:4173",
+          range: "bytes=0-0"
+        }
+      }),
+      env
+    );
+    expect(streamResponse.status).toBe(206);
+
+    const wrongPathResponse = await handleRequest(
+      new Request(`http://127.0.0.1:8787/api/file/stream?path=Archive/image.bin&streamToken=${encodeURIComponent(tokenPayload.data.token)}`, {
+        headers: { origin: "http://127.0.0.1:4173" }
+      }),
+      env
+    );
+    expect(wrongPathResponse.status).toBe(401);
+
+    const querySessionResponse = await handleRequest(
+      new Request(`http://127.0.0.1:8787/api/file/stream?path=Projects/song.mp3&token=${encodeURIComponent(token)}`, {
+        headers: { origin: "http://127.0.0.1:4173" }
+      }),
+      env
+    );
+    expect(querySessionResponse.status).toBe(401);
+
+    const regularResponse = await handleRequest(
+      new Request(`http://127.0.0.1:8787/api/file/original?path=Projects/song.mp3&streamToken=${encodeURIComponent(tokenPayload.data.token)}`, {
+        headers: { origin: "http://127.0.0.1:4173" }
+      }),
+      env
+    );
+    expect(regularResponse.status).toBe(401);
+  });
+
   it("supports create/upload/move/copy/delete operations for the active account", async () => {
     const { token } = await createSessionToken();
 

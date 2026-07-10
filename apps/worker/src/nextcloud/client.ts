@@ -326,6 +326,26 @@ export class NextcloudClient {
     };
   }
 
+  async streamOriginal(path: string, rangeHeader?: string | null): Promise<{ response: Response; metadata: FileMetadata }> {
+    const metadata = await this.getRequiredMetadata(path);
+    if (metadata.isFolder) {
+      throw new Error("Cannot open a folder as a file.");
+    }
+
+    const target = resolveSandboxPath(this.credentials.rootPath, path);
+    const response = await this.request(
+      target,
+      {
+        method: "GET",
+        headers: {
+          ...(rangeHeader ? { range: rangeHeader } : {})
+        }
+      },
+      [416]
+    );
+    return { response, metadata };
+  }
+
   async searchFiles(query: string, path = ""): Promise<SearchResult[]> {
     const normalizedQuery = query.trim().toLowerCase();
     if (!normalizedQuery) {

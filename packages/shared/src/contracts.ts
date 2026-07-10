@@ -144,6 +144,12 @@ export interface SearchResponse {
   items: SearchResult[];
 }
 
+export interface StreamTokenResponse {
+  token: string;
+  path: string;
+  expiresAt: string;
+}
+
 export interface CreateFolderRequest {
   path: string;
   name: string;

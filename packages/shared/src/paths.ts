@@ -11,26 +11,11 @@ function normalizeSegments(rawPath: string | undefined): string[] {
   const trimmed = (rawPath ?? "").trim();
   rejectInvalidCharacters(trimmed);
 
-  let decoded = trimmed;
-  for (let index = 0; index < 3; index += 1) {
-    if (ENCODED_SEPARATORS.test(decoded)) {
-      throw new Error("Encoded path separators are not allowed.");
-    }
-
-    try {
-      const next = decodeURIComponent(decoded);
-      if (next === decoded) {
-        break;
-      }
-      decoded = next;
-    } catch {
-      throw new Error("Path contains invalid percent-encoding.");
-    }
+  if (ENCODED_SEPARATORS.test(trimmed)) {
+    throw new Error("Encoded path separators are not allowed.");
   }
 
-  rejectInvalidCharacters(decoded);
-
-  return decoded
+  return trimmed
     .replace(/^\/+|\/+$/g, "")
     .split("/")
     .filter(Boolean)

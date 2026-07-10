@@ -18,6 +18,11 @@ export interface OpenedFileCacheEntry {
   blobSize: number;
   cachedAt: string;
   lastAccessedAt: string;
+  keepOffline?: boolean;
+  keepOfflineRoot?: string;
+  keepOfflineRootName?: string;
+  keepOfflineRootKind?: "file" | "folder" | "batch";
+  keepOfflineAddedAt?: string;
 }
 
 interface CacheIndex {
@@ -56,8 +61,8 @@ async function writeIndex(cacheNamespace: string, index: CacheIndex): Promise<vo
   await set(indexKey(cacheNamespace), index);
 }
 
-function currentSize(index: CacheIndex): number {
-  return Object.values(index.entries).reduce((total, entry) => total + entry.blobSize, 0);
+function evictableSize(index: CacheIndex): number {
+  return Object.values(index.entries).filter((entry) => !entry.keepOffline).reduce((total, entry) => total + entry.blobSize, 0);
 }
 
 async function removeEntry(cacheNamespace: string, path: string, index: CacheIndex): Promise<void> {
@@ -72,11 +77,11 @@ async function removeEntry(cacheNamespace: string, path: string, index: CacheInd
 }
 
 async function enforceLimit(cacheNamespace: string, index: CacheIndex): Promise<void> {
-  const orderedEntries = Object.values(index.entries).sort((left, right) => {
+  const orderedEntries = Object.values(index.entries).filter((entry) => !entry.keepOffline).sort((left, right) => {
     return Date.parse(left.lastAccessedAt) - Date.parse(right.lastAccessedAt) || left.path.localeCompare(right.path);
   });
 
-  while (currentSize(index) > index.limitBytes && orderedEntries.length > 0) {
+  while (evictableSize(index) > index.limitBytes && orderedEntries.length > 0) {
     const oldest = orderedEntries.shift();
     if (!oldest) {
       break;
@@ -101,8 +106,20 @@ export async function clearOpenedFileCache(cacheNamespace?: string): Promise<voi
   }
 
   const index = await readIndex(cacheNamespace);
-  await Promise.all(Object.values(index.entries).map((entry) => (entry.blobKey ? del(entry.blobKey) : Promise.resolve())));
-  await del(indexKey(cacheNamespace));
+  const keptOfflineEntries: Record<string, OpenedFileCacheEntry> = {};
+  await Promise.all(Object.values(index.entries).map((entry) => {
+    if (entry.keepOffline) {
+      keptOfflineEntries[entry.path] = entry;
+      return Promise.resolve();
+    }
+    return entry.blobKey ? del(entry.blobKey) : Promise.resolve();
+  }));
+  if (Object.keys(keptOfflineEntries).length > 0) {
+    index.entries = keptOfflineEntries;
+    await writeIndex(cacheNamespace, index);
+  } else {
+    await del(indexKey(cacheNamespace));
+  }
 }
 
 export async function cacheOpenedFile(cacheNamespace: string, input: {
@@ -112,19 +129,24 @@ export async function cacheOpenedFile(cacheNamespace: string, input: {
   mimeType: string;
   filename: string;
   maxBlobBytes?: number;
+  keepOffline?: boolean;
+  keepOfflineRoot?: string;
+  keepOfflineRootName?: string;
+  keepOfflineRootKind?: "file" | "folder" | "batch";
 }): Promise<OpenedFileCacheEntry> {
   const index = await readIndex(cacheNamespace);
   const now = new Date().toISOString();
   const existingEntry = index.entries[input.path];
   const shouldStoreBlob = Boolean(input.blob) && (!Number.isFinite(input.maxBlobBytes) || (input.blob?.size ?? 0) <= (input.maxBlobBytes ?? Number.POSITIVE_INFINITY));
-  const blobKey = shouldStoreBlob && input.blob ? blobStorageKey(cacheNamespace, input.path) : undefined;
-  const blobSize = shouldStoreBlob ? input.blob?.size ?? 0 : 0;
+  const preserveExistingOfflineBlob = Boolean(existingEntry?.keepOffline && existingEntry.blobKey && !input.keepOffline && !shouldStoreBlob);
+  const blobKey = shouldStoreBlob && input.blob ? blobStorageKey(cacheNamespace, input.path) : preserveExistingOfflineBlob ? existingEntry?.blobKey : undefined;
+  const blobSize = shouldStoreBlob ? input.blob?.size ?? 0 : preserveExistingOfflineBlob ? existingEntry?.blobSize ?? 0 : 0;
 
   if (existingEntry?.blobKey && existingEntry.blobKey !== blobKey) {
     await del(existingEntry.blobKey);
   }
 
-  if (blobKey && input.blob) {
+  if (shouldStoreBlob && blobKey && input.blob) {
     await set(blobKey, input.blob);
   }
 
@@ -136,7 +158,12 @@ export async function cacheOpenedFile(cacheNamespace: string, input: {
     ...(blobKey ? { blobKey } : {}),
     blobSize,
     cachedAt: existingEntry?.cachedAt ?? now,
-    lastAccessedAt: now
+    lastAccessedAt: now,
+    ...(input.keepOffline || existingEntry?.keepOffline ? { keepOffline: true } : {}),
+    ...(input.keepOfflineRoot ?? existingEntry?.keepOfflineRoot ? { keepOfflineRoot: input.keepOfflineRoot ?? existingEntry?.keepOfflineRoot } : {}),
+    ...(input.keepOfflineRootName ?? existingEntry?.keepOfflineRootName ? { keepOfflineRootName: input.keepOfflineRootName ?? existingEntry?.keepOfflineRootName } : {}),
+    ...(input.keepOfflineRootKind ?? existingEntry?.keepOfflineRootKind ? { keepOfflineRootKind: input.keepOfflineRootKind ?? existingEntry?.keepOfflineRootKind } : {}),
+    ...(input.keepOffline || existingEntry?.keepOfflineAddedAt ? { keepOfflineAddedAt: existingEntry?.keepOfflineAddedAt ?? now } : {})
   };
 
   await enforceLimit(cacheNamespace, index);
@@ -163,11 +190,42 @@ export async function listOpenedFileCacheEntries(cacheNamespace: string): Promis
   return Object.values(index.entries).sort((left, right) => Date.parse(right.lastAccessedAt) - Date.parse(left.lastAccessedAt));
 }
 
+export async function listOfflineFileCacheEntries(cacheNamespace: string): Promise<OpenedFileCacheEntry[]> {
+  const index = await readIndex(cacheNamespace);
+  return Object.values(index.entries)
+    .filter((entry) => entry.keepOffline)
+    .sort((left, right) => Date.parse(right.keepOfflineAddedAt ?? right.cachedAt) - Date.parse(left.keepOfflineAddedAt ?? left.cachedAt));
+}
+
+export async function removeOpenedFileCacheEntry(cacheNamespace: string, path: string): Promise<void> {
+  const index = await readIndex(cacheNamespace);
+  await removeEntry(cacheNamespace, path, index);
+  await writeIndex(cacheNamespace, index);
+}
+
+function isOfflineRootMatch(entry: OpenedFileCacheEntry, rootPath: string): boolean {
+  const root = rootPath.replace(/^\/+|\/+$/g, "");
+  const entryRoot = (entry.keepOfflineRoot ?? entry.path).replace(/^\/+|\/+$/g, "");
+  return entryRoot === root || entryRoot.startsWith(`${root}/`) || entry.path === root || entry.path.startsWith(`${root}/`);
+}
+
+export async function removeOfflineRoot(cacheNamespace: string, rootPath: string): Promise<void> {
+  const index = await readIndex(cacheNamespace);
+  const paths = Object.values(index.entries)
+    .filter((entry) => entry.keepOffline && isOfflineRootMatch(entry, rootPath))
+    .map((entry) => entry.path);
+  for (const path of paths) {
+    await removeEntry(cacheNamespace, path, index);
+  }
+  await writeIndex(cacheNamespace, index);
+}
+
 export async function getOpenedFileCacheSummary(cacheNamespace: string): Promise<{ itemCount: number; totalBytes: number; limitBytes: number }> {
   const index = await readIndex(cacheNamespace);
+  const evictableEntries = Object.values(index.entries).filter((entry) => !entry.keepOffline);
   return {
-    itemCount: Object.keys(index.entries).length,
-    totalBytes: currentSize(index),
+    itemCount: evictableEntries.length,
+    totalBytes: evictableEntries.reduce((total, entry) => total + entry.blobSize, 0),
     limitBytes: index.limitBytes
   };
 }

@@ -5,8 +5,22 @@ import { MAX_OPENED_FILE_CACHE_LIMIT, MIN_OPENED_FILE_CACHE_LIMIT } from "../lib
 import {
   clampMaxCacheableFileSizeBytes,
   MAX_MAX_CACHEABLE_FILE_SIZE_BYTES,
+  MAX_PREVIEW_FRESHNESS_INTERVAL_SECONDS,
   MIN_MAX_CACHEABLE_FILE_SIZE_BYTES
+  , MIN_PREVIEW_FRESHNESS_INTERVAL_SECONDS,
+  clampPreviewFreshnessIntervalSeconds
 } from "../lib/uiSettings";
+
+const PREVIEW_FRESHNESS_UNITS = [
+  { value: "seconds", label: "second(s)", multiplier: 1 },
+  { value: "minutes", label: "minute(s)", multiplier: 60 },
+  { value: "hours", label: "hour(s)", multiplier: 60 * 60 },
+  { value: "days", label: "day(s)", multiplier: 24 * 60 * 60 },
+  { value: "weeks", label: "week(s)", multiplier: 7 * 24 * 60 * 60 },
+  { value: "months", label: "month(s)", multiplier: 30 * 24 * 60 * 60 }
+] as const;
+
+type PreviewFreshnessUnit = typeof PREVIEW_FRESHNESS_UNITS[number]["value"];
 
 function clampCacheLimit(limitBytes: number): number {
   if (!Number.isFinite(limitBytes)) {
@@ -37,21 +51,48 @@ function bytesToMegabytesRounded(limitBytes: number): number {
   return Math.round(limitBytes / (1024 * 1024));
 }
 
+function choosePreviewFreshnessUnit(seconds: number): PreviewFreshnessUnit {
+  for (const unit of [...PREVIEW_FRESHNESS_UNITS].reverse()) {
+    if (seconds >= unit.multiplier && seconds % unit.multiplier === 0) {
+      return unit.value;
+    }
+  }
+
+  return "seconds";
+}
+
+function getPreviewFreshnessMultiplier(unit: PreviewFreshnessUnit): number {
+  return PREVIEW_FRESHNESS_UNITS.find((option) => option.value === unit)?.multiplier ?? 60;
+}
+
 export interface CachePanelProps {
   itemCount: number;
   totalBytes: number;
   limitBytes: number;
   fileSizeDisplayMode: FileSizeDisplayMode;
   maxCacheableFileSizeBytes: number;
+  previewFreshnessIntervalSeconds: number;
+  offlineItems: Array<{
+    rootPath: string;
+    name: string;
+    kind: "file" | "folder" | "batch";
+    fileCount: number;
+    totalBytes: number;
+    addedAt?: string;
+  }>;
   onClear: () => void;
+  onRemoveOfflineItem: (rootPath: string) => void;
   onLimitChange: (limitBytes: number) => void;
   onMaxCacheableFileSizeChange: (limitBytes: number) => void;
+  onPreviewFreshnessIntervalChange: (intervalSeconds: number) => void;
 }
 
 export function CachePanel(props: CachePanelProps) {
   const itemLabel = props.itemCount === 1 ? "cached file" : "cached files";
   const [manualLimitMb, setManualLimitMb] = useState(() => String(bytesToMegabytes(props.limitBytes)));
   const [manualMaxCacheableMb, setManualMaxCacheableMb] = useState(() => String(bytesToMegabytesRounded(props.maxCacheableFileSizeBytes)));
+  const [previewFreshnessUnit, setPreviewFreshnessUnit] = useState<PreviewFreshnessUnit>(() => choosePreviewFreshnessUnit(props.previewFreshnessIntervalSeconds));
+  const [previewFreshnessValue, setPreviewFreshnessValue] = useState(() => String(Math.max(1, Math.round(props.previewFreshnessIntervalSeconds / getPreviewFreshnessMultiplier(choosePreviewFreshnessUnit(props.previewFreshnessIntervalSeconds))))));
 
   useEffect(() => {
     setManualLimitMb(String(bytesToMegabytes(props.limitBytes)));
@@ -60,6 +101,12 @@ export function CachePanel(props: CachePanelProps) {
   useEffect(() => {
     setManualMaxCacheableMb(String(bytesToMegabytesRounded(props.maxCacheableFileSizeBytes)));
   }, [props.maxCacheableFileSizeBytes]);
+
+  useEffect(() => {
+    const nextUnit = choosePreviewFreshnessUnit(props.previewFreshnessIntervalSeconds);
+    setPreviewFreshnessUnit(nextUnit);
+    setPreviewFreshnessValue(String(Math.max(1, Math.round(props.previewFreshnessIntervalSeconds / getPreviewFreshnessMultiplier(nextUnit)))));
+  }, [props.previewFreshnessIntervalSeconds]);
 
   const sliderValue = useMemo(() => String(bytesToMegabytes(props.limitBytes)), [props.limitBytes]);
 
@@ -96,6 +143,19 @@ export function CachePanel(props: CachePanelProps) {
     }
   };
 
+  const applyPreviewFreshnessInterval = (nextValue = previewFreshnessValue, nextUnit = previewFreshnessUnit) => {
+    const parsed = Number.parseFloat(nextValue);
+    if (!Number.isFinite(parsed)) {
+      const currentUnit = choosePreviewFreshnessUnit(props.previewFreshnessIntervalSeconds);
+      setPreviewFreshnessUnit(currentUnit);
+      setPreviewFreshnessValue(String(Math.max(1, Math.round(props.previewFreshnessIntervalSeconds / getPreviewFreshnessMultiplier(currentUnit)))));
+      return;
+    }
+
+    const clampedSeconds = clampPreviewFreshnessIntervalSeconds(Math.round(parsed) * getPreviewFreshnessMultiplier(nextUnit));
+    props.onPreviewFreshnessIntervalChange(clampedSeconds);
+  };
+
   return (
     <section className="cache-panel panel panel-subtle">
       <div className="panel-header">
@@ -109,6 +169,29 @@ export function CachePanel(props: CachePanelProps) {
         <strong>{props.itemCount}</strong> {itemLabel} • {formatFileSize(props.totalBytes, props.fileSizeDisplayMode)} used
       </p>
       <p className="status">Opened files stay available until the cache is cleared or older entries are evicted.</p>
+      <div className="offline-files-management">
+        <div className="panel-header compact-panel-header">
+          <div>
+            <p className="eyebrow section-eyebrow">Offline files</p>
+            <h4>Kept on this device</h4>
+          </div>
+        </div>
+        {props.offlineItems.length === 0 ? <p className="status">No files or folders are explicitly kept offline yet.</p> : null}
+        {props.offlineItems.length > 0 ? (
+          <ul className="offline-files-list">
+            {props.offlineItems.map((item) => (
+              <li key={item.rootPath} className="offline-files-item">
+                <div>
+                  <strong>{item.name}</strong>
+                  <p className="status">{item.kind === "folder" ? "Recursive folder" : item.kind === "batch" ? "Batch selection" : "File"} • {item.fileCount} {item.fileCount === 1 ? "file" : "files"} • {formatFileSize(item.totalBytes, props.fileSizeDisplayMode)}</p>
+                  <p className="status">{item.rootPath}</p>
+                </div>
+                <button aria-label={`Remove offline copy for ${item.name} from this device`} className="quiet-button" onClick={() => props.onRemoveOfflineItem(item.rootPath)} type="button">Remove from this device</button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
       <p className="status">Current mode for cache-related sizes: {getFileSizeDisplayModeLabel(props.fileSizeDisplayMode)}.</p>
       <label className="stacked-field cache-limit-field">
         <span className="summary-label">Opened-file cache limit</span>
@@ -197,6 +280,38 @@ export function CachePanel(props: CachePanelProps) {
             </div>
           </div>
         </div>
+      </label>
+      <label className="stacked-field cache-limit-field">
+        <span className="summary-label">Check cached previews for updates after</span>
+        <div className="cache-limit-manual-row">
+          <input
+            aria-label="Cached preview update check interval value"
+            inputMode="numeric"
+            min="1"
+            onBlur={() => applyPreviewFreshnessInterval()}
+            onChange={(event) => setPreviewFreshnessValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                applyPreviewFreshnessInterval();
+              }
+            }}
+            type="number"
+            value={previewFreshnessValue}
+          />
+          <select
+            aria-label="Cached preview update check interval unit"
+            onChange={(event) => {
+              const nextUnit = event.target.value as PreviewFreshnessUnit;
+              setPreviewFreshnessUnit(nextUnit);
+              applyPreviewFreshnessInterval(previewFreshnessValue, nextUnit);
+            }}
+            value={previewFreshnessUnit}
+          >
+            {PREVIEW_FRESHNESS_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
+          </select>
+        </div>
+        <span className="status">Range: {MIN_PREVIEW_FRESHNESS_INTERVAL_SECONDS} second to {Math.round(MAX_PREVIEW_FRESHNESS_INTERVAL_SECONDS / (24 * 60 * 60))} days.</span>
       </label>
       <details className="cache-details">
         <summary>View cache details</summary>

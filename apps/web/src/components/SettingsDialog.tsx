@@ -20,7 +20,17 @@ interface SettingsDialogProps {
   closeActionLabel: string;
   fileSizeDisplayMode: FileSizeDisplayMode;
   maxCacheableFileSizeBytes: number;
+  previewFreshnessIntervalSeconds: number;
+  offlineItems: Array<{
+    rootPath: string;
+    name: string;
+    kind: "file" | "folder" | "batch";
+    fileCount: number;
+    totalBytes: number;
+    addedAt?: string;
+  }>;
   onClearCache: () => void;
+  onRemoveOfflineItem: (rootPath: string) => void;
   onClose: () => void;
   onActiveAccountChange: (accountId: string) => void;
   onOpenAddAccount: () => void;
@@ -28,6 +38,11 @@ interface SettingsDialogProps {
   onOpenRemove: () => void;
   onOpenedFileCacheLimitChange: (limitBytes: number) => void;
   onMaxCacheableFileSizeChange: (limitBytes: number) => void;
+  onPreviewFreshnessIntervalChange: (intervalSeconds: number) => void;
+  showHiddenFiles: boolean;
+  onShowHiddenFilesChange: (show: boolean) => void;
+  experimentalHeicPreviewEnabled: boolean;
+  onExperimentalHeicPreviewEnabledChange: (enabled: boolean) => void;
   onDismissFromScrim?: () => void;
 }
 
@@ -54,7 +69,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
 
   return (
     <div
-      className="modal-scrim"
+      className="modal-scrim settings-modal-scrim"
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           (props.onDismissFromScrim ?? props.onClose)();
@@ -136,11 +151,57 @@ export function SettingsDialog(props: SettingsDialogProps) {
             itemCount={props.cacheSummary.itemCount}
             limitBytes={props.cacheSummary.limitBytes}
             maxCacheableFileSizeBytes={props.maxCacheableFileSizeBytes}
+            offlineItems={props.offlineItems}
+            previewFreshnessIntervalSeconds={props.previewFreshnessIntervalSeconds}
             onClear={props.onClearCache}
             onLimitChange={props.onOpenedFileCacheLimitChange}
             onMaxCacheableFileSizeChange={props.onMaxCacheableFileSizeChange}
+            onRemoveOfflineItem={props.onRemoveOfflineItem}
+            onPreviewFreshnessIntervalChange={props.onPreviewFreshnessIntervalChange}
             totalBytes={props.cacheSummary.totalBytes}
           />
+
+          <section className="settings-section panel panel-subtle">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow section-eyebrow">View</p>
+                <h3>Browse preferences</h3>
+              </div>
+            </div>
+            <label className="stacked-field">
+              <span className="summary-label">Show hidden files and folders</span>
+              <div className="cache-limit-manual-row">
+                <input
+                  aria-label="Show hidden files and folders"
+                  checked={props.showHiddenFiles}
+                  onChange={(event) => props.onShowHiddenFilesChange(event.target.checked)}
+                  type="checkbox"
+                />
+                <span className="status">Reveal dot-prefixed items such as .DS_Store and .directory in file lists.</span>
+              </div>
+            </label>
+          </section>
+
+          <section className="settings-section panel panel-subtle">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow section-eyebrow">Experimental</p>
+                <h3>Preview labs</h3>
+              </div>
+            </div>
+            <label className="stacked-field">
+              <span className="summary-label">Enable experimental HEIC preview</span>
+              <div className="cache-limit-manual-row">
+                <input
+                  aria-label="Enable experimental HEIC preview"
+                  checked={props.experimentalHeicPreviewEnabled}
+                  onChange={(event) => props.onExperimentalHeicPreviewEnabledChange(event.target.checked)}
+                  type="checkbox"
+                />
+                <span className="status">Decode HEIC/HEIF photos locally in this browser when possible. Original files and downloads stay unchanged.</span>
+              </div>
+            </label>
+          </section>
         </div>
       </section>
     </div>

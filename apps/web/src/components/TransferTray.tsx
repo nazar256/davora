@@ -1,7 +1,18 @@
 import React from "react";
 
-export type TransferKind = "upload" | "download";
-export type TransferPhase = "queued" | "preparing" | "transferring" | "done" | "error";
+export type TransferKind = "upload" | "download" | "sync";
+export type TransferPhase = "queued" | "preparing" | "transferring" | "done" | "partial" | "error";
+
+export interface TransferFailure {
+  sourcePath: string;
+  error: string;
+}
+
+export interface TransferSyncRootEntry {
+  path: string;
+  name: string;
+  isFolder: boolean;
+}
 
 export interface TransferTask {
   id: string;
@@ -13,6 +24,9 @@ export interface TransferTask {
   startedAt: string;
   finishedAt?: string;
   errorMessage?: string;
+  failedFiles?: TransferFailure[];
+  syncRootEntries?: TransferSyncRootEntry[];
+  dedupeKey?: string;
 }
 
 function formatPercent(loaded: number, total?: number): string | undefined {
@@ -24,7 +38,10 @@ function formatPercent(loaded: number, total?: number): string | undefined {
 }
 
 function kindLabel(kind: TransferKind): string {
-  return kind === "upload" ? "Upload" : "Download";
+  if (kind === "upload") {
+    return "Upload";
+  }
+  return kind === "sync" ? "Offline sync" : "Download";
 }
 
 export function TransferTray(props: {
@@ -32,8 +49,9 @@ export function TransferTray(props: {
   open: boolean;
   onToggleOpen: () => void;
   onClearFinished: () => void;
+  onRetryFailedSync?: (task: TransferTask) => void;
 }) {
-  const active = props.tasks.filter((t) => t.phase !== "done" && t.phase !== "error");
+  const active = props.tasks.filter((t) => t.phase !== "done" && t.phase !== "partial" && t.phase !== "error");
   const recent = props.tasks.slice(0, 8);
   const primary = active[0] ?? recent[0];
   const percent = primary ? formatPercent(primary.loadedBytes, primary.totalBytes) : undefined;
@@ -81,11 +99,13 @@ export function TransferTray(props: {
                       ? "Queued"
                       : task.phase === "done"
                         ? "Done"
-                        : "Error";
+                        : task.phase === "partial"
+                          ? "Partial"
+                          : "Error";
                 return (
                   <li key={task.id} className={`transfer-tray-item transfer-tray-item-${task.phase}`}>
                     <div className="transfer-tray-item-row">
-                      <span className="transfer-tray-item-kind">{task.kind === "upload" ? "↑" : "↓"}</span>
+                      <span className="transfer-tray-item-kind">{task.kind === "upload" ? "↑" : task.kind === "sync" ? "↧" : "↓"}</span>
                       <div className="transfer-tray-item-body">
                         <div className="transfer-tray-item-title">
                           <strong>{task.label}</strong>
@@ -101,6 +121,23 @@ export function TransferTray(props: {
                           </div>
                         ) : null}
                         {task.errorMessage ? <p className="status transfer-tray-item-error">{task.errorMessage}</p> : null}
+                        {task.failedFiles && task.failedFiles.length > 0 ? (
+                          <>
+                            <ul aria-label={`Failed files for ${task.label}`} className="transfer-tray-failure-list">
+                              {task.failedFiles.map((failure) => (
+                                <li key={`${failure.sourcePath}:${failure.error}`}>
+                                  <code>{failure.sourcePath}</code>
+                                  <span>{failure.error}</span>
+                                </li>
+                              ))}
+                            </ul>
+                            {task.kind === "sync" && props.onRetryFailedSync ? (
+                              <button className="quiet-button" onClick={() => props.onRetryFailedSync?.(task)} type="button">
+                                Retry failed sync
+                              </button>
+                            ) : null}
+                          </>
+                        ) : null}
                       </div>
                     </div>
                   </li>
@@ -113,4 +150,3 @@ export function TransferTray(props: {
     </div>
   );
 }
-

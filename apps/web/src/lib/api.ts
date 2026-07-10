@@ -11,6 +11,7 @@ import type {
   SearchResponse,
   SessionRequest,
   SessionResponse,
+  StreamTokenResponse,
   UploadFileRequest
 } from "@davora/shared";
 
@@ -169,6 +170,13 @@ export async function fetchOriginalFile(path: string, token: string): Promise<{ 
   };
 }
 
+export async function createStreamingFileUrl(path: string, token: string): Promise<string> {
+  const stream = await request<StreamTokenResponse>(`/api/file/stream-token?path=${encodeURIComponent(path)}`, {
+    method: "POST"
+  }, token);
+  return apiUrl(`/api/file/stream?path=${encodeURIComponent(path)}&streamToken=${encodeURIComponent(stream.token)}`);
+}
+
 export async function createFolder(requestBody: CreateFolderRequest, token: string) {
   return request<MutationResponse>("/api/folders", {
     method: "POST",
@@ -318,7 +326,8 @@ export async function fetchDownloadBlob(
     }
   });
   if (!response.ok) {
-    throw new ApiRequestError(`Download request failed with ${response.status}`, response.status);
+    const payload = (await response.json().catch(() => undefined)) as { data?: { message?: string; code?: string; details?: string } } | undefined;
+    throw new ApiRequestError(payload?.data?.message ?? `Download request failed with ${response.status}`, response.status, payload?.data?.code, payload?.data?.details);
   }
 
   const contentType = response.headers.get("content-type") ?? "application/octet-stream";
