@@ -8,6 +8,11 @@ export interface BatchDownloadFile {
   size?: number;
 }
 
+export interface BatchDownloadFailure {
+  sourcePath: string;
+  error: string;
+}
+
 export interface BatchDownloadPlan {
   archiveName: string;
   selectedCount: number;
@@ -15,6 +20,7 @@ export interface BatchDownloadPlan {
   selectedDirectoryCount: number;
   directories: string[];
   files: BatchDownloadFile[];
+  failedFiles: BatchDownloadFailure[];
   totalBytes?: number;
 }
 
@@ -117,6 +123,7 @@ export async function buildBatchDownloadPlan(options: {
     selectedDirectoryCount: options.entries.filter((entry) => entry.isFolder).length,
     directories: Array.from(directories).sort((left, right) => left.split("/").length - right.split("/").length),
     files,
+    failedFiles: [],
     totalBytes
   };
 }
@@ -131,6 +138,7 @@ export async function downloadSelectionAsZip(options: {
   onPlanReady?: (plan: BatchDownloadPlan) => void;
   onFileProgress?: (loadedBytes: number, totalBytes?: number) => void;
   onArchiveProgress?: (percent: number) => void;
+  onFileFailed?: (failure: BatchDownloadFailure) => void;
 }): Promise<{ blob: Blob; plan: BatchDownloadPlan }> {
   const plan = await buildBatchDownloadPlan(options);
   options.onPlanReady?.(plan);
@@ -142,17 +150,29 @@ export async function downloadSelectionAsZip(options: {
     }
   }
 
+  const failedFiles: BatchDownloadFailure[] = [];
   let completedBytes = 0;
   for (const file of plan.files) {
-    const { blob } = await options.fetchFile(file.sourcePath, {
-      onProgress: (loadedBytes, totalBytes) => {
-        options.onFileProgress?.(completedBytes + loadedBytes, plan.totalBytes);
-      }
-    });
-    zip.file(file.archivePath, blob);
-    completedBytes += file.size ?? blob.size;
-    options.onFileProgress?.(completedBytes, plan.totalBytes);
+    try {
+      const { blob } = await options.fetchFile(file.sourcePath, {
+        onProgress: (loadedBytes, totalBytes) => {
+          options.onFileProgress?.(completedBytes + loadedBytes, plan.totalBytes);
+        }
+      });
+      zip.file(file.archivePath, blob);
+      completedBytes += file.size ?? blob.size;
+      options.onFileProgress?.(completedBytes, plan.totalBytes);
+    } catch (error) {
+      const failure: BatchDownloadFailure = {
+        sourcePath: file.sourcePath,
+        error: error instanceof Error ? error.message : "Unable to download file."
+      };
+      failedFiles.push(failure);
+      options.onFileFailed?.(failure);
+    }
   }
+
+  plan.failedFiles = failedFiles;
 
   const blob = await zip.generateAsync({
     type: "blob",

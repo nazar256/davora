@@ -8,6 +8,7 @@ import { ApiRequestError } from "./lib/api";
 import * as api from "./lib/api";
 import * as cache from "./lib/cache";
 import { formatFileSize } from "./lib/fileSize";
+import * as heicPreview from "./lib/heicPreview";
 import * as openedFileCache from "./lib/openedFileCache";
 import { saveAccountSession, saveConnectedAccount } from "./lib/accountState";
 
@@ -23,6 +24,13 @@ vi.mock("virtual:pwa-register/react", () => ({
   useRegisterSW: registerSwMock
 }));
 vi.mock("./components/MarkdownPreview", () => ({ MarkdownPreview: ({ content }: { content: string }) => <div data-testid="markdown-preview">{content}</div> }));
+vi.mock("./lib/heicPreview", async () => {
+  const actual = await vi.importActual<typeof import("./lib/heicPreview")>("./lib/heicPreview");
+  return {
+    ...actual,
+    decodeHeicPreview: vi.fn()
+  };
+});
 
 vi.mock("./lib/api", async () => {
   const actual = await vi.importActual<typeof import("./lib/api")>("./lib/api");
@@ -38,6 +46,7 @@ vi.mock("./lib/api", async () => {
     downloadFile: vi.fn(),
     fetchDownloadBlob: vi.fn(),
     fetchOriginalFile: vi.fn(),
+    createStreamingFileUrl: vi.fn(async (path: string) => `/api/file/stream?path=${encodeURIComponent(path)}&streamToken=stream-token-alpha`),
     triggerBrowserDownload: vi.fn(),
     createFolder: vi.fn(),
     uploadFile: vi.fn(),
@@ -52,6 +61,7 @@ vi.mock("./lib/cache", async () => ({
   ...(await vi.importActual<typeof import("./lib/cache")>("./lib/cache")),
   cacheFolder: vi.fn(),
   cacheSearch: vi.fn(),
+  clearFolderCacheForPath: vi.fn(),
   clearFolderAndSearchCache: vi.fn(),
   readFolderCache: vi.fn(),
   readFolderCacheEnvelope: vi.fn(),
@@ -66,12 +76,15 @@ vi.mock("./lib/openedFileCache", async () => {
     getCachedOpenedFile: vi.fn(),
     clearOpenedFileCache: vi.fn(),
     configureOpenedFileCache: vi.fn(),
+    listOfflineFileCacheEntries: vi.fn(async () => []),
+    removeOfflineRoot: vi.fn(),
     getOpenedFileCacheSummary: vi.fn(async () => ({ itemCount: 1, totalBytes: 128, limitBytes: actual.DEFAULT_OPENED_FILE_CACHE_LIMIT }))
   };
 });
 
 const mockedApi = vi.mocked(api);
 const mockedCache = vi.mocked(cache);
+const mockedHeicPreview = vi.mocked(heicPreview);
 const mockedOpenedFileCache = vi.mocked(openedFileCache);
 
 const createObjectUrlMock = vi.fn(() => "blob:preview");
@@ -79,6 +92,8 @@ const revokeObjectUrlMock = vi.fn();
 const windowOpenMock = vi.fn(() => ({ closed: false } as Window));
 const addMediaListenerMock = vi.fn();
 const removeMediaListenerMock = vi.fn();
+const mediaPlayMock = vi.fn<() => Promise<void>>(async () => undefined);
+const mediaPauseMock = vi.fn<() => void>(() => undefined);
 let matchMediaMatches = false;
 const matchMediaMock = vi.fn((query?: string) => ({
   matches: query === "(display-mode: standalone)" ? false : matchMediaMatches,
@@ -189,6 +204,9 @@ beforeEach(() => {
   Object.defineProperty(URL, "createObjectURL", { value: createObjectUrlMock, configurable: true, writable: true });
   Object.defineProperty(URL, "revokeObjectURL", { value: revokeObjectUrlMock, configurable: true, writable: true });
   Object.defineProperty(window, "open", { value: windowOpenMock, configurable: true, writable: true });
+  Object.defineProperty(HTMLMediaElement.prototype, "play", { value: mediaPlayMock, configurable: true, writable: true });
+  Object.defineProperty(HTMLMediaElement.prototype, "pause", { value: mediaPauseMock, configurable: true, writable: true });
+  window.history.replaceState(null, "", "/");
 
   mockedApi.getHealth.mockResolvedValue(healthResponse);
   mockedApi.connectAccount.mockImplementation(async (request) => {
@@ -230,6 +248,12 @@ beforeEach(() => {
   });
   mockedApi.fetchDownloadBlob.mockResolvedValue({ blob: new Blob(["download"], { type: "application/octet-stream" }), filename: undefined });
   mockedApi.fetchOriginalFile.mockResolvedValue({ blob: new Blob(["binary"], { type: "image/png" }), mimeType: "image/png", filename: "photo.png" });
+  mockedHeicPreview.decodeHeicPreview.mockResolvedValue({
+    blob: new Blob(["jpeg"], { type: "image/jpeg" }),
+    width: 1200,
+    height: 900,
+    mimeType: "image/jpeg"
+  });
   mockedApi.triggerBrowserDownload.mockImplementation(() => undefined);
   mockedApi.createFolder.mockResolvedValue({ result: { action: "createFolder", parentPath: "", path: "Plans" } });
   mockedApi.uploadFileWithProgress.mockResolvedValue({ result: { action: "upload", parentPath: "", path: "Projects/roadmap.txt" } });
@@ -240,7 +264,12 @@ beforeEach(() => {
   mockedCache.readFolderCacheEnvelope.mockReturnValue(undefined);
   mockedCache.readSearchCache.mockReturnValue(undefined);
   mockedOpenedFileCache.getCachedOpenedFile.mockResolvedValue(undefined);
+  mockedOpenedFileCache.listOfflineFileCacheEntries.mockResolvedValue([]);
 });
+
+function dispatchAppBack(path = "") {
+  window.dispatchEvent(new PopStateEvent("popstate", { state: { davora: true, path } }));
+}
 
 afterEach(() => {
   cleanup();
@@ -356,6 +385,253 @@ describe("App", () => {
     expect(screen.queryByRole("heading", { name: /Reconnect Search workspace/i })).not.toBeInTheDocument();
   });
 
+  it("preserves backend relevance order for active search results", async () => {
+    const account = buildAccount("alpha", { displayName: "Search workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.searchFiles.mockResolvedValueOnce({
+      query: "plan",
+      path: "",
+      items: [
+        { path: "Projects/zeta.txt", name: "zeta.txt", isFolder: false, size: 90, mimeType: "text/plain", score: 99 },
+        { path: "Projects/Archive", name: "Archive", isFolder: true, score: 80 },
+        { path: "Projects/alpha.txt", name: "alpha.txt", isFolder: false, size: 70, mimeType: "text/plain", score: 70 }
+      ]
+    });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Create folder/i });
+    fireEvent.change(screen.getByLabelText(/Search files/i), { target: { value: "plan" } });
+
+    await screen.findByRole("button", { name: /Open file zeta.txt/i });
+    const resultButtons = screen.getAllByRole("button", { name: /Open (file|folder)/i }).map((button) => button.getAttribute("aria-label"));
+    expect(resultButtons).toEqual([
+      "Open file zeta.txt",
+      "Open folder Archive",
+      "Open file alpha.txt"
+    ]);
+  });
+
+  it("maps browser back from a nested folder to the previous app folder", async () => {
+    const account = buildAccount("alpha", { displayName: "Back workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Open folder Projects/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open folder Projects/i }));
+    expect(await screen.findByRole("button", { name: /Open file roadmap.txt/i })).toBeInTheDocument();
+
+    act(() => dispatchAppBack(""));
+
+    expect(await screen.findByRole("heading", { name: /Home/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Open folder Projects/i })).toBeInTheDocument();
+  });
+
+  it("maps browser back to close preview before leaving the folder", async () => {
+    const account = buildAccount("alpha", { displayName: "Preview back workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Open folder Projects/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open folder Projects/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Open file roadmap.txt/i }));
+    expect(await screen.findByRole("dialog", { name: /Preview roadmap.txt/i })).toBeInTheDocument();
+
+    act(() => dispatchAppBack("Projects"));
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Preview roadmap.txt/i })).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /Open file roadmap.txt/i })).toBeInTheDocument();
+  });
+
+  it("maps browser back to close settings and mobile search surfaces first", async () => {
+    const account = buildAccount("alpha", { displayName: "Surface back workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Create folder/i });
+    fireEvent.click(screen.getByRole("button", { name: /Profile & settings/i }));
+    expect(await screen.findByRole("dialog", { name: /Profile and settings/i })).toBeInTheDocument();
+
+    act(() => dispatchAppBack(""));
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Profile and settings/i })).not.toBeInTheDocument());
+
+    cleanup();
+    matchMediaMatches = true;
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    render(<App />);
+    await screen.findByRole("button", { name: /Open search/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open search/i }));
+    expect(screen.getByRole("button", { name: /Close search/i })).toBeInTheDocument();
+
+    act(() => dispatchAppBack(""));
+
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Close search/i })).not.toBeInTheDocument());
+  });
+
+  it("maps browser back to close the mobile selected-file action sheet", async () => {
+    matchMediaMatches = true;
+    const account = buildAccount("alpha", { displayName: "Action sheet back workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Open actions for Projects/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open actions for Projects/i }));
+    expect(await screen.findByRole("region", { name: /Details for Projects/i })).toBeInTheDocument();
+
+    act(() => dispatchAppBack(""));
+
+    await waitFor(() => expect(document.querySelector(".details-panel")).toHaveAttribute("data-mobile-hidden", "true"));
+    expect(document.querySelector(".details-panel")).not.toHaveClass("details-panel-sheet-open");
+  });
+
+  it("uses a clear mobile actions and details sheet flow", async () => {
+    matchMediaMatches = true;
+    const account = buildAccount("alpha", { displayName: "Action details workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Open actions for Projects/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open actions for Projects/i }));
+
+    const panel = await screen.findByRole("region", { name: /Details for Projects/i });
+    expect(panel).toHaveClass("details-panel-sheet-open");
+    expect(panel).not.toHaveClass("details-panel-sheet-details-open");
+    expect(screen.getByRole("button", { name: /Dismiss item actions/i })).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: /View details/i })).toBeInTheDocument();
+
+    fireEvent.click(within(panel).getByRole("button", { name: /View details/i }));
+
+    expect(panel).toHaveClass("details-panel-sheet-details-open");
+    expect(within(panel).getByRole("button", { name: /Back to actions/i })).toBeInTheDocument();
+    expect(within(panel).getByText("Location")).toBeInTheDocument();
+
+    fireEvent.click(within(panel).getByRole("button", { name: /Back to actions/i }));
+
+    expect(panel).not.toHaveClass("details-panel-sheet-details-open");
+
+    fireEvent.click(screen.getByRole("button", { name: /Dismiss item actions/i }));
+
+    await waitFor(() => expect(document.querySelector(".details-panel")).not.toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: /Dismiss item actions/i })).not.toBeInTheDocument();
+  });
+
+  it("confirms single-item delete without asking the user to type the target name", async () => {
+    matchMediaMatches = true;
+    const account = buildAccount("alpha", { displayName: "Delete confirmation workspace" });
+    const targetName = "Документи-and-a-very-long-delete-target-name-100%.txt";
+    const targetPath = `Projects/${targetName}`;
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [{ path: targetPath, name: targetName, isFolder: false, size: 70, mimeType: "text/plain" }]
+    });
+    mockedApi.deleteFile.mockResolvedValue({ result: { action: "delete", parentPath: "Projects", path: targetPath } });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: `Open actions for ${targetName}` });
+    fireEvent.click(screen.getByRole("button", { name: `Open actions for ${targetName}` }));
+    fireEvent.click(within(await screen.findByRole("region", { name: `Details for ${targetName}` })).getByRole("button", { name: /^Delete$/i }));
+
+    const dialog = await screen.findByRole("dialog", { name: /Delete item/i });
+    expect(within(dialog).getByText("This permanently deletes the selected item from the server.")).toBeInTheDocument();
+    expect(within(dialog).getByText(targetPath)).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/Name to confirm/i)).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
+    expect(within(dialog).getAllByRole("button").map((button) => button.textContent)).toEqual(["Cancel", "Delete"]);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Delete$/i }));
+
+    await waitFor(() => expect(mockedApi.deleteFile).toHaveBeenCalledWith({ path: targetPath, confirmName: targetName }, "token-alpha"));
+  });
+
+  it("syncs current folder path to URL query params", async () => {
+    const account = buildAccount("alpha", { displayName: "URL sync workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Open folder Projects/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open folder Projects/i }));
+    await screen.findByRole("button", { name: /Open file roadmap.txt/i });
+
+    expect(window.location.search).toContain("path=Projects");
+    expect(window.location.search).toContain("account=alpha");
+  });
+
+  it("groups folders above files and sorts within each group by the active sort mode", async () => {
+    const account = buildAccount("alpha", { displayName: "Folder first workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [
+        { path: "z-file.txt", name: "z-file.txt", isFolder: false, size: 2, mimeType: "text/plain" },
+        { path: "Archive", name: "Archive", isFolder: true },
+        { path: "a-file.txt", name: "a-file.txt", isFolder: false, size: 1, mimeType: "text/plain" },
+        { path: "Projects", name: "Projects", isFolder: true }
+      ]
+    });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Open folder Archive/i });
+    const rowNames = Array.from(document.querySelectorAll(".item-name")).map((node) => node.textContent);
+    // Default sort is name-asc, so folders and files are each sorted alphabetically
+    expect(rowNames).toEqual(["Archive", "Projects", "a-file.txt", "z-file.txt"]);
+  });
+
+  it("restores nested folder path from URL query params on mount", async () => {
+    const account = buildAccount("alpha", { displayName: "URL restore workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    window.history.replaceState(null, "", "?path=Projects&account=alpha");
+
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: /Open file roadmap.txt/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Open folder Projects/i })).not.toBeInTheDocument();
+  });
+
+  it("reloads current folder on pull-to-refresh gesture", async () => {
+    const account = buildAccount("alpha", { displayName: "Pull refresh workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    const refresh = createDeferred<{ path: string; items: Array<{ path: string; name: string; isFolder: boolean; size?: number; mimeType?: string }> }>();
+    let projectsLoadCount = 0;
+    mockedApi.listFiles.mockImplementation(async (path: string) => {
+      if (path === "Projects") {
+        projectsLoadCount += 1;
+        if (projectsLoadCount === 2) {
+          return refresh.promise;
+        }
+      }
+      return path === "Projects"
+        ? { path: "Projects", items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] }
+        : { path: "", items: [{ path: "Projects", name: "Projects", isFolder: true }] };
+    });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Open folder Projects/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open folder Projects/i }));
+    await screen.findByRole("button", { name: /Open file roadmap.txt/i });
+
+    const main = document.querySelector(".workspace-layout") as HTMLElement;
+    fireEvent.touchStart(main, { touches: [{ clientY: 0 }] });
+    fireEvent.touchMove(main, { touches: [{ clientY: 150 }] });
+    expect(screen.getByRole("status")).toHaveTextContent("Release to refresh");
+    fireEvent.touchEnd(main);
+
+    await waitFor(() => expect(mockedApi.listFiles).toHaveBeenLastCalledWith("Projects", "token-alpha"));
+    expect(screen.getByRole("status")).toHaveTextContent("Refreshing...");
+    refresh.resolve({ path: "Projects", items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] });
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+  });
+
   it("keeps reconnect local to upload when a transient upload request fails", async () => {
     const account = buildAccount("alpha", { displayName: "Upload workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
@@ -364,7 +640,8 @@ describe("App", () => {
     render(<App />);
 
     await screen.findByRole("button", { name: /Create folder/i });
-    const input = screen.getByLabelText(/Upload files/i) as HTMLInputElement;
+    const toolbar = document.querySelector(".folder-actions-inline") as HTMLElement;
+    const input = within(toolbar).getByLabelText(/^Upload files$/i) as HTMLInputElement;
     const file = new File(["hello"], "hello.txt", { type: "text/plain" });
     fireEvent.change(input, { target: { files: [file] } });
 
@@ -380,7 +657,8 @@ describe("App", () => {
     render(<App />);
 
     await screen.findByRole("button", { name: /Create folder/i });
-    const input = screen.getByLabelText(/Upload files/i) as HTMLInputElement;
+    const toolbar = document.querySelector(".folder-actions-inline") as HTMLElement;
+    const input = within(toolbar).getByLabelText(/^Upload files$/i) as HTMLInputElement;
     const first = new File(["alpha"], "alpha.txt", { type: "text/plain" });
     const second = new File(["beta"], "beta.txt", { type: "text/plain" });
     fireEvent.change(input, { target: { files: [first, second] } });
@@ -398,7 +676,8 @@ describe("App", () => {
     render(<App />);
 
     await screen.findByRole("button", { name: /Create folder/i });
-    const input = screen.getByLabelText(/Upload folder/i) as HTMLInputElement;
+    const toolbar = document.querySelector(".folder-actions-inline") as HTMLElement;
+    const input = within(toolbar).getByLabelText(/^Upload folder$/i) as HTMLInputElement;
     const first = new File(["cover"], "cover.png", { type: "image/png" });
     const second = new File(["track"], "track.mp3", { type: "audio/mpeg" });
     Object.defineProperty(first, "webkitRelativePath", { configurable: true, value: "Mixtape/assets/cover.png" });
@@ -412,6 +691,157 @@ describe("App", () => {
     expect(mockedApi.uploadFileWithProgress).toHaveBeenNthCalledWith(1, expect.objectContaining({ path: "Mixtape/assets", name: "cover.png" }), "token-alpha", expect.any(Function));
     expect(mockedApi.uploadFileWithProgress).toHaveBeenNthCalledWith(2, expect.objectContaining({ path: "Mixtape", name: "track.mp3" }), "token-alpha", expect.any(Function));
     expect(await screen.findByText(/Uploaded 2 files from 1 folder into \//i)).toBeInTheDocument();
+  });
+
+  it("copies a file through the folder destination picker without typing a full path", async () => {
+    const account = buildAccount("alpha", { displayName: "Picker copy workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockImplementation(async (path: string) => {
+      if (path === "Projects") {
+        return {
+          path,
+          items: [
+            { path: "Projects/Документи 100%", name: "Документи 100%", isFolder: true },
+            { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }
+          ]
+        };
+      }
+      if (path === "Projects/Документи 100%") {
+        return { path, items: [] };
+      }
+      return {
+        path,
+        items: [{ path: "Projects", name: "Projects", isFolder: true }]
+      };
+    });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Open folder Projects/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open folder Projects/i }));
+    await screen.findByRole("button", { name: "Open actions for roadmap.txt" });
+    fireEvent.click(screen.getByRole("button", { name: "Open actions for roadmap.txt" }));
+    fireEvent.click(screen.getByRole("button", { name: /Copy or move/i }));
+
+    const dialog = await screen.findByRole("dialog", { name: /Copy or move item/i });
+    const destinationForm = dialog.querySelector("form")!;
+    expect(within(dialog).getByText("Projects/roadmap.txt")).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/Copy destination path/i)).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: /Open destination folder Документи 100%/i }));
+    await within(dialog).findByText("/Projects/Документи 100%");
+    await waitFor(() => expect(within(dialog).getByLabelText("Destination name")).toHaveValue("roadmap.txt"));
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: /Copy here/i })).not.toBeDisabled());
+    fireEvent.submit(destinationForm);
+
+    await waitFor(() => expect(mockedApi.copyFile).toHaveBeenCalledWith({
+      path: "Projects/roadmap.txt",
+      destinationPath: "Projects/Документи 100%/roadmap.txt"
+    }, "token-alpha"));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Copy or move item/i })).not.toBeInTheDocument());
+  });
+
+  it("moves a file through the folder destination picker with a separate destination name", async () => {
+    const account = buildAccount("alpha", { displayName: "Picker move workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockImplementation(async (path: string) => {
+      if (path === "Projects") {
+        return {
+          path,
+          items: [
+            { path: "Projects/Archive 100%", name: "Archive 100%", isFolder: true },
+            { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }
+          ]
+        };
+      }
+      if (path === "Projects/Archive 100%") {
+        return { path, items: [] };
+      }
+      return {
+        path,
+        items: [{ path: "Projects", name: "Projects", isFolder: true }]
+      };
+    });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Open folder Projects/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open folder Projects/i }));
+    await screen.findByRole("button", { name: "Open actions for roadmap.txt" });
+    fireEvent.click(screen.getByRole("button", { name: "Open actions for roadmap.txt" }));
+    fireEvent.click(screen.getByRole("button", { name: /Rename or move/i }));
+
+    const dialog = await screen.findByRole("dialog", { name: /Move item/i });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Open destination folder Archive 100%/i }));
+    await within(dialog).findByText("/Projects/Archive 100%");
+    fireEvent.change(within(dialog).getByLabelText("Destination name"), { target: { value: "roadmap final.txt" } });
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: /Move here/i })).not.toBeDisabled());
+    fireEvent.click(within(dialog).getByRole("button", { name: /Move here/i }));
+
+    await waitFor(() => expect(mockedApi.moveFile).toHaveBeenCalledWith({
+      path: "Projects/roadmap.txt",
+      destinationPath: "Projects/Archive 100%/roadmap final.txt"
+    }, "token-alpha"));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Move item/i })).not.toBeInTheDocument());
+  });
+
+  it("blocks destination conflicts and folder self-descendant destinations in the picker", async () => {
+    const account = buildAccount("alpha", { displayName: "Picker guard workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockImplementation(async (path: string) => {
+      if (path === "Projects") {
+        return {
+          path,
+          items: [
+            { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" },
+            { path: "Projects/roadmap.txt-copy", name: "roadmap.txt-copy", isFolder: false, size: 70, mimeType: "text/plain" }
+          ]
+        };
+      }
+      return {
+        path,
+        items: [{ path: "Projects", name: "Projects", isFolder: true }]
+      };
+    });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Open folder Projects/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open folder Projects/i }));
+    await screen.findByRole("button", { name: "Open actions for roadmap.txt" });
+    fireEvent.click(screen.getByRole("button", { name: "Open actions for roadmap.txt" }));
+    fireEvent.click(screen.getByRole("button", { name: /Copy or move/i }));
+
+    const copyDialog = await screen.findByRole("dialog", { name: /Copy or move item/i });
+    await waitFor(() => expect(within(copyDialog).getByLabelText("Destination name")).toHaveValue("roadmap (1).txt"));
+    expect(within(copyDialog).queryByText(/already contains roadmap\.txt-copy/i)).not.toBeInTheDocument();
+    expect(within(copyDialog).getByRole("button", { name: /Copy here/i })).not.toBeDisabled();
+    fireEvent.change(within(copyDialog).getByLabelText("Destination name"), { target: { value: "roadmap.txt" } });
+    expect(await within(copyDialog).findByText(/Destination already contains roadmap\.txt\. Use roadmap \(1\)\.txt/i)).toBeInTheDocument();
+    expect(within(copyDialog).getByRole("button", { name: /Copy here/i })).toBeDisabled();
+    fireEvent.change(within(copyDialog).getByLabelText("Destination name"), { target: { value: "bad\\name.txt" } });
+    expect(await within(copyDialog).findByText(/Enter a valid destination name/i)).toBeInTheDocument();
+    expect(within(copyDialog).getByRole("button", { name: /Copy here/i })).toBeDisabled();
+    fireEvent.change(within(copyDialog).getByLabelText("Destination name"), { target: { value: "folder/name.txt" } });
+    expect(await within(copyDialog).findByText(/Destination name cannot contain slashes/i)).toBeInTheDocument();
+    expect(within(copyDialog).getByRole("button", { name: /Copy here/i })).toBeDisabled();
+    fireEvent.click(within(copyDialog).getByRole("button", { name: /Manual path/i }));
+    fireEvent.change(within(copyDialog).getByLabelText("Full destination path"), { target: { value: "Projects/foo%2Fbar.txt" } });
+    expect(await within(copyDialog).findByText(/Enter a valid destination path/i)).toBeInTheDocument();
+    expect(within(copyDialog).getByRole("button", { name: /Copy here/i })).toBeDisabled();
+    fireEvent.click(within(copyDialog).getByRole("button", { name: /Manual path/i }));
+    fireEvent.change(within(copyDialog).getByLabelText("Destination name"), { target: { value: "roadmap copied.txt" } });
+    await waitFor(() => expect(within(copyDialog).queryByText(/already contains|valid destination|cannot contain/i)).not.toBeInTheDocument());
+    fireEvent.click(within(copyDialog).getByRole("button", { name: /Cancel/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: /Go to home folder/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Open actions for Projects/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Rename or move/i }));
+
+    const moveDialog = await screen.findByRole("dialog", { name: /Move item/i });
+    fireEvent.click(within(moveDialog).getByRole("button", { name: /Open destination folder Projects/i }));
+    expect(await within(moveDialog).findByText(/Folders cannot be moved or copied into themselves or their descendants/i)).toBeInTheDocument();
+    expect(within(moveDialog).getByRole("button", { name: /Move here/i })).toBeDisabled();
+    expect(mockedApi.moveFile).not.toHaveBeenCalled();
   });
 
   it("downloads a mixed file and folder batch as one zip archive", async () => {
@@ -451,6 +881,431 @@ describe("App", () => {
     expect(await screen.findByText(/Downloaded 1 file and 1 folder as davora-home-download.zip in Batch download workspace\./i)).toBeInTheDocument();
   });
 
+  it("shows exact failed child paths and partial success in the transfer tray", async () => {
+    const account = buildAccount("alpha", { displayName: "Partial batch workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockImplementation(async (path: string) => {
+      if (path === "Documents") {
+        return {
+          path,
+          items: [
+            { path: "Documents/good.txt", name: "good.txt", isFolder: false, size: 12, mimeType: "text/plain" },
+            { path: "Documents/bad%file.txt", name: "bad%file.txt", isFolder: false, size: 8, mimeType: "text/plain" }
+          ]
+        };
+      }
+
+      return {
+        path,
+        items: [{ path: "Documents", name: "Documents", isFolder: true }]
+      };
+    });
+    mockedApi.fetchDownloadBlob.mockImplementation(async (path: string) => {
+      if (path === "Documents/bad%file.txt") {
+        throw new Error("Path contains invalid percent-encoding.");
+      }
+
+      return { blob: new Blob(["ok"], { type: "text/plain" }) };
+    });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Create folder/i });
+    fireEvent.click(screen.getByLabelText(/Select Documents folder for batch download/i));
+    fireEvent.click(screen.getByRole("button", { name: /^Download selected$/i }));
+
+    await waitFor(() => expect(mockedApi.fetchDownloadBlob).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mockedApi.triggerBrowserDownload).toHaveBeenCalledWith(expect.any(Blob), "documents.zip"));
+
+    fireEvent.click(screen.getByRole("button", { name: /^Transfers$/i }));
+    const transferStatus = await screen.findByRole("dialog", { name: /Transfer status/i });
+
+    expect(within(transferStatus).getByText("documents.zip")).toBeInTheDocument();
+    expect(within(transferStatus).getByText("Partial")).toBeInTheDocument();
+    expect(within(transferStatus).getByText(/Downloaded 1 of 2 files; 1 failed\./i)).toBeInTheDocument();
+    expect(within(transferStatus).getByText("Documents/bad%file.txt")).toBeInTheDocument();
+    expect(within(transferStatus).getByText("Path contains invalid percent-encoding.")).toBeInTheDocument();
+    expect(within(transferStatus).queryByText("1 item selected")).not.toBeInTheDocument();
+    expect(await screen.findByText(/Downloaded 1 folder as documents.zip in Partial batch workspace\. Downloaded 1 of 2 files; 1 failed\./i)).toBeInTheDocument();
+  });
+
+  it("keeps a single file offline only after storage confirmation", async () => {
+    const account = buildAccount("alpha", { displayName: "Offline sync workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.fetchDownloadBlob.mockResolvedValue({ blob: new Blob(["offline roadmap"], { type: "text/plain" }), filename: "roadmap.txt" });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Create folder/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open actions for roadmap.txt/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Keep offline$/i }));
+
+    const dialog = await screen.findByRole("dialog", { name: /Keep offline confirmation/i });
+    expect(within(dialog).getByText(/Kept-offline files are excluded from normal automatic cache eviction/i)).toBeInTheDocument();
+    expect(mockedOpenedFileCache.cacheOpenedFile).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /Start sync/i }));
+
+    await waitFor(() => expect(mockedApi.fetchDownloadBlob).toHaveBeenCalledWith("Projects/roadmap.txt", "token-alpha", expect.any(Object)));
+    await waitFor(() => expect(mockedOpenedFileCache.cacheOpenedFile).toHaveBeenCalledWith("ns-alpha", expect.objectContaining({
+      path: "Projects/roadmap.txt",
+      keepOffline: true,
+      keepOfflineRoot: "Projects/roadmap.txt",
+      keepOfflineRootKind: "file",
+      maxBlobBytes: Number.POSITIVE_INFINITY
+    })));
+    expect(await screen.findByText(/Kept roadmap.txt offline on this device/i)).toBeInTheDocument();
+  });
+
+  it("starts keep-offline sync as a background transfer and closes the confirmation dialog", async () => {
+    const account = buildAccount("alpha", { displayName: "Background sync workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    const download = createDeferred<{ blob: Blob; filename?: string }>();
+    mockedApi.fetchDownloadBlob.mockReturnValue(download.promise);
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Create folder/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open actions for roadmap.txt/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Keep offline$/i }));
+
+    const dialog = await screen.findByRole("dialog", { name: /Keep offline confirmation/i });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Start sync/i }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Keep offline confirmation/i })).not.toBeInTheDocument());
+    expect(await screen.findByText(/Started offline sync for roadmap.txt/i)).toBeInTheDocument();
+    const transferStatus = await screen.findByRole("dialog", { name: /Transfer status/i });
+    expect(within(transferStatus).getByText("roadmap.txt")).toBeInTheDocument();
+    expect(within(transferStatus).getByText(/Offline sync/i)).toBeInTheDocument();
+    expect(mockedOpenedFileCache.cacheOpenedFile).not.toHaveBeenCalled();
+
+    download.resolve({ blob: new Blob(["offline roadmap"], { type: "text/plain" }), filename: "roadmap.txt" });
+
+    await waitFor(() => expect(mockedOpenedFileCache.cacheOpenedFile).toHaveBeenCalledWith("ns-alpha", expect.objectContaining({
+      path: "Projects/roadmap.txt",
+      keepOffline: true
+    })));
+  });
+
+  it("maps browser back to close an automatically opened transfer tray without leaving the folder", async () => {
+    matchMediaMatches = true;
+    const account = buildAccount("alpha", { displayName: "Transfer back workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    const download = createDeferred<{ blob: Blob; filename?: string }>();
+    mockedApi.fetchDownloadBlob.mockReturnValue(download.promise);
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Open folder Projects/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open folder Projects/i }));
+    await screen.findByRole("button", { name: /Open actions for roadmap.txt/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open actions for roadmap.txt/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Keep offline$/i }));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: /Keep offline confirmation/i })).getByRole("button", { name: /Start sync/i }));
+
+    const transferStatus = await screen.findByRole("dialog", { name: /Transfer status/i });
+    expect(within(transferStatus).getByText("roadmap.txt")).toBeInTheDocument();
+    expect(window.history.state).toMatchObject({ davora: true, path: "Projects", surface: "transfers" });
+
+    act(() => dispatchAppBack("Projects"));
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Transfer status/i })).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /Open file roadmap.txt/i })).toBeInTheDocument();
+    expect(window.location.search).toContain("path=Projects");
+
+    download.resolve({ blob: new Blob(["offline roadmap"], { type: "text/plain" }), filename: "roadmap.txt" });
+    await waitFor(() => expect(mockedOpenedFileCache.cacheOpenedFile).toHaveBeenCalledWith("ns-alpha", expect.objectContaining({
+      path: "Projects/roadmap.txt",
+      keepOffline: true
+    })));
+  });
+
+  it("does not enqueue a duplicate background offline sync for the same root", async () => {
+    const account = buildAccount("alpha", { displayName: "Duplicate sync workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    const download = createDeferred<{ blob: Blob; filename?: string }>();
+    mockedApi.fetchDownloadBlob.mockReturnValue(download.promise);
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Create folder/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open actions for roadmap.txt/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Keep offline$/i }));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: /Keep offline confirmation/i })).getByRole("button", { name: /Start sync/i }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Keep offline confirmation/i })).not.toBeInTheDocument());
+    expect(mockedApi.fetchDownloadBlob).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Keep offline$/i }));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: /Keep offline confirmation/i })).getByRole("button", { name: /Start sync/i }));
+
+    await waitFor(() => expect(screen.getByText(/Offline sync is already running for roadmap.txt/i)).toBeInTheDocument());
+    expect(mockedApi.fetchDownloadBlob).toHaveBeenCalledTimes(1);
+
+    download.resolve({ blob: new Blob(["offline roadmap"], { type: "text/plain" }), filename: "roadmap.txt" });
+    await waitFor(() => expect(mockedOpenedFileCache.cacheOpenedFile).toHaveBeenCalledWith("ns-alpha", expect.objectContaining({
+      path: "Projects/roadmap.txt",
+      keepOffline: true
+    })));
+  });
+
+  it("keeps a folder recursively offline and records cached folder contents", async () => {
+    const account = buildAccount("alpha", { displayName: "Recursive offline workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockImplementation(async (path: string) => {
+      if (path === "Projects") {
+        return {
+          path,
+          items: [
+            { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 16, mimeType: "text/plain" },
+            { path: "Projects/Nested", name: "Nested", isFolder: true }
+          ]
+        };
+      }
+      if (path === "Projects/Nested") {
+        return {
+          path,
+          items: [{ path: "Projects/Nested/notes.txt", name: "notes.txt", isFolder: false, size: 8, mimeType: "text/plain" }]
+        };
+      }
+      return { path, items: [{ path: "Projects", name: "Projects", isFolder: true }] };
+    });
+    mockedApi.fetchDownloadBlob.mockImplementation(async (path: string) => ({ blob: new Blob([path], { type: "text/plain" }), filename: path.split("/").pop() }));
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Open actions for Projects/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open actions for Projects/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Keep offline$/i }));
+
+    const dialog = await screen.findByRole("dialog", { name: /Keep offline confirmation/i });
+    expect(within(dialog).getByText(/Synced recursively/i)).toBeInTheDocument();
+    expect(within(dialog).getByText("2")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: /Start sync/i }));
+
+    await waitFor(() => expect(mockedOpenedFileCache.cacheOpenedFile).toHaveBeenCalledWith("ns-alpha", expect.objectContaining({
+      path: "Projects/Nested/notes.txt",
+      keepOfflineRoot: "Projects",
+      keepOfflineRootKind: "folder"
+    })));
+    expect(mockedCache.cacheFolder).toHaveBeenCalledWith("ns-alpha", "Projects", expect.any(Array));
+    expect(mockedCache.cacheFolder).toHaveBeenCalledWith("ns-alpha", "Projects/Nested", expect.any(Array));
+  });
+
+  it("keeps a batch selection offline and removes offline copies from settings without server delete", async () => {
+    const account = buildAccount("alpha", { displayName: "Batch offline workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockImplementation(async (path: string) => {
+      if (path === "Archive") {
+        return {
+          path,
+          items: [{ path: "Archive/photo.png", name: "photo.png", isFolder: false, size: 4, mimeType: "image/png" }]
+        };
+      }
+      return {
+        path,
+        items: [
+          { path: "Archive", name: "Archive", isFolder: true },
+          { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 12, mimeType: "text/plain" }
+        ]
+      };
+    });
+    mockedApi.fetchDownloadBlob.mockImplementation(async (path: string) => ({ blob: new Blob([path], { type: path.endsWith(".png") ? "image/png" : "text/plain" }), filename: path.split("/").pop() }));
+    mockedOpenedFileCache.listOfflineFileCacheEntries.mockResolvedValue([
+      {
+        path: "Archive/photo.png",
+        preview: { ...textPreview, path: "Archive/photo.png", name: "photo.png" },
+        mimeType: "image/png",
+        filename: "photo.png",
+        blobSize: 4,
+        cachedAt: "2026-07-06T10:00:00.000Z",
+        lastAccessedAt: "2026-07-06T10:00:00.000Z",
+        keepOffline: true,
+        keepOfflineRoot: "Archive",
+        keepOfflineRootName: "Archive",
+        keepOfflineRootKind: "folder",
+        keepOfflineAddedAt: "2026-07-06T10:00:00.000Z"
+      }
+    ]);
+
+    render(<App />);
+
+    await screen.findByLabelText(/Select Archive folder for batch download/i);
+    fireEvent.click(screen.getByLabelText(/Select Archive folder for batch download/i));
+    fireEvent.click(screen.getByLabelText(/Select roadmap.txt file for batch download/i));
+    fireEvent.click(screen.getAllByRole("button", { name: /^Keep offline$/i })[0]!);
+    fireEvent.click(within(await screen.findByRole("dialog", { name: /Keep offline confirmation/i })).getByRole("button", { name: /Start sync/i }));
+    await waitFor(() => expect(mockedOpenedFileCache.cacheOpenedFile).toHaveBeenCalledWith("ns-alpha", expect.objectContaining({ keepOfflineRootKind: "batch" })));
+
+    fireEvent.click(screen.getByRole("button", { name: /Profile & settings/i }));
+    const settingsDialog = await screen.findByRole("dialog", { name: /Profile and settings/i });
+    expect(within(settingsDialog).getByRole("button", { name: /Remove offline copy for Archive from this device/i })).toBeInTheDocument();
+    fireEvent.click(within(settingsDialog).getByRole("button", { name: /Remove offline copy for Archive from this device/i }));
+
+    await waitFor(() => expect(mockedOpenedFileCache.removeOfflineRoot).toHaveBeenCalledWith("ns-alpha", "Archive"));
+    expect(mockedCache.clearFolderCacheForPath).toHaveBeenCalledWith("ns-alpha", "Archive");
+    expect(mockedApi.deleteFile).not.toHaveBeenCalled();
+  });
+
+  it("allows failed offline sync files to be retried from the transfer tray", async () => {
+    const account = buildAccount("alpha", { displayName: "Retry offline workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.fetchDownloadBlob
+      .mockRejectedValueOnce(new Error("Temporary sync failure."))
+      .mockResolvedValueOnce({ blob: new Blob(["offline roadmap"], { type: "text/plain" }), filename: "roadmap.txt" });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Create folder/i });
+    fireEvent.click(screen.getByLabelText(/Select roadmap.txt file for batch download/i));
+    fireEvent.click(screen.getAllByRole("button", { name: /^Keep offline$/i })[0]!);
+    fireEvent.click(within(await screen.findByRole("dialog", { name: /Keep offline confirmation/i })).getByRole("button", { name: /Start sync/i }));
+
+    expect(await screen.findByText(/Synced 0 of 1 files for offline use in Retry offline workspace/i)).toBeInTheDocument();
+    const transferStatus = await screen.findByRole("dialog", { name: /Transfer status/i });
+    fireEvent.click(within(transferStatus).getByRole("button", { name: /Retry failed sync/i }));
+
+    const retryDialog = await screen.findByRole("dialog", { name: /Keep offline confirmation/i });
+    fireEvent.click(within(retryDialog).getByRole("button", { name: /Start sync/i }));
+
+    await waitFor(() => expect(mockedOpenedFileCache.cacheOpenedFile).toHaveBeenCalledWith("ns-alpha", expect.objectContaining({
+      path: "Projects/roadmap.txt",
+      keepOffline: true
+    })));
+  });
+
+  it("retries failed recursive offline sync from the original folder root", async () => {
+    const account = buildAccount("alpha", { displayName: "Retry folder sync workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    let badPathAttempts = 0;
+    mockedApi.listFiles.mockImplementation(async (path: string) => {
+      if (path === "Projects") {
+        return {
+          path,
+          items: [
+            { path: "Projects/bad.pdf", name: "bad.pdf", isFolder: false, size: 10, mimeType: "application/pdf" },
+            { path: "Projects/good.txt", name: "good.txt", isFolder: false, size: 10, mimeType: "text/plain" }
+          ]
+        };
+      }
+      return {
+        path,
+        items: [{ path: "Projects", name: "Projects", isFolder: true }]
+      };
+    });
+    mockedApi.fetchDownloadBlob.mockImplementation(async (path: string) => {
+      if (path === "Projects/bad.pdf") {
+        badPathAttempts += 1;
+        if (badPathAttempts === 1) {
+          throw new Error("Temporary sync failure.");
+        }
+      }
+      return { blob: new Blob([path], { type: "text/plain" }), filename: path.split("/").pop() };
+    });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Open actions for Projects/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open actions for Projects/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Keep offline$/i }));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: /Keep offline confirmation/i })).getByRole("button", { name: /Start sync/i }));
+
+    expect(await screen.findByText(/Synced 1 of 2 files for offline use in Retry folder sync workspace/i)).toBeInTheDocument();
+    const transferStatus = await screen.findByRole("dialog", { name: /Transfer status/i });
+    expect(within(transferStatus).getByText("Projects/bad.pdf")).toBeInTheDocument();
+    fireEvent.click(within(transferStatus).getByRole("button", { name: /Retry failed sync/i }));
+
+    const retryDialog = await screen.findByRole("dialog", { name: /Keep offline confirmation/i });
+    await waitFor(() => expect(within(retryDialog).getByText("Projects")).toBeInTheDocument());
+    expect(within(retryDialog).getByText(/Synced recursively/i)).toBeInTheDocument();
+    expect(within(retryDialog).getByText("2")).toBeInTheDocument();
+    expect(within(retryDialog).queryByText("bad.pdf")).not.toBeInTheDocument();
+
+    fireEvent.click(within(retryDialog).getByRole("button", { name: /Start sync/i }));
+
+    await waitFor(() => expect(mockedOpenedFileCache.cacheOpenedFile).toHaveBeenCalledWith("ns-alpha", expect.objectContaining({
+      path: "Projects/bad.pdf",
+      keepOffline: true,
+      keepOfflineRoot: "Projects",
+      keepOfflineRootKind: "folder"
+    })));
+  });
+
+  it("clears normal cache without removing explicitly kept-offline copies", async () => {
+    const account = buildAccount("alpha", { displayName: "Clear cache workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.fetchDownloadBlob.mockResolvedValue({ blob: new Blob(["offline roadmap"], { type: "text/plain" }), filename: "roadmap.txt" });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Create folder/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open actions for roadmap.txt/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Keep offline$/i }));
+    mockedOpenedFileCache.listOfflineFileCacheEntries.mockResolvedValue([
+      {
+        path: "Projects/roadmap.txt",
+        preview: { ...textPreview, path: "Projects/roadmap.txt", name: "roadmap.txt" },
+        mimeType: "text/plain",
+        filename: "roadmap.txt",
+        blobSize: 16,
+        cachedAt: "2026-07-06T10:00:00.000Z",
+        lastAccessedAt: "2026-07-06T10:00:00.000Z",
+        keepOffline: true,
+        keepOfflineRoot: "Projects/roadmap.txt",
+        keepOfflineRootName: "roadmap.txt",
+        keepOfflineRootKind: "file",
+        keepOfflineAddedAt: "2026-07-06T10:00:00.000Z"
+      }
+    ]);
+    fireEvent.click(within(await screen.findByRole("dialog", { name: /Keep offline confirmation/i })).getByRole("button", { name: /Start sync/i }));
+    await waitFor(() => expect(mockedOpenedFileCache.cacheOpenedFile).toHaveBeenCalledWith("ns-alpha", expect.objectContaining({
+      path: "Projects/roadmap.txt",
+      keepOffline: true
+    })));
+    fireEvent.click(screen.getByRole("button", { name: /Profile & settings/i }));
+    const settingsDialog = await screen.findByRole("dialog", { name: /Profile and settings/i });
+    await within(settingsDialog).findByRole("button", { name: /Remove offline copy for roadmap.txt from this device/i });
+    fireEvent.click(within(settingsDialog).getByRole("button", { name: /Clear cache/i }));
+
+    await waitFor(() => expect(mockedOpenedFileCache.clearOpenedFileCache).toHaveBeenCalledWith("ns-alpha"));
+    expect(mockedCache.clearFolderAndSearchCache).toHaveBeenCalledWith("ns-alpha", { preserveFolderPaths: ["Projects"] });
+    expect(mockedOpenedFileCache.removeOfflineRoot).not.toHaveBeenCalled();
+    expect(within(settingsDialog).getByRole("button", { name: /Remove offline copy for roadmap.txt from this device/i })).toBeInTheDocument();
+  });
+
+  it("shows kept-offline items separately from the normal cache summary", async () => {
+    const account = buildAccount("alpha", { displayName: "Offline accounting workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedOpenedFileCache.getOpenedFileCacheSummary.mockResolvedValue({ itemCount: 0, totalBytes: 0, limitBytes: openedFileCache.DEFAULT_OPENED_FILE_CACHE_LIMIT });
+    mockedOpenedFileCache.listOfflineFileCacheEntries.mockResolvedValue([
+      {
+        path: "Projects/roadmap.txt",
+        preview: { ...textPreview, path: "Projects/roadmap.txt", name: "roadmap.txt" },
+        mimeType: "text/plain",
+        filename: "roadmap.txt",
+        blobSize: 16,
+        cachedAt: "2026-07-06T10:00:00.000Z",
+        lastAccessedAt: "2026-07-06T10:00:00.000Z",
+        keepOffline: true,
+        keepOfflineRoot: "Projects/roadmap.txt",
+        keepOfflineRootName: "roadmap.txt",
+        keepOfflineRootKind: "file",
+        keepOfflineAddedAt: "2026-07-06T10:00:00.000Z"
+      }
+    ]);
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Create folder/i });
+    await waitFor(() => expect(mockedOpenedFileCache.listOfflineFileCacheEntries).toHaveBeenCalledWith("ns-alpha"));
+    fireEvent.click(screen.getByRole("button", { name: /Profile & settings/i }));
+    const settingsDialog = await screen.findByRole("dialog", { name: /Profile and settings/i });
+
+    expect(within(settingsDialog).getByText((_, element) => element?.textContent === "0 cached files • 0 B used")).toBeInTheDocument();
+    expect(await within(settingsDialog).findByText("roadmap.txt")).toBeInTheDocument();
+    expect(within(settingsDialog).getByRole("button", { name: /Remove offline copy for roadmap.txt from this device/i })).toBeInTheDocument();
+  });
+
   it("keeps single-item details download on the existing direct file path", async () => {
     const account = buildAccount("alpha", { displayName: "Single download workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
@@ -458,7 +1313,7 @@ describe("App", () => {
     render(<App />);
 
     await screen.findByRole("button", { name: /Create folder/i });
-    fireEvent.click(screen.getByRole("button", { name: /Show details for roadmap.txt/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Open actions for roadmap.txt/i }));
     fireEvent.click(screen.getByRole("button", { name: /^Download$/i }));
 
     await waitFor(() => expect(mockedApi.downloadFile).toHaveBeenCalledWith("Projects/roadmap.txt", "token-alpha", expect.any(Object)));
@@ -479,7 +1334,7 @@ describe("App", () => {
 
     const checkbox = await screen.findByLabelText(/Select Projects folder for batch download/i);
     expect(checkbox).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: /Show details for Projects/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Open actions for Projects/i }));
     expect(screen.getByRole("button", { name: /Add to batch download/i })).toBeDisabled();
   });
 
@@ -550,7 +1405,8 @@ describe("App", () => {
       expect(screen.getByText(/Cached shell only for Stopped server workspace/i)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Open folder Projects/i })).toBeInTheDocument();
       expect(screen.getByText(/Showing cached data while the local server is unavailable/i)).toBeInTheDocument();
-      expect(screen.getAllByText("Server unavailable")).toHaveLength(2);
+      expect(screen.getByText("Server unavailable")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Workspace details")).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Create folder/i })).toBeDisabled();
       expect(screen.queryByRole("button", { name: /Retry restore/i })).not.toBeInTheDocument();
     } finally {
@@ -621,7 +1477,14 @@ describe("App", () => {
     expect(screen.queryAllByLabelText(/Active account/i)).toHaveLength(0);
     expect(document.querySelector(".app-bar .badge")).toBeNull();
     expect(document.querySelector(".app-bar .app-bar-subtitle")).toBeNull();
+    expect(screen.getByRole("button", { name: /Open navigation menu/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Profile & settings/i })).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("button", { name: /Open navigation menu/i }));
+    const navigationMenu = await screen.findByRole("complementary", { name: /Navigation menu/i });
+    expect(navigationMenu).toBeInTheDocument();
+    expect(within(navigationMenu).getByLabelText(/Upload files from navigation menu/i)).toBeInTheDocument();
+    expect(within(navigationMenu).getByLabelText(/Upload folder from navigation menu/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Profile & settings/i }));
 
     const settingsDialog = await screen.findByRole("dialog", { name: /Profile and settings/i });
@@ -670,6 +1533,293 @@ describe("App", () => {
     expect(within(previewDialog).getByRole("button", { name: /Download file/i })).toBeInTheDocument();
   });
 
+  it("lets image previews switch between immersive fill and whole-image fit", async () => {
+    const account = buildAccount("alpha", { displayName: "Image fit workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [{ path: "Archive/photo.png", name: "photo.png", isFolder: false, size: 12, mimeType: "image/png" }]
+    });
+    mockedApi.getFile.mockResolvedValue({
+      file: {
+        ...textPreview,
+        path: "Archive/photo.png",
+        name: "photo.png",
+        mimeType: "image/png",
+        viewer: "image",
+        content: "",
+        encoding: "none",
+        bytesRead: 0,
+        requiresOriginalBlob: true
+      }
+    });
+    mockedApi.fetchOriginalFile.mockResolvedValue({
+      blob: new Blob([new Uint8Array([1, 2, 3])], { type: "image/png" }),
+      mimeType: "image/png",
+      filename: "photo.png"
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Open file photo.png/i }));
+
+    const previewDialog = await screen.findByRole("dialog", { name: /Preview photo.png/i });
+    const image = await within(previewDialog).findByAltText("photo.png");
+    expect(image).toHaveClass("media-preview-image-fill");
+
+    const fitButton = within(previewDialog).getByRole("button", { name: /Fit entire image/i });
+    expect(fitButton).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(fitButton);
+
+    expect(image).toHaveClass("media-preview-image-fit");
+    expect(within(previewDialog).getByRole("button", { name: /Fill preview area/i })).toHaveAttribute("aria-pressed", "false");
+    expect(JSON.parse(localStorage.getItem("davora-ui-settings") ?? "{}")).toMatchObject({ imagePreviewFitMode: "fit" });
+
+    const originalSizeButton = within(previewDialog).getByRole("button", { name: /Show image at original size/i });
+    fireEvent.click(originalSizeButton);
+
+    expect(image).toHaveClass("media-preview-image-zoomed");
+    expect(originalSizeButton).toHaveAttribute("aria-pressed", "true");
+    expect(within(previewDialog).getByRole("button", { name: /Fill preview area/i })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("keeps experimental HEIC preview disabled by default and persists enabling it", async () => {
+    const account = buildAccount("alpha", { displayName: "Settings workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Create folder/i });
+    fireEvent.click(screen.getByRole("button", { name: /Profile & settings/i }));
+
+    const settingsDialog = await screen.findByRole("dialog", { name: /Profile and settings/i });
+    const heicToggle = within(settingsDialog).getByLabelText(/Enable experimental HEIC preview/i);
+    expect(heicToggle).not.toBeChecked();
+
+    fireEvent.click(heicToggle);
+
+    expect(heicToggle).toBeChecked();
+    expect(JSON.parse(localStorage.getItem("davora-ui-settings") ?? "{}")).toMatchObject({ experimentalHeicPreviewEnabled: true });
+    expect(screen.getByText(/Experimental HEIC preview is enabled for this browser/i)).toBeInTheDocument();
+  });
+
+  it("shows HEIC fallback without downloading or decoding when the experiment is disabled", async () => {
+    const account = buildAccount("alpha", { displayName: "HEIC fallback workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [{ path: "Archive/photo.heic", name: "photo.heic", isFolder: false, size: 12, mimeType: "image/heic" }]
+    });
+    mockedApi.getFile.mockResolvedValue({
+      file: {
+        ...textPreview,
+        path: "Archive/photo.heic",
+        name: "photo.heic",
+        mimeType: "image/heic",
+        viewer: "image",
+        content: "",
+        encoding: "none",
+        bytesRead: 0,
+        requiresOriginalBlob: true
+      }
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Open file photo.heic/i }));
+
+    const previewDialog = await screen.findByRole("dialog", { name: /Preview photo.heic/i });
+    expect(within(previewDialog).getByText(/HEIC preview is experimental and disabled/i)).toBeInTheDocument();
+    expect(within(previewDialog).getByRole("button", { name: /Open original in new tab/i })).toBeInTheDocument();
+    expect(within(previewDialog).getByRole("button", { name: /Download file/i })).toBeInTheDocument();
+    expect(mockedApi.fetchOriginalFile).not.toHaveBeenCalled();
+    expect(mockedHeicPreview.decodeHeicPreview).not.toHaveBeenCalled();
+    expect(mockedApi.triggerBrowserDownload).not.toHaveBeenCalled();
+  });
+
+  it("decodes HEIC locally when the experiment is enabled and preserves original-file actions", async () => {
+    localStorage.setItem("davora-ui-settings", JSON.stringify({ experimentalHeicPreviewEnabled: true }));
+    const account = buildAccount("alpha", { displayName: "HEIC preview workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    const heicBlob = new Blob(["heic"], { type: "image/heic" });
+    const jpegBlob = new Blob(["jpeg"], { type: "image/jpeg" });
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [{ path: "Archive/photo.heic", name: "photo.heic", isFolder: false, size: 12, mimeType: "image/heic" }]
+    });
+    mockedApi.getFile.mockResolvedValue({
+      file: {
+        ...textPreview,
+        path: "Archive/photo.heic",
+        name: "photo.heic",
+        mimeType: "image/heic",
+        viewer: "image",
+        content: "",
+        encoding: "none",
+        bytesRead: 0,
+        requiresOriginalBlob: true
+      }
+    });
+    mockedApi.fetchOriginalFile.mockResolvedValue({ blob: heicBlob, mimeType: "image/heic", filename: "photo.heic" });
+    mockedHeicPreview.decodeHeicPreview.mockResolvedValue({
+      blob: jpegBlob,
+      width: 1200,
+      height: 900,
+      mimeType: "image/jpeg"
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Open file photo.heic/i }));
+
+    const previewDialog = await screen.findByRole("dialog", { name: /Preview photo.heic/i });
+    const image = await within(previewDialog).findByAltText("photo.heic");
+    expect(image).toHaveAttribute("src", "blob:preview");
+    expect(mockedApi.fetchOriginalFile).toHaveBeenCalledWith("Archive/photo.heic", "token-alpha");
+    expect(mockedHeicPreview.decodeHeicPreview).toHaveBeenCalledWith(heicBlob);
+    expect(mockedOpenedFileCache.cacheOpenedFile).toHaveBeenCalledWith("ns-alpha", expect.objectContaining({
+      path: "Archive/photo.heic",
+      blob: jpegBlob,
+      mimeType: "image/jpeg",
+      filename: "photo.heic.jpg"
+    }));
+    expect(within(previewDialog).getByRole("button", { name: /Open original in new tab/i })).toBeInTheDocument();
+    expect(within(previewDialog).getByRole("button", { name: /Download/i })).toBeInTheDocument();
+  });
+
+  it("ignores cached HEIC image previews after the experiment is disabled", async () => {
+    const account = buildAccount("alpha", { displayName: "HEIC cache workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    const cachedJpeg = new Blob(["cached-jpeg"], { type: "image/jpeg" });
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [{ path: "Archive/photo.heic", name: "photo.heic", isFolder: false, size: 12, mimeType: "image/heic" }]
+    });
+    mockedApi.getFile.mockResolvedValue({
+      file: {
+        ...textPreview,
+        path: "Archive/photo.heic",
+        name: "photo.heic",
+        mimeType: "image/heic",
+        viewer: "image",
+        content: "",
+        encoding: "none",
+        bytesRead: 0,
+        size: 12,
+        requiresOriginalBlob: true
+      }
+    });
+    mockedOpenedFileCache.getCachedOpenedFile.mockResolvedValue({
+      blob: cachedJpeg,
+      entry: {
+        path: "Archive/photo.heic",
+        preview: {
+          ...textPreview,
+          path: "Archive/photo.heic",
+          name: "photo.heic",
+          mimeType: "image/heic",
+          viewer: "image",
+          content: "",
+          encoding: "none",
+          bytesRead: 0,
+          size: 12,
+          requiresOriginalBlob: true
+        },
+        mimeType: "image/jpeg",
+        filename: "photo.heic.jpg",
+        blobSize: cachedJpeg.size,
+        cachedAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString()
+      }
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Open file photo.heic/i }));
+
+    const previewDialog = await screen.findByRole("dialog", { name: /Preview photo.heic/i });
+    expect(await within(previewDialog).findByText(/HEIC preview is experimental and disabled/i)).toBeInTheDocument();
+    expect(within(previewDialog).queryByAltText("photo.heic")).not.toBeInTheDocument();
+    expect(mockedApi.fetchOriginalFile).not.toHaveBeenCalled();
+    expect(mockedHeicPreview.decodeHeicPreview).not.toHaveBeenCalled();
+  });
+
+  it("falls back cleanly when experimental HEIC decode fails a guard or decoder error", async () => {
+    localStorage.setItem("davora-ui-settings", JSON.stringify({ experimentalHeicPreviewEnabled: true }));
+    const account = buildAccount("alpha", { displayName: "HEIC failure workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [{ path: "Archive/huge.heic", name: "huge.heic", isFolder: false, size: 64 * 1024 * 1024, mimeType: "image/heic" }]
+    });
+    mockedApi.getFile.mockResolvedValue({
+      file: {
+        ...textPreview,
+        path: "Archive/huge.heic",
+        name: "huge.heic",
+        mimeType: "image/heic",
+        viewer: "image",
+        content: "",
+        encoding: "none",
+        bytesRead: 0,
+        size: 64 * 1024 * 1024,
+        requiresOriginalBlob: true
+      }
+    });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Open file huge.heic/i }));
+
+    const previewDialog = await screen.findByRole("dialog", { name: /Preview huge.heic/i });
+    expect(await within(previewDialog).findByText(/HEIC preview is limited to files up to 25 MB/i)).toBeInTheDocument();
+    expect(within(previewDialog).queryByAltText("huge.heic")).not.toBeInTheDocument();
+    expect(within(previewDialog).getByRole("button", { name: /Open original in new tab/i })).toBeInTheDocument();
+    expect(within(previewDialog).getByRole("button", { name: /Download file/i })).toBeInTheDocument();
+    expect(mockedApi.fetchOriginalFile).not.toHaveBeenCalled();
+    expect(mockedHeicPreview.decodeHeicPreview).not.toHaveBeenCalled();
+    expect(mockedOpenedFileCache.cacheOpenedFile).not.toHaveBeenCalledWith("ns-alpha", expect.objectContaining({ path: "Archive/huge.heic" }));
+  });
+
+  it("falls back cleanly when experimental HEIC decoding fails after fetching the original", async () => {
+    localStorage.setItem("davora-ui-settings", JSON.stringify({ experimentalHeicPreviewEnabled: true }));
+    const account = buildAccount("alpha", { displayName: "HEIC decode error workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    const heicBlob = new Blob(["bad-heic"], { type: "image/heic" });
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [{ path: "Archive/bad.heic", name: "bad.heic", isFolder: false, size: 12, mimeType: "image/heic" }]
+    });
+    mockedApi.getFile.mockResolvedValue({
+      file: {
+        ...textPreview,
+        path: "Archive/bad.heic",
+        name: "bad.heic",
+        mimeType: "image/heic",
+        viewer: "image",
+        content: "",
+        encoding: "none",
+        bytesRead: 0,
+        size: 12,
+        requiresOriginalBlob: true
+      }
+    });
+    mockedApi.fetchOriginalFile.mockResolvedValue({ blob: heicBlob, mimeType: "image/heic", filename: "bad.heic" });
+    mockedHeicPreview.decodeHeicPreview.mockRejectedValue(new Error("Decoder rejected this image."));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Open file bad.heic/i }));
+
+    const previewDialog = await screen.findByRole("dialog", { name: /Preview bad.heic/i });
+    expect(await within(previewDialog).findByText(/HEIC preview could not be decoded locally: Decoder rejected this image/i)).toBeInTheDocument();
+    expect(within(previewDialog).queryByAltText("bad.heic")).not.toBeInTheDocument();
+    expect(within(previewDialog).getByRole("button", { name: /Open original in new tab/i })).toBeInTheDocument();
+    expect(within(previewDialog).getByRole("button", { name: /Download file/i })).toBeInTheDocument();
+    expect(mockedApi.fetchOriginalFile).toHaveBeenCalledWith("Archive/bad.heic", "token-alpha");
+    expect(mockedHeicPreview.decodeHeicPreview).toHaveBeenCalledWith(heicBlob);
+    expect(mockedOpenedFileCache.cacheOpenedFile).not.toHaveBeenCalledWith("ns-alpha", expect.objectContaining({ path: "Archive/bad.heic" }));
+  });
+
   it("shows file sizes from the main workspace control and keeps settings free of the duplicate control", async () => {
     const account = buildAccount("alpha", { displayName: "Alpha workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
@@ -712,6 +1862,14 @@ describe("App", () => {
     const maxCacheableSlider = screen.getByLabelText(/Max file size eligible for browser cache slider/i);
     fireEvent.change(maxCacheableSlider, { target: { value: "32" } });
     await waitFor(() => expect(screen.getByText(/Files up to 32 MB stay eligible for browser blob caching/i)).toBeInTheDocument());
+
+    const freshnessValue = screen.getByLabelText(/Cached preview update check interval value/i);
+    fireEvent.change(freshnessValue, { target: { value: "5" } });
+    fireEvent.keyDown(freshnessValue, { key: "Enter", code: "Enter" });
+    const freshnessUnit = screen.getByLabelText(/Cached preview update check interval unit/i);
+    fireEvent.change(freshnessUnit, { target: { value: "minutes" } });
+    await waitFor(() => expect(screen.getByText(/Cached previews will be checked after 300 seconds/i)).toBeInTheDocument());
+    expect(JSON.parse(localStorage.getItem("davora-ui-settings") ?? "{}")).toMatchObject({ previewFreshnessIntervalSeconds: 300 });
   });
 
   it("uses breadcrumb home navigation without redundant all-files or up-level buttons", async () => {
@@ -788,6 +1946,211 @@ describe("App", () => {
     fireEvent.keyDown(window, { key: " ", code: "Space" });
     await waitFor(() => expect(screen.getByRole("dialog", { name: /Preview song.mp3/i })).toBeInTheDocument());
     await waitFor(() => expect(mockedOpenedFileCache.cacheOpenedFile).toHaveBeenCalledWith("ns-alpha", expect.objectContaining({ path: "Projects/song.mp3", maxBlobBytes: 15 * 1024 * 1024 })));
+  });
+
+  it("opens audio with a streaming URL before the full file is retained in the background", async () => {
+    const account = buildAccount("alpha", { displayName: "Streaming workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [{ path: "Projects/song.mp3", name: "song.mp3", isFolder: false, size: 18, mimeType: "audio/mpeg" }]
+    });
+    mockedApi.getFile.mockResolvedValue({
+      file: {
+        ...textPreview,
+        path: "Projects/song.mp3",
+        name: "song.mp3",
+        mimeType: "audio/mpeg",
+        viewer: "audio",
+        content: "",
+        encoding: "none",
+        bytesRead: 0,
+        requiresOriginalBlob: true,
+        size: 18
+      }
+    });
+    let releaseOriginalFetch!: () => void;
+    const originalFetchStarted = vi.fn();
+    mockedApi.fetchOriginalFile.mockImplementation(async () => {
+      originalFetchStarted();
+      await new Promise<void>((resolve) => {
+        releaseOriginalFetch = resolve;
+      });
+      return {
+        blob: new Blob([new Uint8Array([0, 1, 2, 3])], { type: "audio/mpeg" }),
+        mimeType: "audio/mpeg",
+        filename: "song.mp3"
+      };
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Open file song.mp3/i }));
+    const previewDialog = await screen.findByRole("dialog", { name: /Preview song.mp3/i });
+    const audio = previewDialog.querySelector("audio");
+    expect(audio).toHaveAttribute("src", "/api/file/stream?path=Projects%2Fsong.mp3&streamToken=stream-token-alpha");
+    expect(within(previewDialog).getByText(/Streaming now\. An offline cache copy continues saving/i)).toBeInTheDocument();
+    expect(originalFetchStarted).toHaveBeenCalledTimes(1);
+    expect(mockedOpenedFileCache.cacheOpenedFile).not.toHaveBeenCalledWith("ns-alpha", expect.objectContaining({ path: "Projects/song.mp3" }));
+
+    releaseOriginalFetch();
+    await waitFor(() => expect(mockedOpenedFileCache.cacheOpenedFile).toHaveBeenCalledWith("ns-alpha", expect.objectContaining({ path: "Projects/song.mp3", blob: expect.any(Blob) })));
+  });
+
+  it("autoplays audio and video previews and pauses the previous media when switching", async () => {
+    const account = buildAccount("alpha", { displayName: "Autoplay workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [
+        { path: "Projects/chapter.m4a", name: "chapter.m4a", isFolder: false, size: 18, mimeType: "audio/mp4" },
+        { path: "Projects/clip.mp4", name: "clip.mp4", isFolder: false, size: 16, mimeType: "video/mp4" }
+      ]
+    });
+    mockedApi.getFile.mockImplementation(async (path: string) => ({
+      file: {
+        ...textPreview,
+        path,
+        name: path.split("/").pop() ?? path,
+        mimeType: path.endsWith(".m4a") ? "audio/mp4" : "video/mp4",
+        viewer: path.endsWith(".m4a") ? "audio" : "video",
+        content: "",
+        encoding: "none",
+        bytesRead: 0,
+        requiresOriginalBlob: true,
+        size: path.endsWith(".m4a") ? 18 : 16
+      }
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Open file chapter.m4a/i }));
+    const audioPreview = await screen.findByRole("dialog", { name: /Preview chapter.m4a/i });
+    const audio = audioPreview.querySelector("audio") as HTMLAudioElement;
+    expect(audio.autoplay).toBe(true);
+    await waitFor(() => expect(mediaPlayMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(within(audioPreview).getByRole("button", { name: /Next media item/i }));
+    const videoPreview = await screen.findByRole("dialog", { name: /Preview clip.mp4/i });
+    const video = within(videoPreview).getByLabelText(/Video preview clip.mp4/i) as HTMLVideoElement;
+    expect(video.autoplay).toBe(true);
+    expect(video.muted).toBe(true);
+    expect(video.playsInline).toBe(true);
+    await waitFor(() => expect(mediaPauseMock).toHaveBeenCalled());
+    await waitFor(() => expect(mediaPlayMock).toHaveBeenCalledTimes(2));
+
+    mediaPauseMock.mockClear();
+    fireEvent.click(within(videoPreview).getByRole("button", { name: /Back to files/i }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Preview clip.mp4/i })).not.toBeInTheDocument());
+    await waitFor(() => expect(mediaPauseMock).toHaveBeenCalledTimes(1));
+  });
+
+  it("shows a clear play action when browser autoplay blocks media", async () => {
+    const account = buildAccount("alpha", { displayName: "Blocked autoplay workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [{ path: "Projects/chapter.m4a", name: "chapter.m4a", isFolder: false, size: 18, mimeType: "audio/mp4" }]
+    });
+    mockedApi.getFile.mockResolvedValue({
+      file: {
+        ...textPreview,
+        path: "Projects/chapter.m4a",
+        name: "chapter.m4a",
+        mimeType: "audio/mp4",
+        viewer: "audio",
+        content: "",
+        encoding: "none",
+        bytesRead: 0,
+        requiresOriginalBlob: true,
+        size: 18
+      }
+    });
+    mediaPlayMock.mockRejectedValueOnce(new DOMException("Autoplay blocked", "NotAllowedError"));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Open file chapter.m4a/i }));
+    const previewDialog = await screen.findByRole("dialog", { name: /Preview chapter.m4a/i });
+    expect(await within(previewDialog).findByText(/Autoplay was blocked by the browser/i)).toBeInTheDocument();
+    expect(within(previewDialog).getByRole("button", { name: /Play media/i })).toBeInTheDocument();
+
+    mediaPlayMock.mockResolvedValueOnce(undefined);
+    fireEvent.click(within(previewDialog).getByRole("button", { name: /Play media/i }));
+
+    await waitFor(() => expect(mediaPlayMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(within(previewDialog).queryByText(/Autoplay was blocked by the browser/i)).not.toBeInTheDocument());
+  });
+
+  it("retries interrupted media streams with bounded backoff and then offers manual retry", async () => {
+    let fakeTimersEnabled = false;
+    try {
+      const account = buildAccount("alpha", { displayName: "Retry streaming workspace" });
+      seedAccounts([{ account, session: buildSession(account) }], account.id);
+      mockedApi.listFiles.mockResolvedValue({
+        path: "",
+        items: [{ path: "Projects/song.mp3", name: "song.mp3", isFolder: false, size: 20 * 1024 * 1024, mimeType: "audio/mpeg" }]
+      });
+      mockedApi.getFile.mockResolvedValue({
+        file: {
+          ...textPreview,
+          path: "Projects/song.mp3",
+          name: "song.mp3",
+          mimeType: "audio/mpeg",
+          viewer: "audio",
+          content: "",
+          encoding: "none",
+          bytesRead: 0,
+          requiresOriginalBlob: true,
+          size: 20 * 1024 * 1024
+        }
+      });
+
+      render(<App />);
+
+      fireEvent.click(await screen.findByRole("button", { name: /Open file song.mp3/i }));
+      const previewDialog = await screen.findByRole("dialog", { name: /Preview song.mp3/i });
+      vi.useFakeTimers();
+      fakeTimersEnabled = true;
+      let audio = previewDialog.querySelector("audio") as HTMLAudioElement;
+      expect(audio).toHaveAttribute("src", "/api/file/stream?path=Projects%2Fsong.mp3&streamToken=stream-token-alpha");
+
+      fireEvent.error(audio);
+      expect(within(previewDialog).getByText(/Stream interrupted\. Retrying playback shortly \(1\/3\)/i)).toBeInTheDocument();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      audio = previewDialog.querySelector("audio") as HTMLAudioElement;
+      expect(audio).toHaveAttribute("src", expect.stringContaining("streamRetry=1"));
+
+      fireEvent.error(audio);
+      expect(within(previewDialog).getByText(/Stream interrupted\. Retrying playback shortly \(2\/3\)/i)).toBeInTheDocument();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      audio = previewDialog.querySelector("audio") as HTMLAudioElement;
+      expect(audio).toHaveAttribute("src", expect.stringContaining("streamRetry=2"));
+
+      fireEvent.error(audio);
+      expect(within(previewDialog).getByText(/Stream interrupted\. Retrying playback shortly \(3\/3\)/i)).toBeInTheDocument();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      audio = previewDialog.querySelector("audio") as HTMLAudioElement;
+      expect(audio).toHaveAttribute("src", expect.stringContaining("streamRetry=3"));
+
+      fireEvent.error(audio);
+      expect(within(previewDialog).getByText(/Media playback could not continue after several retries/i)).toBeInTheDocument();
+      fireEvent.click(within(previewDialog).getByRole("button", { name: /Retry playback/i }));
+      audio = previewDialog.querySelector("audio") as HTMLAudioElement;
+      expect(audio).toHaveAttribute("src", expect.stringContaining("streamRetry=4"));
+      expect(within(previewDialog).queryByText(/Media playback could not continue after several retries/i)).not.toBeInTheDocument();
+    } finally {
+      if (fakeTimersEnabled) {
+        vi.useRealTimers();
+      }
+    }
   });
 
   it("navigates from audio preview back to the previous media item", async () => {
@@ -1023,6 +2386,34 @@ describe("App", () => {
     expect(within(previewDialog).queryByText("cached preview")).not.toBeInTheDocument();
   });
 
+  it("shows a fresh cached preview without a noisy cached-preview notice or remote check", async () => {
+    vi.setSystemTime(new Date("2026-05-21T10:00:30.000Z"));
+    const account = buildAccount("alpha", { displayName: "Fresh preview workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+
+    mockedOpenedFileCache.getCachedOpenedFile.mockResolvedValue({
+      entry: {
+        path: textPreview.path,
+        preview: { ...textPreview, content: "fresh cached preview" },
+        mimeType: "text/plain",
+        filename: "roadmap.txt",
+        blobSize: 22,
+        cachedAt: "2026-05-21T10:00:00.000Z",
+        lastAccessedAt: "2026-05-21T10:00:00.000Z"
+      },
+      blob: new Blob(["fresh cached preview"], { type: "text/plain" })
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Open file roadmap.txt/i }));
+
+    const previewDialog = await screen.findByRole("dialog", { name: /Preview roadmap.txt/i });
+    await waitFor(() => expect(within(previewDialog).getByText("fresh cached preview")).toBeInTheDocument());
+    expect(within(previewDialog).queryByText(/Showing cached preview/i)).not.toBeInTheDocument();
+    expect(mockedApi.getFile).not.toHaveBeenCalledWith("Projects/roadmap.txt", "token-alpha");
+  });
+
 
   it("keeps install affordance out of the first-run zero state", async () => {
     const prompt = vi.fn(async () => undefined);
@@ -1162,5 +2553,191 @@ describe("App", () => {
     await screen.findByRole("button", { name: /Create folder/i });
     expect(setOfflineReady).toHaveBeenCalledWith(false);
     expect(screen.queryByText(/App ready to work offline/i)).not.toBeInTheDocument();
+  });
+
+  it("shows loading state for a never-cached folder instead of empty", async () => {
+    const account = buildAccount("alpha", { displayName: "Unknown folder workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedCache.readFolderCacheEnvelope.mockReturnValue(undefined);
+
+    const deferred = createDeferred<{ path: string; items: Array<{ path: string; name: string; isFolder: boolean; size?: number; mimeType?: string }> }>();
+    mockedApi.listFiles.mockImplementation(() => deferred.promise);
+
+    render(<App />);
+
+    const emptyState = await waitFor(() => document.querySelector(".empty-state") as HTMLElement);
+    expect(within(emptyState).getByText(/Loading folder/i)).toBeInTheDocument();
+    expect(screen.queryByText(/This folder is empty/i)).not.toBeInTheDocument();
+
+    deferred.resolve({ path: "", items: [{ path: "Projects", name: "Projects", isFolder: true }] });
+    expect(await screen.findByRole("button", { name: /Open folder Projects/i })).toBeInTheDocument();
+  });
+
+  it("shows unknown state when first load of a never-cached folder fails", async () => {
+    const account = buildAccount("alpha", { displayName: "Unknown folder workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedCache.readFolderCacheEnvelope.mockReturnValue(undefined);
+    mockedApi.listFiles.mockRejectedValueOnce(new Error("Network error"));
+
+    render(<App />);
+
+    expect(await screen.findByText(/Couldn't load this folder. Its contents are unknown/i)).toBeInTheDocument();
+    expect(screen.queryByText(/This folder is empty/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Retry folder/i })).toBeInTheDocument();
+  });
+
+  it("shows normal empty state for a confirmed empty folder after successful load", async () => {
+    const account = buildAccount("alpha", { displayName: "Empty folder workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockResolvedValueOnce({ path: "", items: [] });
+
+    render(<App />);
+
+    const emptyState = await waitFor(() => document.querySelector(".empty-state") as HTMLElement);
+    expect(within(emptyState).getByText(/This folder is empty/i)).toBeInTheDocument();
+    expect(within(emptyState).queryByText(/Loading folder/i)).not.toBeInTheDocument();
+    expect(within(emptyState).queryByText(/Couldn't load this folder/i)).not.toBeInTheDocument();
+  });
+
+  it("shows cached empty folder as empty while refreshing in the background", async () => {
+    const account = buildAccount("alpha", { displayName: "Cached empty workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedCache.readFolderCacheEnvelope.mockReturnValue({
+      cachedAt: "2026-06-07T10:00:00.000Z",
+      value: []
+    });
+
+    const deferred = createDeferred<{ path: string; items: Array<{ path: string; name: string; isFolder: boolean; size?: number; mimeType?: string }> }>();
+    mockedApi.listFiles.mockImplementation(() => deferred.promise);
+
+    render(<App />);
+
+    const emptyState = await waitFor(() => document.querySelector(".empty-state") as HTMLElement);
+    expect(within(emptyState).getByText(/This folder is empty/i)).toBeInTheDocument();
+    expect(within(emptyState).queryByText(/Loading folder/i)).not.toBeInTheDocument();
+    expect(document.querySelector(".folder-cache-toast")).toBeNull();
+    expect(screen.getByText("Refreshing")).toBeInTheDocument();
+    expect(screen.queryByText(/Showing cached data while checking for changes in the background/i)).not.toBeInTheDocument();
+
+    deferred.resolve({ path: "", items: [] });
+    await waitFor(() => expect(screen.queryByText(/Showing cached data while checking for changes in the background/i)).not.toBeInTheDocument());
+  });
+
+  it("hides dot-prefixed files and folders by default", async () => {
+    const account = buildAccount("alpha", { displayName: "Hidden files workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [
+        { path: "visible.txt", name: "visible.txt", isFolder: false, size: 10, mimeType: "text/plain" },
+        { path: ".hidden", name: ".hidden", isFolder: false, size: 5, mimeType: "text/plain" },
+        { path: "._.DS_Store", name: "._.DS_Store", isFolder: false, size: 3, mimeType: "application/octet-stream" }
+      ]
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: /Open file visible.txt/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Open file .hidden/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Open file ._\.DS_Store/i })).not.toBeInTheDocument();
+  });
+
+  it("reveals hidden files when the settings toggle is enabled", async () => {
+    const account = buildAccount("alpha", { displayName: "Hidden files workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [
+        { path: "visible.txt", name: "visible.txt", isFolder: false, size: 10, mimeType: "text/plain" },
+        { path: ".hidden", name: ".hidden", isFolder: false, size: 5, mimeType: "text/plain" }
+      ]
+    });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Open file visible.txt/i });
+    expect(screen.queryByRole("button", { name: /Open file .hidden/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Profile & settings/i }));
+    const settingsDialog = await screen.findByRole("dialog", { name: /Profile and settings/i });
+    const checkbox = within(settingsDialog).getByLabelText(/Show hidden files and folders/i);
+    fireEvent.click(checkbox);
+
+    expect(await screen.findByRole("button", { name: /Open file .hidden/i })).toBeInTheDocument();
+  });
+
+  it("sorts files by name descending when the sort mode is changed", async () => {
+    const account = buildAccount("alpha", { displayName: "Sort workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [
+        { path: "alpha.txt", name: "alpha.txt", isFolder: false, size: 1, mimeType: "text/plain" },
+        { path: "omega.txt", name: "omega.txt", isFolder: false, size: 2, mimeType: "text/plain" },
+        { path: "beta.txt", name: "beta.txt", isFolder: false, size: 3, mimeType: "text/plain" }
+      ]
+    });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Open file alpha.txt/i });
+    let rowNames = Array.from(document.querySelectorAll(".item-name")).map((node) => node.textContent);
+    expect(rowNames).toEqual(["alpha.txt", "beta.txt", "omega.txt"]);
+
+    const sortSelect = screen.getByLabelText(/Sort files and folders/i);
+    fireEvent.change(sortSelect, { target: { value: "name-desc" } });
+
+    await waitFor(() => {
+      rowNames = Array.from(document.querySelectorAll(".item-name")).map((node) => node.textContent);
+      expect(rowNames).toEqual(["omega.txt", "beta.txt", "alpha.txt"]);
+    });
+  });
+
+  it("sorts files by size when the sort mode is changed", async () => {
+    const account = buildAccount("alpha", { displayName: "Sort workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [
+        { path: "small.txt", name: "small.txt", isFolder: false, size: 1, mimeType: "text/plain" },
+        { path: "large.txt", name: "large.txt", isFolder: false, size: 100, mimeType: "text/plain" },
+        { path: "medium.txt", name: "medium.txt", isFolder: false, size: 50, mimeType: "text/plain" }
+      ]
+    });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Open file small.txt/i });
+    const sortSelect = screen.getByLabelText(/Sort files and folders/i);
+    fireEvent.change(sortSelect, { target: { value: "size-desc" } });
+
+    await waitFor(() => {
+      const rowNames = Array.from(document.querySelectorAll(".item-name")).map((node) => node.textContent);
+      expect(rowNames).toEqual(["large.txt", "medium.txt", "small.txt"]);
+    });
+  });
+
+  it("shows the active sort direction in the mobile toolbar", async () => {
+    matchMediaMatches = true;
+    const account = buildAccount("alpha", { displayName: "Mobile sort workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [
+        { path: "alpha.txt", name: "alpha.txt", isFolder: false, size: 1, mimeType: "text/plain" },
+        { path: "omega.txt", name: "omega.txt", isFolder: false, size: 2, mimeType: "text/plain" }
+      ]
+    });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Open file alpha.txt/i });
+    const sortButton = screen.getByRole("button", { name: /Open sort options\. Current sort: Name A-Z/i });
+    expect(sortButton).toHaveTextContent("A-Z");
+
+    fireEvent.click(sortButton);
+    fireEvent.click(screen.getByRole("button", { name: "Name Z-A" }));
+
+    expect(screen.getByRole("button", { name: /Open sort options\. Current sort: Name Z-A/i })).toHaveTextContent("Z-A");
   });
 });

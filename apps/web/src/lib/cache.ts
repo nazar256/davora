@@ -47,13 +47,39 @@ export function readSearchCache<T>(cacheNamespace: string, path: string, query: 
   return readEnvelope<T>(accountKey(SEARCH_PREFIX, cacheNamespace, `${path}:${query.toLowerCase()}`))?.value;
 }
 
-export function clearFolderAndSearchCache(cacheNamespace?: string): void {
+interface ClearFolderAndSearchCacheOptions {
+  preserveFolderPaths?: string[];
+}
+
+function shouldPreserveFolderKey(key: string, cacheNamespace: string | undefined, preserveFolderPaths: string[]): boolean {
+  if (!cacheNamespace || preserveFolderPaths.length === 0) {
+    return false;
+  }
+
+  return preserveFolderPaths.some((path) => {
+    const preservedKey = accountKey(FOLDER_PREFIX, cacheNamespace, path);
+    return key === preservedKey || key.startsWith(`${preservedKey}/`);
+  });
+}
+
+export function clearFolderAndSearchCache(cacheNamespace?: string, options: ClearFolderAndSearchCacheOptions = {}): void {
+  const preserveFolderPaths = options.preserveFolderPaths ?? [];
   Object.keys(localStorage)
     .filter((key) => {
       if (cacheNamespace) {
-        return key.startsWith(`${FOLDER_PREFIX}${cacheNamespace}:`) || key.startsWith(`${SEARCH_PREFIX}${cacheNamespace}:`);
+        const isFolderKey = key.startsWith(`${FOLDER_PREFIX}${cacheNamespace}:`);
+        const isSearchKey = key.startsWith(`${SEARCH_PREFIX}${cacheNamespace}:`);
+        return (isFolderKey && !shouldPreserveFolderKey(key, cacheNamespace, preserveFolderPaths)) || isSearchKey;
       }
       return key.startsWith(FOLDER_PREFIX) || key.startsWith(SEARCH_PREFIX);
     })
     .forEach((key) => localStorage.removeItem(key));
+}
+
+export function clearFolderCacheForPath(cacheNamespace: string, path: string): void {
+  const key = accountKey(FOLDER_PREFIX, cacheNamespace, path);
+  const descendantPrefix = `${key}/`;
+  Object.keys(localStorage)
+    .filter((storedKey) => storedKey === key || storedKey.startsWith(descendantPrefix))
+    .forEach((storedKey) => localStorage.removeItem(storedKey));
 }

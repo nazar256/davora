@@ -65,7 +65,7 @@ export function FileOperations(props: FileOperationsProps) {
           <p className="status">{props.selectedEntry ? `Selected: ${props.selectedEntry.path}` : "Open any file or folder to keep actions contextual instead of permanently expanded."}</p>
           <div className="action-row">
             <button disabled={!props.canMutate || props.mutationBusy || !props.selectedEntry} onClick={props.onMoveSelected}>Rename or move selected</button>
-            <button disabled={!props.canMutate || props.mutationBusy || !props.selectedEntry} onClick={props.onCopySelected}>Copy selected</button>
+            <button disabled={!props.canMutate || props.mutationBusy || !props.selectedEntry} onClick={props.onCopySelected}>Copy or move selected</button>
             <button disabled={!props.canMutate || props.mutationBusy || !props.selectedEntry} onClick={props.onDeleteSelected}>Delete selected</button>
           </div>
         </div>

@@ -28,6 +28,16 @@ export interface SessionPayload {
   exp: number;
 }
 
+export interface StreamTokenPayload {
+  scope: "davora-stream";
+  accountId: string;
+  backend: "mock" | "nextcloud";
+  rootPath: string;
+  accountNonce: string;
+  path: string;
+  exp: number;
+}
+
 export interface NextcloudAccountCredentials {
   baseUrl: string;
   username: string;

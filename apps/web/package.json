@@ -16,9 +16,11 @@
   },
   "dependencies": {
     "@davora/shared": "1.0.0",
+    "heic-to": "^1.5.2",
     "idb-keyval": "^6.2.1",
     "jszip": "^3.10.1",
     "markdown-it": "^14.1.0",
+    "pdfjs-dist": "^6.1.200",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

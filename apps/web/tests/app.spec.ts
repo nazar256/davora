@@ -14,8 +14,7 @@ async function connectAccount(page: Page, label = "Mock workspace", options: { w
   await page.getByLabel("Label").fill(label);
   await page.getByRole("button", { name: /Connect account/i }).click();
   if (waitForWorkspace) {
-    await expect(page.getByRole("button", { name: /Create folder/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Profile & settings/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Open folder Projects/i })).toBeVisible();
   }
 }
 
@@ -48,6 +47,28 @@ async function waitForServiceWorkerControl(page: Page) {
   await expect.poll(async () => page.evaluate(() => Boolean(navigator.serviceWorker?.controller))).toBe(true);
 }
 
+async function renderMobilePreviewToolbarFixture(page: Page) {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await page.goto("/");
+  await page.evaluate(() => {
+    document.body.innerHTML = `
+      <main style="position: relative; min-height: 844px; background: #0f172a;">
+        <div class="preview-header-actions preview-header-actions-image" aria-label="Preview actions">
+          <details class="preview-details-disclosure">
+            <summary>Details</summary>
+            <div class="preview-details-panel">Photo metadata</div>
+          </details>
+          <button class="quiet-button" type="button">Fit</button>
+          <button class="quiet-button" type="button">100%</button>
+          <button class="quiet-button" type="button">Open original</button>
+          <button class="quiet-button" type="button">Download</button>
+          <button class="quiet-button preview-dismiss-button" type="button">Back</button>
+        </div>
+      </main>
+    `;
+  });
+}
+
 test.beforeEach(async ({ request, baseURL }) => {
   await request.post(`${baseURL?.replace("4174", "8789")}/api/mock/reset`, {
     headers: { "x-davora-reset-token": "playwright-dev-secret" }
@@ -67,6 +88,56 @@ test("first run connects an account and preserves the file-manager workspace", a
   await expect(preview.getByRole("button", { name: /Back to files/i })).toBeVisible();
   await expect(preview.getByRole("button", { name: /Close preview/i })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: /Offline cache/i })).toHaveCount(0);
+});
+
+test("browser back closes app surfaces before leaving the file-manager workspace", async ({ page }, testInfo) => {
+  const isMobile = testInfo.project.name.includes("mobile");
+  await connectAccount(page, "Back workspace", { waitForWorkspace: false });
+  await expect(page.getByRole("button", { name: /Open folder Projects/i })).toBeVisible();
+
+  await page.getByRole("button", { name: /Open folder Projects/i }).click();
+  await expect(page.getByRole("button", { name: /Open file roadmap.txt/i })).toBeVisible();
+
+  await page.goBack();
+  if (!isMobile) {
+    await expect(page.getByRole("heading", { name: /Home/i })).toBeVisible();
+  }
+  await expect(page.getByRole("button", { name: /Open folder Projects/i })).toBeVisible();
+
+  await page.getByRole("button", { name: /Open folder Projects/i }).click();
+  await page.getByRole("button", { name: /Open file roadmap.txt/i }).click();
+  const preview = page.getByRole("dialog", { name: /Preview roadmap.txt/i });
+  await expect(preview).toBeVisible();
+
+  await page.goBack();
+  await expect(preview).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Open file roadmap.txt/i })).toBeVisible();
+
+  if (isMobile) {
+    await page.getByRole("button", { name: /Open navigation menu/i }).click();
+  }
+  await page.getByRole("button", { name: /Profile & settings/i }).click();
+  const settingsDialog = page.getByRole("dialog", { name: /Profile and settings/i });
+  await expect(settingsDialog).toBeVisible();
+
+  await page.goBack();
+  await expect(settingsDialog).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Open file roadmap.txt/i })).toBeVisible();
+});
+
+test("URL syncs current folder path and clears on return to root", async ({ page }) => {
+  await connectAccount(page, "URL sync workspace", { waitForWorkspace: false });
+  await expect(page.getByRole("button", { name: /Open folder Projects/i })).toBeVisible();
+  await page.getByRole("button", { name: /Open folder Projects/i }).click();
+  await expect(page.getByRole("button", { name: /Open file roadmap.txt/i })).toBeVisible();
+
+  // Verify URL has path param after navigating to folder
+  await expect(page).toHaveURL(/path=Projects/);
+
+  // Navigate back using browser back and verify URL clears
+  await page.goBack();
+  await expect(page.getByRole("button", { name: /Open folder Projects/i })).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
 });
 
 test("default dev server keeps PWA manifest, service worker control, and Chrome installability available", async ({ page, request, context }, testInfo) => {
@@ -162,7 +233,7 @@ test("unsupported files download directly instead of opening a dead preview", as
   expect(download.suggestedFilename()).toBe("image.bin");
 });
 
-test("preview supports markdown MIME variants and PDF open fallback", async ({ page, context }) => {
+test("preview supports markdown MIME variants, inline PDF rendering, and PDF open fallback", async ({ page, context }) => {
   await connectAccount(page, "Preview workspace");
   await page.getByRole("button", { name: /Open folder Design/i }).click();
   await page.getByRole("button", { name: /Open file spec.md/i }).click();
@@ -172,7 +243,8 @@ test("preview supports markdown MIME variants and PDF open fallback", async ({ p
   await expect(markdownPreview.locator(".rendered-markdown")).toContainText("Mock spec");
   await markdownPreview.getByRole("button", { name: /Back to files/i }).click();
 
-  await page.getByRole("button", { name: /Go to home folder/i }).click();
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: /Open folder Archive/i })).toBeVisible();
   await page.getByRole("button", { name: /Open folder Archive/i }).click();
   await page.getByRole("button", { name: /Open file photo.png/i }).click();
 
@@ -182,23 +254,174 @@ test("preview supports markdown MIME variants and PDF open fallback", async ({ p
   await expect(imagePreview).toBeVisible();
   await expect(imageElement.or(imageFallback)).toBeVisible();
   if (await imageElement.count()) {
-    await expect(imageElement).toHaveCSS("object-fit", "contain");
+    await expect(imageElement).toHaveCSS("object-fit", /contain|cover/);
+    const imageStage = imagePreview.locator(".preview-media-stage-image");
+    const originalSizeButton = imagePreview.getByRole("button", { name: /Show image at original size/i });
+    await expect(originalSizeButton).toBeVisible();
+    const expectedFirstWheelWidth = await imageStage.evaluate((element) => {
+      const displayedScale = Math.max(element.clientWidth / 1200, element.clientHeight / 800);
+      return (displayedScale + 0.15) * 1200;
+    });
+    await imageStage.dispatchEvent("wheel", { bubbles: true, cancelable: true, ctrlKey: true, deltaY: -300 });
+    await expect(imageElement).toHaveClass(/media-preview-image-zoomed/);
+    await expect.poll(async () => {
+      const box = await imageElement.boundingBox();
+      return Math.abs((box?.width ?? 0) - expectedFirstWheelWidth);
+    }).toBeLessThan(12);
+
+    await originalSizeButton.click();
+    await expect(originalSizeButton).toHaveAttribute("aria-pressed", "true");
+    await expect(imageElement).toHaveClass(/media-preview-image-zoomed/);
+    const originalSizeImageBox = await imageElement.boundingBox();
+    expect(Math.round(originalSizeImageBox?.width ?? 0)).toBe(1200);
+    await expect.poll(async () => imageStage.evaluate((element) => element.scrollWidth > element.clientWidth || element.scrollHeight > element.clientHeight)).toBe(true);
+
+    const zoomBeforeWheel = await originalSizeButton.getAttribute("aria-label");
+    await imageStage.hover();
+    await page.keyboard.down("Control");
+    await page.mouse.wheel(0, -600);
+    await page.keyboard.up("Control");
+    await expect.poll(async () => originalSizeButton.getAttribute("aria-label")).not.toBe(zoomBeforeWheel);
+
+    const zoomBeforePinch = await originalSizeButton.getAttribute("aria-label");
+    await imageStage.dispatchEvent("touchstart", {
+      touches: [
+        { identifier: 1, clientX: 120, clientY: 160 },
+        { identifier: 2, clientX: 220, clientY: 160 }
+      ]
+    });
+    await imageStage.dispatchEvent("touchmove", {
+      touches: [
+        { identifier: 1, clientX: 90, clientY: 160 },
+        { identifier: 2, clientX: 250, clientY: 160 }
+      ]
+    });
+    await imageStage.dispatchEvent("touchend", { touches: [] });
+    await expect.poll(async () => originalSizeButton.getAttribute("aria-label")).not.toBe(zoomBeforePinch);
   } else {
     await expect(imagePreview.getByRole("button", { name: /Open original in new tab/i })).toBeVisible();
     await expect(imagePreview.getByRole("button", { name: /Download file/i })).toBeVisible();
   }
   await imagePreview.getByRole("button", { name: /Back to files/i }).click();
 
+  await page.getByRole("button", { name: /Open file photo.heic/i }).click();
+  const heicPreview = page.getByRole("dialog", { name: /Preview photo.heic/i });
+  await expect(heicPreview).toBeVisible();
+  await expect(heicPreview.getByText(/HEIC preview is experimental and disabled/i)).toBeVisible();
+  await expect(heicPreview.getByRole("button", { name: /Open original in new tab/i })).toBeVisible();
+  await expect(heicPreview.getByRole("button", { name: /Download file/i })).toBeVisible();
+  await heicPreview.getByRole("button", { name: /Back to files/i }).click();
+
   const newPagePromise = context.waitForEvent("page");
   await page.getByRole("button", { name: /Open file guide.pdf/i }).click();
 
   const pdfPreview = page.getByRole("dialog", { name: /Preview guide.pdf/i });
   await expect(pdfPreview).toBeVisible();
-  await expect(pdfPreview.getByTitle(/PDF preview guide.pdf/i)).toBeVisible();
+  await expect(pdfPreview.locator(".pdf-canvas[data-render-state='ready']").first()).toBeVisible();
+  await expect(pdfPreview.getByRole("heading", { name: "guide.pdf" })).toBeVisible();
+  await expect(pdfPreview.locator(".pdf-canvas-page")).toHaveCount(2);
+  await expect(pdfPreview.getByText("Page 1 of 2")).toBeVisible();
+  await pdfPreview.getByRole("button", { name: /Next PDF page/i }).click();
+  await expect(pdfPreview.getByText("Page 2 of 2")).toBeVisible();
+  await pdfPreview.getByRole("button", { name: /Previous PDF page/i }).click();
+  await expect(pdfPreview.getByText("Page 1 of 2")).toBeVisible();
+
+  const pdfScroll = pdfPreview.locator(".pdf-canvas-scroll");
+  await pdfScroll.hover();
+  await page.mouse.wheel(0, 900);
+  await expect(pdfPreview.getByText("Page 2 of 2")).toBeVisible();
+  await pdfPreview.getByRole("button", { name: /Fit PDF to page/i }).click();
+  await expect(pdfPreview.getByRole("button", { name: /Fit PDF to page/i })).toHaveAttribute("aria-pressed", "true");
+  await pdfPreview.getByRole("button", { name: /Fit PDF to width/i }).click();
+  await expect(pdfPreview.getByRole("button", { name: /Fit PDF to width/i })).toHaveAttribute("aria-pressed", "true");
+
+  const zoomLabel = pdfPreview.locator(".pdf-canvas-zoom");
+  const zoomBeforeWheel = await zoomLabel.textContent();
+  await pdfScroll.hover();
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, -700);
+  await page.keyboard.up("Control");
+  await expect.poll(async () => zoomLabel.textContent()).not.toBe(zoomBeforeWheel);
+
+  await pdfScroll.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await pdfScroll.dispatchEvent("touchstart", {
+    touches: [{ identifier: 1, clientX: 180, clientY: 260 }]
+  });
+  await pdfScroll.dispatchEvent("touchmove", {
+    touches: [{ identifier: 1, clientX: 180, clientY: 120 }]
+  });
+  await pdfScroll.dispatchEvent("touchend", { touches: [] });
+  await expect.poll(async () => pdfScroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
+  const zoomBeforePinch = await zoomLabel.textContent();
+  await pdfScroll.dispatchEvent("touchstart", {
+    touches: [
+      { identifier: 1, clientX: 120, clientY: 160 },
+      { identifier: 2, clientX: 220, clientY: 160 }
+    ]
+  });
+  await pdfScroll.dispatchEvent("touchmove", {
+    touches: [
+      { identifier: 1, clientX: 80, clientY: 160 },
+      { identifier: 2, clientX: 260, clientY: 160 }
+    ]
+  });
+  await pdfScroll.dispatchEvent("touchend", { touches: [] });
+  await expect.poll(async () => zoomLabel.textContent()).not.toBe(zoomBeforePinch);
+  await expect(pdfPreview.getByText(/PDF rendering depends on browser support/i)).toHaveCount(0);
+  await expect(pdfPreview.getByText(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}/i)).toHaveCount(0);
   await pdfPreview.getByRole("button", { name: /Open PDF in new tab/i }).click();
   const pdfPage = await newPagePromise;
   // Blob URLs do not reliably fire domcontentloaded across Chrome variants; the URL itself is the invariant.
   await expect(pdfPage).toHaveURL(/blob:/);
+});
+
+test("mobile preview toolbar keeps long image actions separated and tappable", async ({ page }) => {
+  await renderMobilePreviewToolbarFixture(page);
+  const toolbar = page.locator(".preview-header-actions");
+  await expect(toolbar).toBeVisible();
+  await expect(toolbar.locator(":scope > button, :scope > details")).toHaveCount(6);
+
+  const actionBoxes = await toolbar.locator(":scope > button, :scope > details").evaluateAll((elements) => elements.map((element) => {
+    const rect = element.getBoundingClientRect();
+    const computed = window.getComputedStyle(element);
+    return {
+      label: element.textContent?.trim() ?? "",
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height,
+      overflow: computed.overflow,
+      textOverflow: computed.textOverflow
+    };
+  }));
+
+  for (const action of actionBoxes) {
+    expect(action.width, `${action.label} width`).toBeGreaterThanOrEqual(44);
+    expect(action.height, `${action.label} height`).toBeGreaterThanOrEqual(36);
+  }
+
+  for (let index = 0; index < actionBoxes.length; index += 1) {
+    const current = actionBoxes[index];
+    for (const next of actionBoxes.slice(index + 1)) {
+      const overlaps = current.left < next.right - 0.5
+        && current.right > next.left + 0.5
+        && current.top < next.bottom - 0.5
+        && current.bottom > next.top + 0.5;
+      expect(overlaps, `${current.label} overlaps ${next.label}`).toBe(false);
+    }
+  }
+
+  const openOriginal = actionBoxes.find((action) => action.label === "Open original");
+  expect(openOriginal).toMatchObject({ overflow: "hidden", textOverflow: "ellipsis" });
+  const backButton = actionBoxes.find((action) => action.label === "Back");
+  const toolbarBox = await toolbar.boundingBox();
+  expect(toolbarBox).not.toBeNull();
+  expect(backButton?.width ?? 0).toBeGreaterThan((toolbarBox?.width ?? 0) * 0.9);
 });
 
 test("adding a second account and switching updates active-account context", async ({ page }) => {
@@ -510,31 +733,50 @@ test("mutation flow still works for the active account", async ({ page }, testIn
   const isMobile = testInfo.project.name === "mobile-chrome";
   await connectAccount(page, "Mutation workspace");
 
-  await page.getByRole("button", { name: /Create folder/i }).click();
+  if (isMobile) {
+    await page.getByRole("button", { name: /Open navigation menu/i }).click();
+    await page.getByRole("complementary", { name: /Navigation menu/i }).getByRole("button", { name: /Create folder/i }).click();
+  } else {
+    await page.getByRole("button", { name: /Create folder/i }).click();
+  }
   const createDialog = page.getByRole("dialog", { name: /Create folder/i });
   await createDialog.getByLabel("Folder name").fill("Playwright Folder");
   await createDialog.getByRole("button", { name: /Create folder/i }).click();
-  await expect(page.getByText(/createFolder completed/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: /Open folder Playwright Folder/i })).toBeVisible();
   await page.getByRole("button", { name: /Open folder Playwright Folder/i }).click();
 
-  const fileChooser = page.waitForEvent("filechooser");
-  await page.getByLabel("Upload files").click();
-  const chooser = await fileChooser;
-  await chooser.setFiles({ name: "draft.txt", mimeType: "text/plain", buffer: Buffer.from("draft via playwright") });
-  await expect(page.getByText(/Uploaded 1 file into \/Playwright Folder/i)).toBeVisible();
+  if (isMobile) {
+    await page.getByRole("button", { name: /Open navigation menu/i }).click();
+    await page.getByRole("complementary", { name: /Navigation menu/i }).getByLabel("Upload files from navigation menu").setInputFiles({
+      name: "draft.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("draft via playwright")
+    });
+  } else {
+    await page.getByLabel("Upload files", { exact: true }).setInputFiles({
+      name: "draft.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("draft via playwright")
+    });
+  }
   await expect(page.getByRole("button", { name: /Open file draft.txt/i })).toBeVisible();
 
   if (isMobile) {
-    await page.getByRole("button", { name: /(?:Show|Hide) details for draft.txt/i }).click();
-    await page.getByRole("dialog", { name: /Details for draft.txt/i }).getByRole("button", { name: /Rename or move/i }).click();
+    const openActionsButton = page.getByRole("button", { name: /Open actions for draft.txt/i });
+    if (await openActionsButton.isVisible()) {
+      await openActionsButton.click();
+    }
+    await page.getByRole("button", { name: /Rename or move/i }).click();
   } else {
     await page.getByRole("button", { name: /Rename or move/i }).click();
   }
 
-  const moveDialog = page.getByRole("dialog", { name: /Rename or move item/i });
-  await moveDialog.getByLabel("New path").fill("Playwright Folder/renamed.txt");
-  await moveDialog.getByRole("button", { name: /^Save$/i }).click();
-  await expect(page.getByText(/move completed/i)).toBeVisible();
+  const moveDialog = page.getByRole("dialog", { name: /Move item/i });
+  await moveDialog.getByRole("button", { name: /Go to home folder/i }).click();
+  await moveDialog.getByLabel("Destination name").fill("renamed.txt");
+  await expect(moveDialog.getByRole("button", { name: /Move here/i })).toBeEnabled();
+  await moveDialog.getByRole("button", { name: /Move here/i }).click();
+  await expect(page.getByRole("button", { name: /Open file renamed.txt/i })).toBeVisible();
 });
 
 test("profile and settings groups account, cache, and file-size controls", async ({ page }) => {
@@ -744,6 +986,225 @@ test("video preview autoplays muted and modal overlays dismiss on outside click"
   await expect(settingsDialog).toHaveCount(0);
 });
 
+test("media preview attempts autoplay for audio and video and pauses when switching", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chrome", "Desktop media instrumentation only.");
+  await page.addInitScript(() => {
+    const events: Array<{ type: string; tag: string; src: string }> = [];
+    Object.defineProperty(window, "__davoraMediaEvents", {
+      configurable: true,
+      value: events
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, "play", {
+      configurable: true,
+      value(this: HTMLMediaElement) {
+        events.push({ type: "play", tag: this.tagName, src: this.currentSrc || this.src });
+        this.dispatchEvent(new Event("play"));
+        this.dispatchEvent(new Event("playing"));
+        return Promise.resolve();
+      }
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, "pause", {
+      configurable: true,
+      value(this: HTMLMediaElement) {
+        events.push({ type: "pause", tag: this.tagName, src: this.currentSrc || this.src });
+        this.dispatchEvent(new Event("pause"));
+      }
+    });
+  });
+  await connectAccount(page, "Media autoplay workspace");
+  await page.route("**/api/files?path=Projects", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          path: "Projects",
+          items: [
+            { path: "Projects/chapter.m4a", name: "chapter.m4a", isFolder: false, size: 18, mimeType: "audio/mp4" },
+            { path: "Projects/clip.mp4", name: "clip.mp4", isFolder: false, size: 16, mimeType: "video/mp4" }
+          ]
+        }
+      })
+    });
+  });
+  await page.route("**/api/file?path=Projects%2Fchapter.m4a", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          file: {
+            path: "Projects/chapter.m4a",
+            name: "chapter.m4a",
+            isFolder: false,
+            size: 18,
+            mimeType: "audio/mp4",
+            viewer: "audio",
+            content: "",
+            encoding: "none",
+            truncated: false,
+            bytesRead: 0,
+            requiresOriginalBlob: true
+          }
+        }
+      })
+    });
+  });
+  await page.route("**/api/file?path=Projects%2Fclip.mp4", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          file: {
+            path: "Projects/clip.mp4",
+            name: "clip.mp4",
+            isFolder: false,
+            size: 16,
+            mimeType: "video/mp4",
+            viewer: "video",
+            content: "",
+            encoding: "none",
+            truncated: false,
+            bytesRead: 0,
+            requiresOriginalBlob: true
+          }
+        }
+      })
+    });
+  });
+  await page.route("**/api/file/original?path=Projects%2Fchapter.m4a", async (route) => {
+    await route.fulfill({
+      status: 200,
+      headers: {
+        "content-type": "audio/mp4",
+        "content-disposition": "attachment; filename*=UTF-8''chapter.m4a"
+      },
+      body: Buffer.from([0, 1, 2, 3])
+    });
+  });
+  await page.route("**/api/file/original?path=Projects%2Fclip.mp4", async (route) => {
+    await route.fulfill({
+      status: 200,
+      headers: {
+        "content-type": "video/mp4",
+        "content-disposition": "attachment; filename*=UTF-8''clip.mp4"
+      },
+      body: Buffer.from([0, 0, 0, 24])
+    });
+  });
+
+  await page.getByRole("button", { name: /Open folder Projects/i }).click();
+  await page.getByRole("button", { name: /Open file chapter.m4a/i }).click();
+  const audioPreview = page.getByRole("dialog", { name: /Preview chapter.m4a/i });
+  await expect(audioPreview.locator("audio")).toHaveJSProperty("autoplay", true);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __davoraMediaEvents: Array<{ type: string; tag: string }> }).__davoraMediaEvents)).toContainEqual(expect.objectContaining({ type: "play", tag: "AUDIO" }));
+
+  await audioPreview.getByRole("button", { name: /Next media item/i }).click({ force: true });
+  const videoPreview = page.getByRole("dialog", { name: /Preview clip.mp4/i });
+  const video = videoPreview.getByLabel(/Video preview clip.mp4/i);
+  await expect(video).toHaveJSProperty("autoplay", true);
+  await expect(video).toHaveJSProperty("muted", true);
+  await expect(video).toHaveJSProperty("playsInline", true);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __davoraMediaEvents: Array<{ type: string; tag: string }> }).__davoraMediaEvents)).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ type: "pause", tag: "AUDIO" }),
+      expect.objectContaining({ type: "play", tag: "VIDEO" })
+    ])
+  );
+});
+
+test("large video preview streams through the Worker without full-file download", async ({ page }) => {
+  await connectAccount(page, "Streaming workspace");
+  const largeVideoSize = 32 * 1024 * 1024;
+  let originalRequests = 0;
+  let streamRequests = 0;
+
+  await page.route("**/api/files?path=Projects", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          path: "Projects",
+          items: [{ path: "Projects/clip.mp4", name: "clip.mp4", isFolder: false, size: largeVideoSize, mimeType: "video/mp4" }]
+        }
+      })
+    });
+  });
+  await page.route("**/api/file?path=Projects%2Fclip.mp4", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          file: {
+            path: "Projects/clip.mp4",
+            name: "clip.mp4",
+            isFolder: false,
+            size: largeVideoSize,
+            mimeType: "video/mp4",
+            viewer: "video",
+            content: "",
+            encoding: "none",
+            truncated: false,
+            bytesRead: 0,
+            requiresOriginalBlob: true
+          }
+        }
+      })
+    });
+  });
+  await page.route("**/api/file/original?path=Projects%2Fclip.mp4", async (route) => {
+    originalRequests += 1;
+    await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ data: { message: "Full file should not be requested before playback." } }) });
+  });
+  await page.route("**/api/file/stream?**", async (route) => {
+    streamRequests += 1;
+    const range = route.request().headers()["range"];
+    await route.fulfill({
+      status: range ? 206 : 200,
+      headers: {
+        "accept-ranges": "bytes",
+        "content-type": "video/mp4",
+        ...(range ? { "content-range": `bytes 0-3/${largeVideoSize}` } : {})
+      },
+      body: Buffer.from([0, 0, 0, 24])
+    });
+  });
+
+  await page.getByRole("button", { name: /Open folder Projects/i }).click();
+  await page.getByRole("button", { name: /Open file clip.mp4/i }).click();
+
+  const preview = page.getByRole("dialog", { name: /Preview clip.mp4/i });
+  await expect(preview).toBeVisible();
+  await expect(preview.getByText(/Streaming-only playback/i)).toBeVisible();
+  await expect(preview.getByLabel(/Video preview clip.mp4/i)).toHaveAttribute("src", /\/api\/file\/stream\?path=Projects%2Fclip\.mp4&token=/);
+  await expect.poll(() => streamRequests).toBeGreaterThan(0);
+  expect(originalRequests).toBe(0);
+
+  let video = preview.getByLabel(/Video preview clip.mp4/i);
+  await video.dispatchEvent("error");
+  await expect(preview.getByText(/Stream interrupted\. Retrying playback shortly \(1\/3\)/i)).toBeVisible();
+  await expect(video).toHaveAttribute("src", /streamRetry=1/, { timeout: 1000 });
+
+  video = preview.getByLabel(/Video preview clip.mp4/i);
+  await video.dispatchEvent("error");
+  await expect(preview.getByText(/Stream interrupted\. Retrying playback shortly \(2\/3\)/i)).toBeVisible();
+  await expect(video).toHaveAttribute("src", /streamRetry=2/, { timeout: 1500 });
+
+  video = preview.getByLabel(/Video preview clip.mp4/i);
+  await video.dispatchEvent("error");
+  await expect(preview.getByText(/Stream interrupted\. Retrying playback shortly \(3\/3\)/i)).toBeVisible();
+  await expect(video).toHaveAttribute("src", /streamRetry=3/, { timeout: 2500 });
+
+  video = preview.getByLabel(/Video preview clip.mp4/i);
+  await video.dispatchEvent("error");
+  await expect(preview.getByText(/Media playback could not continue after several retries/i)).toBeVisible();
+  await preview.getByRole("button", { name: /Retry playback/i }).click();
+  await expect(preview.getByLabel(/Video preview clip.mp4/i)).toHaveAttribute("src", /streamRetry=4/);
+});
+
 test("mobile settings dialog uses a done action with clean close behavior", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chrome", "Mobile-only UX check.");
   await connectAccount(page, "Settings workspace");
@@ -754,6 +1215,120 @@ test("mobile settings dialog uses a done action with clean close behavior", asyn
   await expect(settingsDialog.getByRole("button", { name: /^Close$/i })).toHaveCount(0);
   await settingsDialog.getByRole("button", { name: /^Done$/i }).click();
   await expect(settingsDialog).toHaveCount(0);
+});
+
+test("mobile item actions and details sheet avoids fake handles and nested sheet scroll", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chrome", "Mobile-only UX check.");
+  const longFileName = "quarterly-archive-export-with-long-location-name-and-metadata.txt";
+  await page.route("**/api/files?path=Projects", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          path: "Projects",
+          items: [
+            {
+              path: `Projects/Client/Finance/Quarterly/Exports/2026/July/${longFileName}`,
+              name: longFileName,
+              isFolder: false,
+              size: 1048576,
+              mimeType: "text/plain",
+              lastModified: "2026-07-09T18:30:00.000Z"
+            }
+          ]
+        }
+      })
+    });
+  });
+  await connectAccount(page, "Action details workspace");
+  await page.getByRole("button", { name: /Open folder Projects/i }).click();
+  await page.getByRole("button", { name: `Open actions for ${longFileName}` }).click();
+
+  const sheet = page.getByRole("region", { name: `Details for ${longFileName}` });
+  await expect(sheet).toBeVisible();
+  await expect(page.getByRole("button", { name: /Dismiss item actions/i })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: /View details/i })).toBeVisible();
+
+  const handleContent = await sheet.evaluate((element) => getComputedStyle(element, "::before").content);
+  expect(handleContent).toBe("none");
+
+  await sheet.getByRole("button", { name: /View details/i }).click();
+  await expect(sheet).toHaveClass(/details-panel-sheet-details-open/);
+  await expect(sheet.getByRole("button", { name: /Back to actions/i })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: /Close item actions/i })).toBeVisible();
+  await expect(sheet.locator(".context-metadata dt").filter({ hasText: /^Location$/ })).toBeVisible();
+
+  const scrollModel = await sheet.evaluate((element) => {
+    const metadata = element.querySelector(".context-metadata") as HTMLElement | null;
+    const panelStyle = getComputedStyle(element);
+    const metadataStyle = metadata ? getComputedStyle(metadata) : undefined;
+    return {
+      panelOverflowY: panelStyle.overflowY,
+      metadataOverflowY: metadataStyle?.overflowY ?? "",
+      metadataCanScroll: metadata ? metadata.scrollHeight >= metadata.clientHeight : false
+    };
+  });
+  expect(scrollModel.panelOverflowY).toBe("hidden");
+  expect(scrollModel.metadataOverflowY).toBe("auto");
+  expect(scrollModel.metadataCanScroll).toBe(true);
+
+  await sheet.getByRole("button", { name: /Back to actions/i }).click();
+  await expect(sheet).not.toHaveClass(/details-panel-sheet-details-open/);
+  await page.getByRole("button", { name: /Dismiss item actions/i }).click();
+  await expect(sheet).toBeHidden();
+});
+
+test("mobile delete confirmation does not require typing long non-Latin target names", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chrome", "Mobile-only UX check.");
+  const longFileName = "Документи-and-a-very-long-delete-target-name-100%.txt";
+  const longPath = `Projects/${longFileName}`;
+  let deleteRequest: unknown;
+  await page.route("**/api/files?path=Projects", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          path: "Projects",
+          items: [
+            {
+              path: longPath,
+              name: longFileName,
+              isFolder: false,
+              size: 70,
+              mimeType: "text/plain",
+              lastModified: "2026-07-10T09:30:00.000Z"
+            }
+          ]
+        }
+      })
+    });
+  });
+  await page.route("**/api/delete", async (route) => {
+    deleteRequest = route.request().postDataJSON();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: { result: { action: "delete", parentPath: "Projects", path: longPath } } })
+    });
+  });
+
+  await connectAccount(page, "Delete confirmation workspace");
+  await page.getByRole("button", { name: /Open folder Projects/i }).click();
+  await page.getByRole("button", { name: `Open actions for ${longFileName}` }).click();
+  await page.getByRole("region", { name: `Details for ${longFileName}` }).getByRole("button", { name: /^Delete$/i }).click();
+
+  const dialog = page.getByRole("dialog", { name: /Delete item/i });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("This permanently deletes the selected item from the server.")).toBeVisible();
+  await expect(dialog.getByText(longPath)).toBeVisible();
+  await expect(dialog.getByLabel(/Name to confirm/i)).toHaveCount(0);
+  await expect(dialog.getByRole("textbox")).toHaveCount(0);
+  await expect(dialog.getByRole("button")).toHaveText(["Cancel", "Delete"]);
+
+  await dialog.getByRole("button", { name: /^Delete$/i }).click();
+  await expect.poll(() => deleteRequest).toEqual({ path: longPath, confirmName: longFileName });
 });
 
 test("mobile shell keeps account and status details behind profile and settings", async ({ page }, testInfo) => {
@@ -798,6 +1373,143 @@ test("mobile shell keeps account and status details behind profile and settings"
   await expect(settingsDialog.getByLabel("Active account")).toHaveValue(/.+/);
   await expect(settingsDialog.getByText("Workspace status")).toBeVisible();
   await expect(settingsDialog.getByText(/^Online$/)).toBeVisible();
+});
+
+test("mobile file list fills the available viewport height", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chrome", "Mobile-only layout regression.");
+  await page.route("**/api/files?path=", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          path: "",
+          items: [
+            { path: "Documents", name: "Documents", isFolder: true, lastModified: "2026-05-29T08:18:00.000Z" }
+          ]
+        }
+      })
+    });
+  });
+  await page.route("**/api/files?path=Documents", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          path: "Documents",
+          items: ["Оля", "ФОП", "Юра", "agents", "AppManager", "bills", "Finances", "jobs", "keys"].map((name, index) => ({
+            path: `Documents/${name}`,
+            name,
+            isFolder: true,
+            lastModified: new Date(Date.UTC(2026, 4, 1 + index, 8, 15, 0)).toISOString()
+          }))
+        }
+      })
+    });
+  });
+  await connectAccount(page, "Mobile list workspace", { waitForWorkspace: false });
+  await expect(page.getByRole("button", { name: /Open folder Documents/i })).toBeVisible();
+  await page.getByRole("button", { name: /Open folder Documents/i }).click();
+  await expect(page.getByRole("button", { name: /Open actions for keys/i })).toBeVisible();
+
+  const layout = await page.evaluate(() => {
+    const panel = document.querySelector(".file-list-panel") as HTMLElement | null;
+    if (!panel) {
+      return null;
+    }
+    const bounds = panel.getBoundingClientRect();
+    return {
+      bottomGap: window.innerHeight - bounds.bottom,
+      panelHeight: bounds.height,
+      viewportHeight: window.innerHeight
+    };
+  });
+
+  expect(layout).not.toBeNull();
+  if (!layout) {
+    return;
+  }
+  expect(layout.panelHeight).toBeGreaterThan(layout.viewportHeight * 0.8);
+  expect(layout.bottomGap).toBeGreaterThanOrEqual(0);
+  expect(layout.bottomGap).toBeLessThan(64);
+});
+
+test("mobile file list scroll keeps the compact toolbar visible", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chrome", "Mobile-only sticky toolbar regression.");
+  const longNames = Array.from({ length: 42 }, (_, index) => `Archive ${String(index + 1).padStart(2, "0")}`);
+  await page.route("**/api/files?path=", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          path: "",
+          items: [{ path: "Long", name: "Long", isFolder: true, lastModified: "2026-05-29T08:18:00.000Z" }]
+        }
+      })
+    });
+  });
+  await page.route("**/api/files?path=Long", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          path: "Long",
+          items: longNames.map((name, index) => ({
+            path: `Long/${name}.txt`,
+            name: `${name}.txt`,
+            isFolder: false,
+            size: 128 + index,
+            lastModified: new Date(Date.UTC(2026, 4, 1 + index, 8, 15, 0)).toISOString()
+          }))
+        }
+      })
+    });
+  });
+
+  await connectAccount(page, "Sticky toolbar workspace", { waitForWorkspace: false });
+  await expect(page.getByRole("button", { name: /Open folder Long/i })).toBeVisible();
+  await page.getByRole("button", { name: /Open folder Long/i }).click();
+  await expect(page.getByRole("button", { name: /Open actions for Archive 42\.txt/i })).toBeVisible();
+
+  const before = await page.locator(".app-bar").boundingBox();
+  expect(before).not.toBeNull();
+  const panel = page.locator(".file-list-panel");
+  const scrolledPanelTop = await panel.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    element.dispatchEvent(new Event("scroll", { bubbles: true }));
+    return element.scrollTop;
+  });
+  expect(scrolledPanelTop).toBeGreaterThan(0);
+
+  const after = await page.locator(".app-bar").boundingBox();
+  expect(after).not.toBeNull();
+  if (!before || !after) {
+    return;
+  }
+
+  expect(Math.abs(after.y - before.y)).toBeLessThan(1);
+  await expect(page.getByRole("button", { name: /Open navigation menu/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Open search/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Open sort options/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Transfers$/i })).toBeVisible();
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+  const workspace = page.locator(".workspace-layout");
+  await workspace.dispatchEvent("touchstart", { touches: [{ identifier: 1, clientX: 180, clientY: 0 }] });
+  await workspace.dispatchEvent("touchmove", { touches: [{ identifier: 1, clientX: 180, clientY: 130 }] });
+  await expect(page.locator(".pull-to-refresh-indicator")).toHaveCount(0);
+
+  await panel.evaluate((element) => {
+    element.scrollTop = 0;
+    element.dispatchEvent(new Event("scroll", { bubbles: true }));
+  });
+  await workspace.dispatchEvent("touchstart", { touches: [{ identifier: 2, clientX: 180, clientY: 0 }] });
+  await workspace.dispatchEvent("touchmove", { touches: [{ identifier: 2, clientX: 180, clientY: 130 }] });
+  await expect(page.locator(".pull-to-refresh-indicator")).toBeVisible();
+  await workspace.dispatchEvent("touchend", { changedTouches: [{ identifier: 2, clientX: 180, clientY: 130 }] });
 });
 
 test("broken image preview falls back gracefully instead of showing a broken browser image", async ({ page }) => {
