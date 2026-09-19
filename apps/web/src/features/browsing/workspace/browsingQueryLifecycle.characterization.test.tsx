@@ -186,8 +186,7 @@ function buildSurfaceInput(raw: string, active: boolean, set: (value: string) =>
       directoryUploadInputRef: vi.fn(),
       loadFolder: vi.fn(),
       openFile: vi.fn(),
-      openOfflineSync: vi.fn(),
-      buildStaleInfo: () => undefined
+      openOfflineSync: vi.fn()
     }
   };
 }

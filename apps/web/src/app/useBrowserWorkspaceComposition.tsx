@@ -30,7 +30,6 @@ import { usePreviewWorkspace, type PreviewWorkspaceBridge } from "../features/pr
 import {
   useSelectionStateWorkspace,
   projectSelectionStateBindings,
-  buildWorkspaceStaleInfo,
   useOperationsApplicationWorkspace,
   type SelectionTimerPorts,
 } from "../features/operations";
@@ -465,6 +464,6 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
     settings: settingsPreferencesWorkspace,
     runtime: { connectivity: browserConnectivity, pwa: pwaWorkspace, wakeLock, transfers, status: workspaceStatus },
     services: { favourites: services.favourites, favouritesPointerEnvironment: services.favouritesPointerEnvironment, favouriteResolveRuntime: services.favouriteResolveRuntime },
-    ports: { appBuildLabel: APP_BUILD_LABEL, buildStaleInfo: buildWorkspaceStaleInfo, directoryUploadInputRef: applyBrowserDirectoryUploadAttributes, folderAudioBrowsePanelClassName, toDisplayPath }
+    ports: { appBuildLabel: APP_BUILD_LABEL, directoryUploadInputRef: applyBrowserDirectoryUploadAttributes, folderAudioBrowsePanelClassName, toDisplayPath }
   });
 }

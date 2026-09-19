@@ -4,6 +4,8 @@
   gap: 0.65rem;
   flex-wrap: wrap;
   min-height: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .state-banner-slot .banner-state {
