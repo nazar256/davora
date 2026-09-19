@@ -228,7 +228,7 @@ describe("useWorkspaceSurfaceCoordinator", () => {
     expect(port.listenerCount()).toBe(0);
   });
 
-  it("combines all eleven surfaces for pull-to-refresh reads", () => {
+  it("combines all surfaces for pull-to-refresh reads", () => {
     const port = createHistory();
     const { workflow } = createPorts({ preview: true, action: true, destination: true, account: true, removeAccount: true, folderShortcut: true, reportBug: true });
     const { input } = createInput(port, workflow, { navigation: true, search: true, mobileDetails: true, settings: true, transfers: true, quickActions: true });
