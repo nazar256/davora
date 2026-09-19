@@ -15,7 +15,7 @@ export const defaultPreviewCacheState = (): PreviewCacheResetState => ({
 });
 
 export type AccountSwitchPathReset =
-  | { readonly kind: "first-mount-restore"; readonly path: string }
+  | { readonly kind: "first-mount-restore"; readonly path: string; readonly linkedAccountUnavailable: boolean }
   | { readonly kind: "switch-clear"; readonly path: ""; readonly syncAccountId?: string };
 
 export interface SessionTerminalResetRequest {
@@ -38,12 +38,19 @@ export function planAccountSwitchPathReset(input: {
     };
   }
 
-  const { path: urlPath } = parseLocationSearch(input.locationSearch);
-  if (urlPath && input.hasActiveAccount) {
-    return { kind: "first-mount-restore", path: urlPath };
+  const { path: urlPath, accountId: urlAccountId } = parseLocationSearch(input.locationSearch);
+  const linkedAccountUnavailable = urlAccountId !== undefined && urlAccountId !== input.accountId;
+  if (urlPath && input.hasActiveAccount && !linkedAccountUnavailable) {
+    return { kind: "first-mount-restore", path: urlPath, linkedAccountUnavailable: false };
   }
 
-  return { kind: "first-mount-restore", path: "" };
+  return { kind: "first-mount-restore", path: "", linkedAccountUnavailable };
+}
+
+export function buildLinkedAccountUnavailableMessage(accountDisplayName?: string): string {
+  return accountDisplayName
+    ? `The linked account is unavailable; showing ${accountDisplayName}.`
+    : "The linked account is unavailable. Connect an account to begin.";
 }
 
 export function resolveSessionTerminalMutation(

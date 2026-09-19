@@ -8,8 +8,8 @@ import type { AccountStateWorkspaceInput, AccountStateWorkspaceOutput } from "./
 export function useAccountStateWorkspace(input: AccountStateWorkspaceInput): AccountStateWorkspaceOutput {
   const registry = useAccountRegistry(input.registry);
   const snapshot = useMemo(
-    () => projectAccountStateWorkspaceSnapshot(registry.state),
-    [registry.state]
+    () => projectAccountStateWorkspaceSnapshot(registry.state, input.locationSearch),
+    [registry.state, input.locationSearch]
   );
   const sourceRecord = registry.state.snapshot.accounts.find((record) => record.account.id === snapshot.operationalActiveAccount?.id);
   const sessionAuthority = useMemo(() => ({

@@ -40,6 +40,8 @@ export function projectSettingsDialogStage(
     onShowHiddenFilesChange: input.commands.handleShowHiddenFilesChange,
     experimentalHeicPreviewEnabled: input.preferences.experimentalHeicPreviewEnabled,
     onExperimentalHeicPreviewEnabledChange: input.commands.handleExperimentalHeicPreviewEnabledChange,
+    experimentalFolderAppShortcutsEnabled: input.preferences.experimentalFolderAppShortcutsEnabled,
+    onExperimentalFolderAppShortcutsEnabledChange: input.commands.handleExperimentalFolderAppShortcutsEnabledChange,
     onDismissFromScrim: input.surface.onDismissFromScrim
   };
 }

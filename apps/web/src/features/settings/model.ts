@@ -13,6 +13,7 @@ export interface UiSettings {
   keepAwakeEnabled: boolean;
   showHiddenFiles: boolean;
   experimentalHeicPreviewEnabled: boolean;
+  experimentalFolderAppShortcutsEnabled: boolean;
   sortMode: SortMode;
 }
 
@@ -52,6 +53,7 @@ export const DEFAULT_UI_SETTINGS: UiSettings = {
   keepAwakeEnabled: true,
   showHiddenFiles: false,
   experimentalHeicPreviewEnabled: false,
+  experimentalFolderAppShortcutsEnabled: false,
   sortMode: "name-asc"
 };
 
@@ -75,6 +77,7 @@ export const normalizeUiSettings = (value: unknown): UiSettings => {
     keepAwakeEnabled: settings.keepAwakeEnabled !== false,
     showHiddenFiles: settings.showHiddenFiles === true,
     experimentalHeicPreviewEnabled: settings.experimentalHeicPreviewEnabled === true,
+    experimentalFolderAppShortcutsEnabled: settings.experimentalFolderAppShortcutsEnabled === true,
     sortMode: isSortMode(settings.sortMode) ? settings.sortMode : "name-asc"
   };
 };

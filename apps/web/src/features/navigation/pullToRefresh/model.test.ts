@@ -21,6 +21,7 @@ const closedSurfaces = (): OpenSurfacesSnapshot => ({
   destination: false,
   account: false,
   removeAccount: false,
+  folderShortcut: false,
   settings: false,
   search: false,
   navigation: false,
@@ -67,7 +68,7 @@ describe("pull-to-refresh model", () => {
 
   it("blocks while any open surface is present", () => {
     const surfaces: Array<keyof OpenSurfacesSnapshot> = [
-      "preview", "action", "destination", "account", "removeAccount",
+      "preview", "action", "destination", "account", "removeAccount", "folderShortcut",
       "settings", "search", "navigation", "mobileDetails", "transfers"
     ];
     for (const surface of surfaces) {

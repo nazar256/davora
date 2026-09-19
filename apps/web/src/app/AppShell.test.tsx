@@ -32,6 +32,10 @@ vi.mock("../features/settings", () => ({
   SettingsDialogStage: () => <div data-stage="settings" />
 }));
 
+vi.mock("../features/folderShortcut", () => ({
+  FolderShortcutStage: () => <div data-stage="folder-shortcut" />
+}));
+
 vi.mock("../features/offline/sync", () => ({
   OfflineSyncConfirmStage: () => <div data-stage="offline-sync" />
 }));
@@ -123,6 +127,7 @@ function workspaceProps(input: {
     },
     overlays: {
       settings: mockedStageProps,
+      folderShortcut: mockedStageProps,
       offlineSync: mockedStageProps,
       connectAccount: mockedStageProps,
       mutation: mockedStageProps,
@@ -178,6 +183,7 @@ describe("AppShell", () => {
       "file-list",
       "selection-details",
       "settings",
+      "folder-shortcut",
       "offline-sync",
       "connect-account",
       "remove-account",

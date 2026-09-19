@@ -38,13 +38,18 @@ import {
 import { APP_BUILD_LABEL } from "../lib/appBuild";
 import { formatFileSize } from "../lib/fileSize";
 import { usePwaWorkspace } from "../features/pwa";
+import { useFolderShortcut, type FolderShortcutPorts } from "../features/folderShortcut";
 import { createBrowserScreenWakeLockPort } from "../platform/wakeLock/browserScreenWakeLockPort";
 import { applyBrowserDirectoryUploadAttributes } from "../platform/upload/browserDirectoryInput";
 import { useBrowserPwaRuntimePorts } from "../platform/pwa/useBrowserPwaRuntimePorts";
 import { createBrowserThemePorts } from "../platform/theme/browserThemePorts";
 import { createBrowserSelectionTimerPorts } from "../platform/time/browserSelectionTimerPorts";
+import { createBrowserClipboardPort } from "../platform/browser/browserClipboardPort";
+import { createBrowserManifestLinkPort } from "../platform/browser/browserManifestLinkPort";
 
 const browserSelectionTimerPorts = createBrowserSelectionTimerPorts() satisfies SelectionTimerPorts;
+const browserClipboardPort = createBrowserClipboardPort();
+const browserManifestLinkPort = createBrowserManifestLinkPort();
 
 export function useBrowserWorkspaceComposition(services: AppServices): AppShellProps {
   const browsingCache = services.browsingCache;
@@ -52,7 +57,8 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
   const accountStateWorkspace = useAccountStateWorkspace({
     registry: services.accountRegistry,
     transport: services.accountTransport,
-    session: services.accountSession
+    session: services.accountSession,
+    locationSearch: services.history.getLocation().search
   });
   const accountContext = accountStateWorkspace.snapshot;
   const workspaceStatus = useWorkspaceStatus({ initialMessage: accountContext.initialStatus });
@@ -423,6 +429,28 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
     }
   });
   previewWorkspaceBridgeRef.current = previewWorkspace.bridge;
+  const folderShortcutPorts = useMemo((): FolderShortcutPorts => ({
+    clipboard: browserClipboardPort,
+    manifestLink: browserManifestLinkPort,
+    installCapture: {
+      isAvailable: () => pwaWorkspace.installCapture.available,
+      claim: pwaWorkspace.installCapture.claim,
+      release: pwaWorkspace.installCapture.release,
+      prompt: pwaWorkspace.installCapture.prompt
+    },
+    navigation: {
+      getBaseHref: () => services.history.getLocation().href,
+      pushFolderShortcutSurface: () => navigation.pushSurface("folder-shortcut")
+    },
+    presentation: {
+      setStatus: workspaceStatus.commands.announce
+    }
+  }), [pwaWorkspace, services.history, navigation, workspaceStatus.commands.announce]);
+  const folderShortcutWorkspace = useFolderShortcut({
+    account: { id: activeAccount?.id, name: activeAccountName },
+    experimentalAppShortcutEnabled: uiSettings.experimentalFolderAppShortcutsEnabled,
+    ports: folderShortcutPorts
+  });
   const navigationSurfaceWorkspace = useNavigationSurfaceWorkspace({
     surface: {
       port: services.history,
@@ -431,7 +459,8 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
         action: { isOpen: () => mutationWorkspace.bridge.snapshot().action, dismiss: mutationWorkspace.bridge.dismiss },
         destination: { isOpen: () => mutationWorkspace.bridge.snapshot().destination, dismiss: mutationWorkspace.bridge.dismiss },
         account: { isOpen: () => accountActionsBridgeRef.current.snapshot().surface === "connect", dismiss: () => accountActionsBridgeRef.current.dismiss("connect") },
-        removeAccount: { isOpen: () => accountActionsBridgeRef.current.snapshot().surface === "remove", dismiss: () => accountActionsBridgeRef.current.dismiss("remove") }
+        removeAccount: { isOpen: () => accountActionsBridgeRef.current.snapshot().surface === "remove", dismiss: () => accountActionsBridgeRef.current.dismiss("remove") },
+        folderShortcut: { isOpen: folderShortcutWorkspace.bridge.isOpen, dismiss: folderShortcutWorkspace.bridge.dismiss }
       },
       navigation: {
         getCurrentPath: workspaceNavigation.getCurrentPath,
@@ -461,6 +490,7 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
     navigation: { workspace: workspaceNavigation, surface: navigationSurfaceWorkspace, viewport: responsiveViewport },
     offline: { application: offlineApplication, sync: offlineSyncWorkspace },
     operation: { workspace: operationWorkspace, selection: { focused: focusedSelection, batch: batchSelection }, interaction: selectionInteraction },
+    folderShortcut: folderShortcutWorkspace,
     preview: previewWorkspace,
     settings: settingsPreferencesWorkspace,
     runtime: { connectivity: browserConnectivity, pwa: pwaWorkspace, wakeLock, transfers, status: workspaceStatus },

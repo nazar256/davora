@@ -17,7 +17,7 @@ const { registerSwMock, accountGetHealthMock, accountCreateSessionMock } = vi.ho
 vi.mock("virtual:pwa-register/react", () => ({ useRegisterSW: registerSwMock }));
 
 
-const DEFAULT_UI_SETTINGS = { themeMode: "system", fileSizeDisplayMode: "human", maxCacheableFileSizeBytes: 15 * 1024 * 1024, imagePreviewFitMode: "fill", previewFreshnessIntervalSeconds: 60, keepAwakeEnabled: true, showHiddenFiles: false, experimentalHeicPreviewEnabled: false, sortMode: "name-asc" } as const;
+const DEFAULT_UI_SETTINGS = { themeMode: "system", fileSizeDisplayMode: "human", maxCacheableFileSizeBytes: 15 * 1024 * 1024, imagePreviewFitMode: "fill", previewFreshnessIntervalSeconds: 60, keepAwakeEnabled: true, showHiddenFiles: false, experimentalHeicPreviewEnabled: false, experimentalFolderAppShortcutsEnabled: false, sortMode: "name-asc" } as const;
 let matchMediaMatches = false;
 const defaultFolderItems = [
   { path: "Projects", name: "Projects", isFolder: true },

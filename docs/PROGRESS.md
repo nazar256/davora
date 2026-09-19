@@ -1,5 +1,13 @@
 # Progress
 
+### 2026-09-19 — PER-56 Android home-screen folder shortcuts implemented; deployment paused
+
+- Folder item actions (folders only) now offer "Folder shortcut", opening a dialog with a copyable account-aware deep link (`?path=<folder>&account=<account id>`) — the reliable manual path for Android "Add to Home screen". A disabled-by-default experimental setting adds "Shortcut as app", which claims the shared `beforeinstallprompt` capture under a `"folder-shortcut"` owner, temporarily points `<link rel="manifest">` at a blob-hosted per-folder manifest whose `id`/`start_url` is the deep link, prompts, then restores the static manifest and revokes the object URL on outcome, dismissal, or unmount.
+- `?account=` is now consumed: it selects the preferred active account during registry decode, and an unknown/mismatched linked account suppresses the folder path, keeps the workspace at root, and announces a linked-account-unavailable status instead of silently browsing the wrong account.
+- Real-browser validation surfaced two defects that are now fixed: a React StrictMode replay of the account-reset mount effect wiped restored deep links in development (the replayed effect is no longer mistaken for an account switch), and the blob-hosted manifest needed absolute `scope`/`start_url`/icon URLs to parse without Chrome errors.
+- Decision record: `docs/adr/004-folder-shortcuts-use-account-aware-deep-links-and-dynamic-manifest.md`; behavior contract gained NAV-06 with a live owner citation in `behaviorContractCoverage`. Evidence: `features/folderShortcut` 39 tests, desktop+mobile `tests/shortcuts.spec.ts` 14/14, and a built-PWA `Page.getAppManifest` check. Final `npm run check:fast` is fully green (lint no new debt, typecheck, architecture, all workspace suites, all builds).
+- No deployment, commit, push, or tracker mutation occurred; the user explicitly paused before deployment.
+
 ### 2026-09-01 — Maintainability refactor released and production-verified
 
 - After seven independent review lanes approved the exact dirty tree, the final code-review regression in the Worker `dev:test` script was repaired failing-first and verified through its real local health/reset path. The final repository gate passes 2,479 web, 275 Worker, and 83 shared tests; architecture/dependency checks remain clean; both npm audits report zero vulnerabilities; staging is empty.

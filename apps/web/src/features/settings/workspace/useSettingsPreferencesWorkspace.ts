@@ -31,8 +31,10 @@ export function useSettingsPreferencesWorkspace(
     handleKeepAwakeEnabledChange: uiSettings.handleKeepAwakeEnabledChange,
     handleShowHiddenFilesChange: uiSettings.handleShowHiddenFilesChange,
     handleExperimentalHeicPreviewEnabledChange: uiSettings.handleExperimentalHeicPreviewEnabledChange,
+    handleExperimentalFolderAppShortcutsEnabledChange: uiSettings.handleExperimentalFolderAppShortcutsEnabledChange,
     handleSortModeChange: uiSettings.handleSortModeChange
   }), [
+    uiSettings.handleExperimentalFolderAppShortcutsEnabledChange,
     uiSettings.handleExperimentalHeicPreviewEnabledChange,
     uiSettings.handleFileSizeDisplayModeChange,
     uiSettings.handleImagePreviewFitModeChange,

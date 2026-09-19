@@ -58,6 +58,8 @@ export interface SettingsDialogStageProps {
   onShowHiddenFilesChange: (show: boolean) => void;
   experimentalHeicPreviewEnabled: boolean;
   onExperimentalHeicPreviewEnabledChange: (enabled: boolean) => void;
+  experimentalFolderAppShortcutsEnabled: boolean;
+  onExperimentalFolderAppShortcutsEnabledChange: (enabled: boolean) => void;
   onDismissFromScrim?: () => void;
 }
 
@@ -244,7 +246,7 @@ export function SettingsDialogStage(props: SettingsDialogStageProps) {
             <div className="panel-header">
               <div>
                 <p className="eyebrow section-eyebrow">Experimental</p>
-                <h3>Preview labs</h3>
+                <h3>Feature labs</h3>
               </div>
             </div>
             <label className="stacked-field">
@@ -257,6 +259,18 @@ export function SettingsDialogStage(props: SettingsDialogStageProps) {
                   type="checkbox"
                 />
                 <span className="status">Decode HEIC/HEIF photos locally in this browser when possible. Original files and downloads stay unchanged.</span>
+              </div>
+            </label>
+            <label className="stacked-field">
+              <span className="summary-label">Shortcut as app</span>
+              <div className="cache-limit-manual-row">
+                <input
+                  aria-label="Shortcut as app"
+                  checked={props.experimentalFolderAppShortcutsEnabled}
+                  onChange={(event) => props.onExperimentalFolderAppShortcutsEnabledChange(event.target.checked)}
+                  type="checkbox"
+                />
+                <span className="status">Offer a per-folder installable app shortcut when the browser supports it. Behaviour varies by browser and can add several launcher entries.</span>
               </div>
             </label>
           </section>

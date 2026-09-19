@@ -24,6 +24,24 @@ describe("projectAccountStateWorkspaceSnapshot", () => {
     })).initialStatus).toBe("Restoring account state…");
   });
 
+  it("notices when a linked account cannot be shown", () => {
+    const alpha = buildAccount("alpha");
+    const snapshot = projectAccountStateWorkspaceSnapshot(state({
+      snapshot: { activeAccountId: "alpha", accounts: [{ account: alpha }] }
+    }), "?path=Projects&account=beta");
+
+    expect(snapshot.initialStatus).toBe("The linked account is unavailable; showing Account alpha.");
+  });
+
+  it("keeps normal status when the linked account resolves", () => {
+    const alpha = buildAccount("alpha");
+    const snapshot = projectAccountStateWorkspaceSnapshot(state({
+      snapshot: { activeAccountId: "alpha", accounts: [{ account: alpha }] }
+    }), "?path=Projects&account=alpha");
+
+    expect(snapshot.initialStatus).toBe("Restoring account state…");
+  });
+
   it("keeps management selection while falling back operationally from pending removal", () => {
     const alpha = buildAccount("alpha");
     const beta = buildAccount("beta");

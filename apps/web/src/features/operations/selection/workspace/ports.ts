@@ -181,6 +181,7 @@ export interface SelectionWorkspacePresentationInput {
     readonly closeMobileDetails: () => void;
     readonly navigateToFolder: (path: string) => void;
     readonly openFile: (entry: FileEntry) => void;
+    readonly openFolderShortcut: (entry: FileEntry) => void;
     readonly downloadFocused: (path: string, label: string) => void;
     readonly downloadBatch: () => void;
     readonly keepOfflineFocused: (entry: FileEntry) => void;
