@@ -117,6 +117,7 @@ export const useWorkspaceNavigation = (input: WorkspaceNavigationInput) => {
         destination: () => undefined,
         account: () => undefined,
         removeAccount: () => undefined,
+        reportBug: () => undefined,
         chrome: () => undefined
       },
       navigate: {

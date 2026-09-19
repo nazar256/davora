@@ -9,7 +9,7 @@ import {
 } from "./workspaceSurfaceController";
 
 const createPorts = (
-  openWorkflow: readonly (keyof Pick<OpenSurfacesSnapshot, "preview" | "action" | "destination" | "account" | "removeAccount">)[] = [],
+  openWorkflow: readonly (keyof Pick<OpenSurfacesSnapshot, "preview" | "action" | "destination" | "account" | "removeAccount" | "reportBug">)[] = [],
   openChrome: readonly ChromeSurfaceKind[] = [],
   events: string[] = []
 ) => {
@@ -18,21 +18,24 @@ const createPorts = (
     action: openWorkflow.includes("action"),
     destination: openWorkflow.includes("destination"),
     account: openWorkflow.includes("account"),
-    removeAccount: openWorkflow.includes("removeAccount")
+    removeAccount: openWorkflow.includes("removeAccount"),
+    reportBug: openWorkflow.includes("reportBug")
   };
   const dismiss = {
     preview: vi.fn(() => { workflowState.preview = false; events.push("dismiss:preview"); }),
     action: vi.fn(() => { workflowState.action = false; events.push("dismiss:action"); }),
     destination: vi.fn(() => { workflowState.destination = false; events.push("dismiss:destination"); }),
     account: vi.fn(() => { workflowState.account = false; events.push("dismiss:account"); }),
-    removeAccount: vi.fn(() => { workflowState.removeAccount = false; events.push("dismiss:remove-account"); })
+    removeAccount: vi.fn(() => { workflowState.removeAccount = false; events.push("dismiss:remove-account"); }),
+    reportBug: vi.fn(() => { workflowState.reportBug = false; events.push("dismiss:report-bug"); })
   };
   const workflow: WorkflowSurfacePorts = {
     preview: { isOpen: () => workflowState.preview, dismiss: dismiss.preview },
     action: { isOpen: () => workflowState.action, dismiss: dismiss.action },
     destination: { isOpen: () => workflowState.destination, dismiss: dismiss.destination },
     account: { isOpen: () => workflowState.account, dismiss: dismiss.account },
-    removeAccount: { isOpen: () => workflowState.removeAccount, dismiss: dismiss.removeAccount }
+    removeAccount: { isOpen: () => workflowState.removeAccount, dismiss: dismiss.removeAccount },
+    reportBug: { isOpen: () => workflowState.reportBug, dismiss: dismiss.reportBug }
   };
   const chromeState = {
     navigation: openChrome.includes("navigation"),
@@ -90,9 +93,9 @@ describe("workspaceSurfaceController", () => {
     }
   });
 
-  it("projects all ten live surfaces and returns a frozen snapshot", () => {
+  it("projects all eleven live surfaces and returns a frozen snapshot", () => {
     const setup = createPorts(
-      ["preview", "action", "destination", "account", "removeAccount"],
+      ["preview", "action", "destination", "account", "removeAccount", "reportBug"],
       ["settings", "search", "navigation", "mobile-details", "transfers"]
     );
 
@@ -104,6 +107,7 @@ describe("workspaceSurfaceController", () => {
       destination: true,
       account: true,
       removeAccount: true,
+      reportBug: true,
       navigation: true,
       search: true,
       mobileDetails: true,

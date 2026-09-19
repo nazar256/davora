@@ -22,6 +22,7 @@ const closedSurfaces = (): OpenSurfacesSnapshot => ({
   destination: false,
   account: false,
   removeAccount: false,
+  reportBug: false,
   settings: false,
   search: false,
   navigation: false,
@@ -64,7 +65,9 @@ describe("navigation model", () => {
         ? "removeAccount"
         : surface === "mobile-details"
           ? "mobileDetails"
-          : surface;
+          : surface === "report-bug"
+            ? "reportBug"
+            : surface;
       const openSurfaces = onlyOpen(key);
       expect(resolvePopStateCommands({
         historyState: createHistoryState("alpha", "Projects"),
@@ -84,6 +87,7 @@ describe("navigation model", () => {
         destination: true,
         account: true,
         removeAccount: true,
+        reportBug: true,
         settings: true,
         search: true,
         navigation: true,
@@ -102,7 +106,9 @@ describe("navigation model", () => {
         ? "removeAccount"
         : surface === "mobile-details"
           ? "mobileDetails"
-          : surface;
+          : surface === "report-bug"
+            ? "reportBug"
+            : surface;
       openSurfaces = { ...openSurfaces, [key]: true };
       expect(resolvePopStateCommands({
         historyState: createHistoryState("alpha", "Projects"),
@@ -142,6 +148,7 @@ describe("navigation model", () => {
       "destination",
       "account",
       "remove-account",
+      "report-bug",
       "settings",
       "search",
       "navigation",
@@ -155,6 +162,7 @@ describe("navigation model", () => {
       destination: true,
       account: true,
       removeAccount: true,
+      reportBug: true,
       settings: true,
       search: true,
       navigation: true,
@@ -173,7 +181,9 @@ describe("navigation model", () => {
         ? "removeAccount"
         : surface === "mobile-details"
           ? "mobileDetails"
-          : surface;
+          : surface === "report-bug"
+            ? "reportBug"
+            : surface;
       openSurfaces = { ...openSurfaces, [key]: false };
     }
 
@@ -272,7 +282,8 @@ describe("navigation model", () => {
           action: false,
           destination: false,
           account: false,
-          removeAccount: false
+          removeAccount: false,
+          reportBug: false
         }
       )).toEqual({
         preview: true,
@@ -280,6 +291,7 @@ describe("navigation model", () => {
         destination: false,
         account: false,
         removeAccount: false,
+        reportBug: false,
         settings: true,
         search: false,
         navigation: true,

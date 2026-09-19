@@ -40,6 +40,13 @@ export function projectSettingsDialogStage(
     onShowHiddenFilesChange: input.commands.handleShowHiddenFilesChange,
     experimentalHeicPreviewEnabled: input.preferences.experimentalHeicPreviewEnabled,
     onExperimentalHeicPreviewEnabledChange: input.commands.handleExperimentalHeicPreviewEnabledChange,
+    diagnosticsEnabled: input.preferences.diagnosticsEnabled,
+    onDiagnosticsEnabledChange: input.commands.handleDiagnosticsEnabledChange,
+    diagnostics: {
+      storageSummary: input.diagnostics.storageSummary,
+      onOpenReport: input.diagnostics.onOpenReport,
+      onClearData: input.diagnostics.onClearData
+    },
     onDismissFromScrim: input.surface.onDismissFromScrim
   };
 }

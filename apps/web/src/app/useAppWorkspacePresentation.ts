@@ -25,6 +25,7 @@ import type { usePwaWorkspace } from "../features/pwa";
 import type { useTransfers } from "../features/transfers";
 import type { usePreviewWorkspace } from "../features/preview/workspace";
 import type { useSettingsPreferencesWorkspace } from "../features/settings";
+import type { DiagnosticsWorkspace } from "../features/diagnostics";
 import {
   projectFileListSelectionBindings,
   projectSelectionWorkspacePresentation,
@@ -58,6 +59,7 @@ export interface AppWorkspacePresentationInput {
   readonly operation: { readonly workspace: OperationExecutionWorkspaceOutput; readonly selection: SelectionStateBindings; readonly interaction: SelectionInteractionWorkspaceCommands };
   readonly preview: Preview;
   readonly settings: Settings;
+  readonly diagnostics: DiagnosticsWorkspace;
   readonly runtime: { readonly connectivity: Connectivity; readonly pwa: Pwa; readonly wakeLock: WakeLock; readonly transfers: Transfers; readonly status: WorkspaceStatus };
   readonly services: Pick<AppServices, "favourites" | "favouritesPointerEnvironment" | "favouriteResolveRuntime">;
   readonly ports: {
@@ -70,7 +72,7 @@ export interface AppWorkspacePresentationInput {
 }
 
 export function useAppWorkspacePresentation(input: AppWorkspacePresentationInput): AppShellProps {
-  const { account, browsing, navigation, offline, operation, preview, settings, runtime, services, ports } = input;
+  const { account, browsing, navigation, offline, operation, preview, settings, diagnostics, runtime, services, ports } = input;
   const { context: accountContext, session, bootstrap, actions } = account;
   const { workspace: browsingWorkspace, load: folderLoadCoordination } = browsing;
   const { workspace: workspaceNavigation, surface: navigationSurfaceWorkspace, viewport } = navigation;
@@ -243,12 +245,17 @@ export function useAppWorkspacePresentation(input: AppWorkspacePresentationInput
         commands: actions.commands
       },
       cache: offlineApplication.settingsCache,
+      diagnostics: diagnostics.settingsSection,
       runtime: {
         appBuildLabel: ports.appBuildLabel,
         offline: connectivity.offline,
         explicitOfflineMode: offlineApplication.explicitOfflineMode,
         keepAwakeState: wakeLock.state
       }
+    },
+    reportBug: {
+      ...diagnostics.reportStage,
+      fileSizeDisplayMode: settings.preferences.fileSizeDisplayMode
     },
     overlays: {
       offlineSync: offlineSyncWorkspace.stage,

@@ -25,8 +25,8 @@ const sourcePaths = {
 
 const sourceDigest = (path: string): string => createHash("sha256").update(readFileSync(path, "utf8")).digest("hex");
 const lockedSourceDigests = {
-  model: "a8f61bdd45ce516c26471f9962ff2a05e45c66c119d6f571596811ce9a9b3309",
-  controller: "26dad85af388bbdb384fda6323c6855f6bb43e32a0b7576a4238ba726fab4d0f",
+  model: "77e3f9c4c6d306696dcd6fcd94658a9f7f03cad7658c7515f631f0853471c9da",
+  controller: "f74bb071fb804711800f6781ef8260eb35d9476d8d5fd4ed41151066ed43cbff",
   coordinator: "3ba508e1ccddf50e80f404b8a3f8541c0337f79c043b1cad84fd7420da3d4280"
 } as const;
 
@@ -36,6 +36,7 @@ const surfaceKeys: Record<string, keyof OpenSurfacesSnapshot> = {
   destination: "destination",
   account: "account",
   "remove-account": "removeAccount",
+  "report-bug": "reportBug",
   settings: "settings",
   search: "search",
   navigation: "navigation",
@@ -49,6 +50,7 @@ const closedSurfaces = (): OpenSurfacesSnapshot => ({
   destination: false,
   account: false,
   removeAccount: false,
+  reportBug: false,
   settings: false,
   search: false,
   navigation: false,
@@ -95,21 +97,24 @@ const createWorkflow = (open: readonly string[] = [], events: string[] = []) => 
     action: open.includes("action"),
     destination: open.includes("destination"),
     account: open.includes("account"),
-    removeAccount: open.includes("remove-account")
+    removeAccount: open.includes("remove-account"),
+    reportBug: open.includes("report-bug")
   };
   const dismiss = {
     preview: vi.fn(() => { state.preview = false; events.push("dismiss:preview"); }),
     action: vi.fn(() => { state.action = false; events.push("dismiss:action"); }),
     destination: vi.fn(() => { state.destination = false; events.push("dismiss:destination"); }),
     account: vi.fn(() => { state.account = false; events.push("dismiss:account"); }),
-    removeAccount: vi.fn(() => { state.removeAccount = false; events.push("dismiss:remove-account"); })
+    removeAccount: vi.fn(() => { state.removeAccount = false; events.push("dismiss:remove-account"); }),
+    reportBug: vi.fn(() => { state.reportBug = false; events.push("dismiss:report-bug"); })
   };
   const workflow: WorkflowSurfacePorts = {
     preview: { isOpen: () => state.preview, dismiss: dismiss.preview },
     action: { isOpen: () => state.action, dismiss: dismiss.action },
     destination: { isOpen: () => state.destination, dismiss: dismiss.destination },
     account: { isOpen: () => state.account, dismiss: dismiss.account },
-    removeAccount: { isOpen: () => state.removeAccount, dismiss: dismiss.removeAccount }
+    removeAccount: { isOpen: () => state.removeAccount, dismiss: dismiss.removeAccount },
+    reportBug: { isOpen: () => state.reportBug, dismiss: dismiss.reportBug }
   };
   return { state, dismiss, workflow };
 };
@@ -154,7 +159,7 @@ describe("navigation surface and Back characterization", () => {
     const eventLog: string[] = [];
     const port = createLeakyHistory();
     const workflow = createWorkflow([
-      "preview", "action", "destination", "account", "remove-account"
+      "preview", "action", "destination", "account", "remove-account", "report-bug"
     ], eventLog);
     const setup = createCoordinatorInput(
       port,
@@ -174,7 +179,7 @@ describe("navigation surface and Back characterization", () => {
       `navigate:Archive-${index}`
     ]);
     expect(eventLog).toEqual(expectedEvents);
-    expect(eventLog.filter((event) => event.startsWith("dismiss:"))).toHaveLength(10);
+    expect(eventLog.filter((event) => event.startsWith("dismiss:"))).toHaveLength(11);
     expect(new Set(eventLog.filter((event) => event.startsWith("dismiss:")))).toEqual(
       new Set(DISMISS_SURFACE_ORDER.map((surface) => `dismiss:${surface}`))
     );
@@ -219,7 +224,7 @@ describe("navigation surface and Back characterization", () => {
       lockedSourceDigests
     );
     expect(DISMISS_SURFACE_ORDER).toEqual([
-      "preview", "action", "destination", "account", "remove-account",
+      "preview", "action", "destination", "account", "remove-account", "report-bug",
       "settings", "search", "navigation", "mobile-details", "transfers"
     ]);
   });

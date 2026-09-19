@@ -81,7 +81,7 @@ const coverage: Record<ContractId, OwnerCitation> = {
   "NAV-02": owner("integration", "src/features/navigation/AppNavigationIntegration.test.tsx", "keeps browser Back wired to the current workflow after an App rerender"),
   "NAV-03": owner("integration", "src/features/navigation/AppNavigationIntegration.test.tsx", "maps browser back to close settings and mobile search surfaces first"),
   "NAV-04": owner("unit", "src/features/navigation/pullToRefresh/usePullToRefresh.test.tsx", "refreshes and clears after a full pull release"),
-  "NAV-05": owner("unit", "src/features/navigation/useWorkspaceSurfaceCoordinator.test.ts", "combines all ten surfaces for pull-to-refresh reads"),
+  "NAV-05": owner("unit", "src/features/navigation/useWorkspaceSurfaceCoordinator.test.ts", "combines all eleven surfaces for pull-to-refresh reads"),
   "BRW-01": owner("unit", "src/features/browsing/workspace/AppBrowsingDisplayIntegration.test.tsx", "groups folders above files and sorts within each group by the active sort mode"),
   "BRW-02": owner("integration", "src/features/browsing/workspace/AppBrowsingDisplayIntegration.test.tsx", "uses breadcrumb home navigation without redundant all-files or up-level buttons"),
   "BRW-03": owner("unit", "src/features/browsing/favourites/useFavouriteActions.test.tsx", "exposes toggle, remove, reorder, and open through the favourites controller"),

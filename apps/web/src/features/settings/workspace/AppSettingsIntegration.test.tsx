@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render as testingRender, screen, waitFor, within } from "@testing-library/react";
+import { createFakeDiagnosticsRuntimePorts } from "../../diagnostics/testing/fakes";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import App from "../../../App";
@@ -17,7 +18,7 @@ const { registerSwMock, accountGetHealthMock, accountCreateSessionMock } = vi.ho
 vi.mock("virtual:pwa-register/react", () => ({ useRegisterSW: registerSwMock }));
 
 
-const DEFAULT_UI_SETTINGS = { themeMode: "system", fileSizeDisplayMode: "human", maxCacheableFileSizeBytes: 15 * 1024 * 1024, imagePreviewFitMode: "fill", previewFreshnessIntervalSeconds: 60, keepAwakeEnabled: true, showHiddenFiles: false, experimentalHeicPreviewEnabled: false, sortMode: "name-asc" } as const;
+const DEFAULT_UI_SETTINGS = { themeMode: "system", fileSizeDisplayMode: "human", maxCacheableFileSizeBytes: 15 * 1024 * 1024, imagePreviewFitMode: "fill", previewFreshnessIntervalSeconds: 60, keepAwakeEnabled: true, showHiddenFiles: false, experimentalHeicPreviewEnabled: false, diagnosticsEnabled: false, sortMode: "name-asc" } as const;
 let matchMediaMatches = false;
 const defaultFolderItems = [
   { path: "Projects", name: "Projects", isFolder: true },
@@ -187,7 +188,7 @@ function createSettingsFixture(): AppServices {
     offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "status-sync", listFiles: async () => ({ path: "", items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob() }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
     retentionRepository,
     previewRuntime,
-    accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }
+    accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
   };
 }
 

@@ -28,6 +28,15 @@ import { createAccountRemovalRuntime } from "./createAccountRemovalRuntime";
 import { createBrowserBackendNetworkGate } from "../platform/network/browserBackendNetworkGate";
 import { createBrowserExplicitOfflineModeStorage } from "../platform/storage/browserExplicitOfflineModeStorage";
 import { createBrowserFavouriteResolveRuntime } from "../platform/api/browserFavouriteResolveRuntime";
+import { createBrowserDiagnosticsStore } from "../platform/storage/browserDiagnosticsStore";
+import { createBrowserDiagnosticsEnvironment } from "../platform/diagnostics/browserDiagnosticsEnvironment";
+import { createBrowserDiagnosticsErrorCapture } from "../platform/diagnostics/browserDiagnosticsErrorCapture";
+import { createBrowserDiagnosticsLifecycle } from "../platform/diagnostics/browserDiagnosticsLifecycle";
+import { createBrowserDiagnosticsExport } from "../platform/diagnostics/browserDiagnosticsExport";
+import { createBrowserDiagnosticsClock, createBrowserDiagnosticsIds } from "../platform/diagnostics/browserDiagnosticsClock";
+import { setBackendRequestObserver } from "../lib/networkPolicy";
+import { APP_BUILD_LABEL } from "../lib/appBuild";
+import type { DiagnosticsRuntimePorts } from "../features/diagnostics";
 
 export const createBrowserAppServices = (): AppServices => {
   const storage = createBrowserStringStorage();
@@ -54,6 +63,16 @@ export const createBrowserAppServices = (): AppServices => {
     browsingCache,
     favourites
   });
+  const diagnostics: DiagnosticsRuntimePorts = {
+    store: createBrowserDiagnosticsStore(),
+    environment: createBrowserDiagnosticsEnvironment(APP_BUILD_LABEL),
+    errorCapture: createBrowserDiagnosticsErrorCapture(),
+    lifecycle: createBrowserDiagnosticsLifecycle(),
+    exportPort: createBrowserDiagnosticsExport(),
+    network: { setObserver: setBackendRequestObserver },
+    clock: createBrowserDiagnosticsClock(),
+    ids: createBrowserDiagnosticsIds()
+  };
   return {
     accountRegistry,
     accountTransport,
@@ -75,6 +94,7 @@ export const createBrowserAppServices = (): AppServices => {
     offlineSyncRuntime: createBrowserOfflineSyncRuntime(),
     retentionRepository,
     previewRuntime,
-    accountRemovalRuntime
+    accountRemovalRuntime,
+    diagnostics
   };
 };

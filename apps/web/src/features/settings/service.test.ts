@@ -57,11 +57,25 @@ describe("settings service", () => {
         keepAwakeEnabled: "false",
         showHiddenFiles: 1,
         experimentalHeicPreviewEnabled: "true",
+        diagnosticsEnabled: 1,
         sortMode: "newest"
       })
     });
 
     expect(createSettingsService(storage).load()).toEqual(DEFAULT_UI_SETTINGS);
+  });
+
+  it("persists diagnosticsEnabled only as an explicit true", () => {
+    const enabled = createFakeSettingsStorage({
+      [UI_SETTINGS_STORAGE_KEY]: JSON.stringify({ diagnosticsEnabled: true })
+    });
+    expect(createSettingsService(enabled).load().diagnosticsEnabled).toBe(true);
+
+    const disabled = createFakeSettingsStorage({
+      [UI_SETTINGS_STORAGE_KEY]: JSON.stringify({ diagnosticsEnabled: "yes" })
+    });
+    expect(createSettingsService(disabled).load().diagnosticsEnabled).toBe(false);
+    expect(createSettingsService(createFakeSettingsStorage()).load().diagnosticsEnabled).toBe(false);
   });
 
   it("treats non-object JSON as missing settings", () => {

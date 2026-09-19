@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render as renderTestingLibrary, screen, waitFor, within } from "@testing-library/react";
+import { createFakeDiagnosticsRuntimePorts } from "../../diagnostics/testing/fakes";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "../../../App";
@@ -163,9 +164,9 @@ function createAccountFixture(): AppServices {
     favouritesPointerEnvironment: { elementFromPoint: () => null, addWindowListener: () => () => undefined }, folder,
     history,
     pullToRefreshEnvironment: { getWindowScrollY: () => window.scrollY }, responsiveViewport: { getSnapshot: () => wide, subscribe: () => () => undefined }, search,
-    settings: { load: () => ({ themeMode: "system", fileSizeDisplayMode: "human", maxCacheableFileSizeBytes: 1000000, imagePreviewFitMode: "fill", previewFreshnessIntervalSeconds: 60, keepAwakeEnabled: true, showHiddenFiles: false, experimentalHeicPreviewEnabled: false, sortMode: "name-asc" }), save: (value) => value },
+    settings: { load: () => ({ themeMode: "system", fileSizeDisplayMode: "human", maxCacheableFileSizeBytes: 1000000, imagePreviewFitMode: "fill", previewFreshnessIntervalSeconds: 60, keepAwakeEnabled: true, showHiddenFiles: false, experimentalHeicPreviewEnabled: false, diagnosticsEnabled: false, sortMode: "name-asc" }), save: (value) => value },
     operationRuntime, offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "connect-sync", listFiles: async () => ({ path: "", items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob() }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
-    retentionRepository, previewRuntime, accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }
+    retentionRepository, previewRuntime, accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
   } satisfies AppServices;
 }
 
@@ -192,7 +193,8 @@ function createConnectFixture(baseServices: AppServices): AppServices {
     offlineSyncRuntime: baseServices.offlineSyncRuntime,
     retentionRepository: baseServices.retentionRepository,
     previewRuntime: baseServices.previewRuntime,
-    accountRemovalRuntime: baseServices.accountRemovalRuntime
+    accountRemovalRuntime: baseServices.accountRemovalRuntime,
+    diagnostics: baseServices.diagnostics
   } satisfies AppServices;
   return fixture satisfies AppServices;
 }
