@@ -52,6 +52,7 @@ const movedTitles = [
   "captures mobile favourites quick access in the navigation drawer",
   "captures the mobile profile settings sheet without background bleed",
   "captures the mobile pull-to-refresh gesture indicator",
+  "captures the PER-54 folder sort reset confirmation in both themes",
   "captures a mobile partial transfer with failed child path",
   "captures the mobile focused image preview"
 ] as const;

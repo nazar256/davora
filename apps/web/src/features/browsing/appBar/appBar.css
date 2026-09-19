@@ -298,6 +298,64 @@
     color: #7dd3fc;
   }
 
+  .mobile-sort-reset {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex: 1 1 100%;
+    padding-top: 0.5rem;
+    margin-top: 0.1rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.16);
+  }
+
+  .mobile-sort-reset-button {
+    width: 100%;
+    padding: 0.4rem 0.65rem;
+    border-radius: 0.55rem;
+    border: 1px dashed rgba(148, 163, 184, 0.35);
+    background: transparent;
+    color: #94a3b8;
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+
+  .mobile-sort-reset-button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .mobile-sort-reset-question {
+    color: #cbd5e1;
+    font-size: 0.78rem;
+  }
+
+  .mobile-sort-reset-actions {
+    display: flex;
+    gap: 0.4rem;
+    flex: 0 0 auto;
+  }
+
+  .mobile-sort-reset-confirm,
+  .mobile-sort-reset-cancel {
+    padding: 0.3rem 0.6rem;
+    border-radius: 0.55rem;
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+
+  .mobile-sort-reset-confirm {
+    background: rgba(248, 113, 113, 0.16);
+    border: 1px solid rgba(248, 113, 113, 0.45);
+    color: #fca5a5;
+  }
+
+  .mobile-sort-reset-cancel {
+    background: rgba(15, 23, 42, 0.72);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    color: #e2e8f0;
+  }
+
   .mobile-app-bar-title {
     display: block;
     font-weight: 700;
@@ -449,5 +507,30 @@
     border-color: var(--color-accent);
     background: var(--color-accent-soft);
     color: var(--color-accent-strong);
+  }
+
+  .mobile-sort-reset {
+    border-top-color: var(--color-border-subtle);
+  }
+
+  .mobile-sort-reset-button {
+    border-color: var(--color-border-subtle);
+    color: var(--color-text-muted);
+  }
+
+  .mobile-sort-reset-question {
+    color: var(--color-text-muted);
+  }
+
+  .mobile-sort-reset-confirm {
+    border-color: var(--color-danger);
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
+  }
+
+  .mobile-sort-reset-cancel {
+    border-color: var(--color-border-subtle);
+    background: var(--color-surface-raised);
+    color: var(--color-text);
   }
 }

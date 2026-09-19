@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "../../../../App";
 import type { AppServices } from "../../../../app/AppServices";
+import { createMemoryFolderSortService } from "../../../../features/browsing/folderSort/testing/fakeStorage";
 import { ApiRequestError } from "../../../../lib/api";
 import { buildAccount, buildSession } from "../../../../test/accounts";
 import { buildHealthResponse } from "../../../../test/api";
@@ -167,6 +168,7 @@ function createMutationServices(): AppServices {
     clock: { nowIso: () => "2026-01-01T00:00:00.000Z" },
     favourites: { load: () => ({ kind: "loaded", entries: [] }), save: (_account, entries) => ({ kind: "saved", entries: [...entries] }), clear: () => ({ kind: "cleared" }), create: (entry, account) => ({ ...entry, accountId: account.id, accountBackend: account.backend, accountRootPath: account.rootPath, cacheNamespace: account.cacheNamespace, addedAt: "2026-01-01T00:00:00.000Z" }) },
     favouritesPointerEnvironment: { elementFromPoint: () => null, addWindowListener: () => () => undefined }, folder,
+    folderSorts: createMemoryFolderSortService(),
     history: { pushState: (state, url) => { window.history.pushState(state, "", url); }, replaceState: (state, url) => { window.history.replaceState(state, "", url); }, getState: () => window.history.state as unknown, getLocation: () => ({ href: window.location.href, search: window.location.search }), subscribe: (listener) => { const handler = () => listener(window.history.state); window.addEventListener("popstate", handler); return () => window.removeEventListener("popstate", handler); } },
     pullToRefreshEnvironment: { getWindowScrollY: () => window.scrollY }, responsiveViewport: { getSnapshot: () => WIDE_VIEWPORT, subscribe: () => () => undefined }, search,
     settings: { load: () => ({ themeMode: "system", showHiddenFiles: false, sortMode: "name-asc", keepAwakeEnabled: true, previewFreshnessIntervalSeconds: 300, maxCacheableFileSizeBytes: 24 * 1024 * 1024, fileSizeDisplayMode: "human", imagePreviewFitMode: "fill", experimentalHeicPreviewEnabled: false }), save: (settings) => settings },

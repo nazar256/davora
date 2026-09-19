@@ -192,7 +192,8 @@ function createServices(): AppServices {
       accountTransport,
       retentionRepository: mockedRetentionRepository,
       browsingCache: mockedCache,
-      favourites: base.favourites
+      favourites: base.favourites,
+      folderSorts: base.folderSorts
     })
   };
 }

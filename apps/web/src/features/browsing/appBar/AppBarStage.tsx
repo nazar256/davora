@@ -17,6 +17,7 @@ import {
   SORT_MODE_OPTIONS,
   type SortMode
 } from "../model";
+import { buildFolderSortResetQuestion } from "../folderSort";
 import type { AppBarSortPanelBinding } from "./useAppBarSortPanel";
 
 function buildHeaderStatusBadgeLabel(input: {
@@ -234,6 +235,40 @@ export function AppBarStage(props: AppBarStageProps) {
               {option.label}
             </button>
           ))}
+          <div className="mobile-sort-reset">
+            {props.sortPanel.reset.confirming ? (
+              <>
+                <span className="mobile-sort-reset-question">
+                  {buildFolderSortResetQuestion(props.sortPanel.reset.count)}
+                </span>
+                <div className="mobile-sort-reset-actions">
+                  <button
+                    className="mobile-sort-reset-confirm"
+                    onClick={props.sortPanel.reset.confirm}
+                    type="button"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    className="mobile-sort-reset-cancel"
+                    onClick={props.sortPanel.reset.cancel}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button
+                className="mobile-sort-reset-button"
+                disabled={props.sortPanel.reset.count === 0}
+                onClick={props.sortPanel.reset.request}
+                type="button"
+              >
+                Reset folder sort settings
+              </button>
+            )}
+          </div>
         </div>
       ) : null}
     </>

@@ -10,6 +10,7 @@ import { createPreviewComposition } from "../../../app/createPreviewComposition"
 import { createAccountRegistryService } from "../../accounts/registry";
 import type { AccountTransport } from "../../accounts";
 import type { BrowsingCacheRepository, FolderPorts, SearchPorts } from "../../browsing";
+import { createMemoryFolderSortService } from "../../browsing/folderSort/testing/fakeStorage";
 import type { ConnectivityPort } from "../connectivity";
 import type { ExplicitOfflineModeRuntimePort } from "../mode";
 import type { FolderAudioRuntimePorts } from "../../preview/folderAudio";
@@ -297,6 +298,7 @@ function createWakeLockFixture(): AppServices {
     },
     favouritesPointerEnvironment: { elementFromPoint: () => null, addWindowListener: () => () => undefined },
     folder,
+    folderSorts: createMemoryFolderSortService(),
     history: { pushState: (state: unknown, url?: string): void => { window.history.pushState(state, "", url); }, replaceState: (state: unknown, url?: string): void => { window.history.replaceState(state, "", url); }, getState: (): unknown => window.history.state, getLocation: () => ({ href: window.location.href, search: window.location.search }), subscribe: () => () => undefined },
     pullToRefreshEnvironment: { getWindowScrollY: () => window.scrollY },
     responsiveViewport: { getSnapshot: () => WIDE_RESPONSIVE_VIEWPORT_SNAPSHOT, subscribe: () => () => undefined } satisfies ResponsiveViewportPort,

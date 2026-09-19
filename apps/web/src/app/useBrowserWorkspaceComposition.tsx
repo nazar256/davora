@@ -198,6 +198,10 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
       session: { resetActiveSession: (message, reconnectRequired) => accountActionsBridgeRef.current.resetSession(message, reconnectRequired) },
       availability: { setWorkerUnavailable },
       presentation: { setStatus: workspaceStatus.commands.announce },
+      folderSort: {
+        service: services.folderSorts,
+        persistBaseline: settingsCommands.handleSortModeChange
+      },
       navigation: { getCurrentPath: workspaceNavigation.getCurrentPath, setCurrentPath }
     }
   });

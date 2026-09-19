@@ -64,8 +64,11 @@ describe("useBrowsingApplicationWorkspace", () => {
     expect(first.ports.session.resetActiveSession).toHaveBeenNthCalledWith(2, "This account needs to be reconnected before searching.", true);
     firstWorkspaceInput.ports.availability.setWorkerUnavailable(true);
     firstWorkspaceInput.ports.presentation.setStatus("first status");
+    firstWorkspaceInput.ports.folderSort.persistBaseline("size-desc");
     expect(first.ports.availability.setWorkerUnavailable).toHaveBeenCalledWith(true);
     expect(first.ports.presentation.setStatus).toHaveBeenCalledWith("first status");
+    expect(first.ports.folderSort.persistBaseline).toHaveBeenCalledWith("size-desc");
+    expect(firstWorkspaceInput.ports.folderSort.service).toBe(first.ports.folderSort.service);
 
     const firstLoadInput = mocks.useFolderLoadCoordination.mock.calls[0][0];
     expect(firstLoadInput.authority).toEqual({ hasActiveAccount: true, cacheNamespace: "cache-alpha", token: "token-alpha", cacheOnlyMode: true });
@@ -83,9 +86,12 @@ describe("useBrowsingApplicationWorkspace", () => {
     replacementWorkspaceInput?.ports.session.terminate("folder", "reconnect-required");
     replacementWorkspaceInput?.ports.availability.setWorkerUnavailable(false);
     replacementWorkspaceInput?.ports.presentation.setStatus("second status");
+    replacementWorkspaceInput?.ports.folderSort.persistBaseline("modified-desc");
     expect(second.ports.session.resetActiveSession).toHaveBeenCalledWith("This account needs to be reconnected before browsing files.", true);
     expect(second.ports.availability.setWorkerUnavailable).toHaveBeenCalledWith(false);
     expect(second.ports.presentation.setStatus).toHaveBeenCalledWith("second status");
+    expect(second.ports.folderSort.persistBaseline).toHaveBeenCalledWith("modified-desc");
+    expect(first.ports.folderSort.persistBaseline).toHaveBeenCalledTimes(1);
     expect(first.ports.session.resetActiveSession).toHaveBeenCalledTimes(2);
   });
 });
@@ -105,6 +111,7 @@ function createInput(
       session: { resetActiveSession: vi.fn() },
       availability: { setWorkerUnavailable: vi.fn() },
       presentation: { setStatus: vi.fn() },
+      folderSort: { service: `folder-sort-service-${suffix}`, persistBaseline: vi.fn() },
       navigation: { getCurrentPath: vi.fn(() => `path-${suffix}`), setCurrentPath: vi.fn() }
     }
   };

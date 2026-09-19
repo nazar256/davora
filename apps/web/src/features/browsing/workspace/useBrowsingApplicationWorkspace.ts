@@ -36,7 +36,11 @@ export function useBrowsingApplicationWorkspace(input: BrowsingApplicationWorksp
       }
     },
     availability: { setWorkerUnavailable: (unavailable) => portsRef.current.availability.setWorkerUnavailable(unavailable) },
-    presentation: { setStatus: (message) => portsRef.current.presentation.setStatus(message) }
+    presentation: { setStatus: (message) => portsRef.current.presentation.setStatus(message) },
+    folderSort: {
+      service: portsRef.current.folderSort.service,
+      persistBaseline: (mode) => portsRef.current.folderSort.persistBaseline(mode)
+    }
   }), []);
   const workspace = useBrowsingWorkspace({
     context: input.context,

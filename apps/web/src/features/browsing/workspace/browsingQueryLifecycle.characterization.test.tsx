@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createDeferred } from "../../../test/primitives";
 import type { FolderPorts } from "../folder/ports";
+import { createMemoryFolderSortService } from "../folderSort/testing/fakeStorage";
 import type { SearchPorts } from "../search/ports";
 import { getSearchDisplayQuery, isSearchActive } from "../presentation";
 import { projectBrowsingSurfaceBindings, type BrowsingSurfaceInput } from "./projectBrowsingSurfaceBindings";
@@ -110,7 +111,8 @@ function createInput(ports = createPorts(), overrides: Partial<BrowsingWorkspace
       search: ports.search,
       session: { terminate: vi.fn() },
       availability: { setWorkerUnavailable: vi.fn() },
-      presentation: { setStatus: vi.fn() }
+      presentation: { setStatus: vi.fn() },
+      folderSort: { service: createMemoryFolderSortService(), persistBaseline: vi.fn() }
     },
     ...overrides
   };
@@ -138,6 +140,11 @@ function buildSurfaceInput(raw: string, active: boolean, set: (value: string) =>
           locationLabel: "/Docs",
           empty: { emptyStatus: "", emptyTitle: "", listRecoveryAvailable: false, showEmptyState: false },
           showBreadcrumbs: true
+        },
+        sort: {
+          mode: "name-asc",
+          select: vi.fn(),
+          reset: { confirming: false, count: 0, request: vi.fn(), confirm: vi.fn(), cancel: vi.fn() }
         }
       },
       selection: {
@@ -178,7 +185,7 @@ function buildSurfaceInput(raw: string, active: boolean, set: (value: string) =>
       },
       offline: { explicitOfflineMode: false, isItemAvailableOffline: () => false },
       navigation: { getCurrentPath: () => "Docs", navigateToPath: vi.fn() },
-      settings: { preferences: { fileSizeDisplayMode: "human", sortMode: "name-asc" }, commands: { handleFileSizeDisplayModeChange: vi.fn(), handleSortModeChange: vi.fn() } },
+      settings: { preferences: { fileSizeDisplayMode: "human" }, commands: { handleFileSizeDisplayModeChange: vi.fn() } },
       status: { message: "Ready" },
       pullToRefresh: { fileListRef: vi.fn() }
     },

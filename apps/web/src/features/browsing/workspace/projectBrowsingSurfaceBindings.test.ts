@@ -26,6 +26,11 @@ function buildInput(): BrowsingSurfaceInput {
         presentation: {
           breadcrumbs: [], browseStatusLabel: "2 items", folderLabel: "All files", locationLabel: "/", folderCachedAt: undefined,
           empty: { emptyStatus: "Location: /", emptyTitle: "This folder is empty.", listRecoveryAvailable: false, showEmptyState: false }, showBreadcrumbs: false
+        },
+        sort: {
+          mode: "name-asc",
+          select: vi.fn(),
+          reset: { confirming: false, count: 0, request: vi.fn(), confirm: vi.fn(), cancel: vi.fn() }
         }
       },
       selection: {
@@ -45,7 +50,7 @@ function buildInput(): BrowsingSurfaceInput {
       },
       offline: { explicitOfflineMode: false, isItemAvailableOffline: () => false },
       navigation: { getCurrentPath: () => "", navigateToPath },
-      settings: { preferences: { fileSizeDisplayMode: "human", sortMode: "name-asc" }, commands: { handleFileSizeDisplayModeChange: vi.fn(), handleSortModeChange: vi.fn() } },
+      settings: { preferences: { fileSizeDisplayMode: "human" }, commands: { handleFileSizeDisplayModeChange: vi.fn() } },
       status: { message: "Ready" },
       pullToRefresh: { fileListRef: vi.fn() }
     },

@@ -10,6 +10,7 @@ import { StrictMode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { FolderPorts } from "../folder/ports";
+import { createMemoryFolderSortService } from "../folderSort/testing/fakeStorage";
 import type { SearchPorts } from "../search/ports";
 import { useBrowsingWorkspace, type BrowsingWorkspaceInput } from "./index";
 
@@ -87,7 +88,8 @@ function createInput(ports = createPorts(), overrides: Partial<BrowsingWorkspace
       search: ports.search,
       session: { terminate: vi.fn() },
       availability: { setWorkerUnavailable: vi.fn() },
-      presentation: { setStatus: vi.fn() }
+      presentation: { setStatus: vi.fn() },
+      folderSort: { service: createMemoryFolderSortService(), persistBaseline: vi.fn() }
     },
     ...overrides
   };

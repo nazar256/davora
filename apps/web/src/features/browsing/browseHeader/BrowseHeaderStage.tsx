@@ -16,6 +16,7 @@ import type { ChangeEvent, RefCallback } from "react";
 
 import { FILE_SIZE_DISPLAY_OPTIONS, type FileSizeDisplayMode } from "../../../lib/fileSize";
 import { SORT_MODE_OPTIONS, isSortMode, type SortMode } from "../model";
+import { buildFolderSortResetQuestion, type FolderSortResetBinding } from "../folderSort";
 import type { BreadcrumbItem } from "../presentation";
 
 export interface BrowseHeaderStageProps {
@@ -39,6 +40,7 @@ export interface BrowseHeaderStageProps {
   readonly mutationBusy: boolean;
   readonly fileSizeDisplayMode: FileSizeDisplayMode;
   readonly sortMode: SortMode;
+  readonly sortReset: FolderSortResetBinding;
   readonly canCreateFolder: boolean;
   readonly canUploadFiles: boolean;
   readonly canUploadFolders: boolean;
@@ -179,6 +181,26 @@ export function BrowseHeaderStage(props: BrowseHeaderStageProps) {
               ))}
             </select>
           </label>
+          <div className="sort-reset-field">
+            {props.sortReset.confirming ? (
+              <div aria-label="Confirm clearing folder sort settings" className="sort-reset-confirm" role="group">
+                <span className="status">{buildFolderSortResetQuestion(props.sortReset.count)}</span>
+                <button className="quiet-button" onClick={props.sortReset.confirm} type="button">Clear</button>
+                <button className="quiet-button" onClick={props.sortReset.cancel} type="button">Cancel</button>
+              </div>
+            ) : (
+              <button
+                aria-label="Reset saved folder sort settings"
+                className="quiet-button sort-reset-button"
+                disabled={props.sortReset.count === 0}
+                onClick={props.sortReset.request}
+                title="Clear sort settings saved for individual folders"
+                type="button"
+              >
+                Reset folder sorts
+              </button>
+            )}
+          </div>
           <button className="button-with-icon" disabled={!props.canCreateFolder || props.mutationBusy} onClick={props.onCreateFolder} type="button"><FolderPlus aria-hidden="true" />Create folder</button>
           <label className={`upload-label ${!props.canUploadFiles || props.mutationBusy ? "disabled" : ""}`}>
             <Upload aria-hidden="true" />Upload files

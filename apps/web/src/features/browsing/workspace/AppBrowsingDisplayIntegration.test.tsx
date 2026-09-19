@@ -7,6 +7,7 @@ import App from "../../../App";
 import type { AppServices } from "../../../app/AppServices";
 import type { AccountRegistrySnapshot, AccountRegistryState } from "../../accounts/registry";
 import type { BrowsingCacheRepository } from "..";
+import { createMemoryFolderSortService } from "../folderSort/testing/fakeStorage";
 import type { UiSettings } from "../../settings/model";
 import { buildAccount, buildSession } from "../../../test/accounts";
 import { buildHealthResponse } from "../../../test/api";
@@ -213,6 +214,7 @@ function createBrowsingFixture(): AppServices {
     favourites: { load: () => ({ kind: "loaded", entries: [] }), save: (_account, entries) => ({ kind: "saved", entries: [...entries] }), clear: () => ({ kind: "cleared" }), create: (entry, account) => ({ ...entry, accountId: account.id, accountBackend: account.backend, accountRootPath: account.rootPath, cacheNamespace: account.cacheNamespace, addedAt: "2026-01-01T00:00:00.000Z" }) },
     favouritesPointerEnvironment: { elementFromPoint: () => null, addWindowListener: () => () => undefined },
     folder,
+    folderSorts: createMemoryFolderSortService(),
     history: { pushState: (state, url) => window.history.pushState(state, "", url), replaceState: (state, url) => window.history.replaceState(state, "", url), getState: (): unknown => window.history.state, getLocation: () => ({ href: window.location.href, search: window.location.search }), subscribe: (listener) => { const handler = () => listener(window.history.state); window.addEventListener("popstate", handler); return () => window.removeEventListener("popstate", handler); } },
     pullToRefreshEnvironment: { getWindowScrollY: () => window.scrollY },
     responsiveViewport: { getSnapshot: () => wideViewportSnapshot, subscribe: () => () => undefined },

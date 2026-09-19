@@ -17,6 +17,7 @@ import { setBackendNetworkBlocked } from "../../../lib/networkPolicy";
 import { createAccountRegistryService } from "../../../features/accounts/registry";
 import type { AccountTransport } from "../../../features/accounts";
 import type { BrowsingCacheRepository, FolderPorts, SearchPorts } from "../../../features/browsing";
+import { createMemoryFolderSortService } from "../../../features/browsing/folderSort/testing/fakeStorage";
 import type { ConnectivityPort } from "../../../features/offline/connectivity";
 import type { ExplicitOfflineModeRuntimePort } from "../../../features/offline/mode";
 import { WIDE_RESPONSIVE_VIEWPORT_SNAPSHOT, type ResponsiveViewportPort } from "../../../features/navigation/viewport";
@@ -210,6 +211,7 @@ function createDownloadFixture(): AppServices {
     favourites: { load: () => ({ kind: "loaded", entries: [] }), save: (_account: ConnectedAccount, entries: never[]) => ({ kind: "saved", entries: [...entries] }), clear: () => ({ kind: "cleared" }), create: (entry: FileEntry, account: ConnectedAccount) => ({ ...entry, accountId: account.id, accountBackend: account.backend, accountRootPath: account.rootPath, cacheNamespace: account.cacheNamespace, addedAt: "2026-01-01T00:00:00.000Z" }) },
     favouritesPointerEnvironment: { elementFromPoint: () => null, addWindowListener: () => () => undefined },
     folder,
+    folderSorts: createMemoryFolderSortService(),
     history: { pushState: (state: unknown, url?: string) => window.history.pushState(state, "", url), replaceState: (state: unknown, url?: string) => window.history.replaceState(state, "", url), getState: () => window.history.state as unknown, getLocation: () => ({ href: window.location.href, search: window.location.search }), subscribe: () => () => undefined },
     pullToRefreshEnvironment: { getWindowScrollY: () => window.scrollY }, responsiveViewport, search,
     settings: { load: () => DEFAULT_UI_SETTINGS, save: (settings: typeof DEFAULT_UI_SETTINGS) => settings },

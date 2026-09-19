@@ -11,6 +11,13 @@ function buildSortPanelBinding(overrides: Partial<AppBarSortPanelBinding> = {}):
     open: false,
     toggle: vi.fn(),
     select: vi.fn(),
+    reset: {
+      confirming: false,
+      count: 2,
+      request: vi.fn(),
+      confirm: vi.fn(),
+      cancel: vi.fn()
+    },
     ...overrides
   };
 }
@@ -268,7 +275,9 @@ describe("AppBarStage", () => {
     );
 
     const sortPanel = screen.getByRole("group", { name: /Sort options/i });
-    expect(within(sortPanel).getAllByRole("button").map((button) => button.textContent)).toEqual([
+    const optionButtons = within(sortPanel).getAllByRole("button")
+      .filter((button) => button.classList.contains("mobile-sort-option"));
+    expect(optionButtons.map((button) => button.textContent)).toEqual([
       "Name A-Z",
       "Name Z-A",
       "Modified newest",
@@ -280,6 +289,56 @@ describe("AppBarStage", () => {
     expect(selectSortMode).toHaveBeenCalledWith("name-asc");
 
     expect(screen.getByRole("group", { name: /Sort options/i })).toBeInTheDocument();
+  });
+
+  it("renders a separated reset row with two-step inline confirmation", () => {
+    const request = vi.fn();
+    const confirm = vi.fn();
+    const cancel = vi.fn();
+    const { rerender } = render(
+      <AppBarStage
+        {...buildProps({
+          compactMobileHeader: true,
+          sortPanel: buildSortPanelBinding({ open: true, reset: { confirming: false, count: 3, request, confirm, cancel } })
+        })}
+      />
+    );
+
+    const sortPanel = screen.getByRole("group", { name: /Sort options/i });
+    const resetButton = within(sortPanel).getByRole("button", { name: "Reset folder sort settings" });
+    expect(resetButton).not.toBeDisabled();
+    fireEvent.click(resetButton);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(confirm).not.toHaveBeenCalled();
+
+    rerender(
+      <AppBarStage
+        {...buildProps({
+          compactMobileHeader: true,
+          sortPanel: buildSortPanelBinding({ open: true, reset: { confirming: true, count: 3, request, confirm, cancel } })
+        })}
+      />
+    );
+
+    expect(within(sortPanel).getByText("Clear saved sort for 3 folders?")).toBeInTheDocument();
+    fireEvent.click(within(sortPanel).getByRole("button", { name: "Cancel" }));
+    expect(cancel).toHaveBeenCalledTimes(1);
+    fireEvent.click(within(sortPanel).getByRole("button", { name: "Clear" }));
+    expect(confirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables the reset action when no folder sort overrides exist", () => {
+    render(
+      <AppBarStage
+        {...buildProps({
+          compactMobileHeader: true,
+          sortPanel: buildSortPanelBinding({ open: true, reset: { confirming: false, count: 0, request: vi.fn(), confirm: vi.fn(), cancel: vi.fn() } })
+        })}
+      />
+    );
+
+    const sortPanel = screen.getByRole("group", { name: /Sort options/i });
+    expect(within(sortPanel).getByRole("button", { name: "Reset folder sort settings" })).toBeDisabled();
   });
 
   it("does not add Back dismissal or lifecycle resources to the sort panel", () => {

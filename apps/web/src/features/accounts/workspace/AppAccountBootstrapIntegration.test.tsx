@@ -8,6 +8,7 @@ import type { AppServices } from "../../../app/AppServices";
 import { createAccountRegistryService, type AccountRegistryService } from "../registry";
 import type { AccountTransport } from "../transport";
 import type { BrowsingCacheRepository, FolderPorts, SearchPorts } from "../../browsing";
+import { createMemoryFolderSortService } from "../../browsing/folderSort/testing/fakeStorage";
 import type { ConnectivityPort } from "../../offline/connectivity";
 import type { ExplicitOfflineModeRuntimePort } from "../../offline/mode";
 import type { OperationRuntimePort } from "../../operations/workspace";
@@ -210,6 +211,7 @@ function createAccountFixture(): AppServices {
     },
     favouritesPointerEnvironment: { elementFromPoint: () => null, addWindowListener: () => () => undefined },
     folder,
+    folderSorts: createMemoryFolderSortService(),
     history: {
       pushState: (state: unknown, url?: string) => window.history.pushState(state, "", url),
       replaceState: (state: unknown, url?: string) => window.history.replaceState(state, "", url),
