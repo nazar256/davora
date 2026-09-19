@@ -16,13 +16,19 @@ export function useAccountReset(input: UseAccountResetInput) {
     inputRef.current = input;
   }, [input]);
 
-  const accountEffectRanRef = useRef(false);
+  const lastAccountResetRef = useRef<{ readonly seen: boolean; readonly accountId?: string }>({ seen: false });
   const resetActiveSessionRef = useRef<(message: string, reconnectRequired?: boolean) => void>(() => undefined);
 
   useEffect(() => {
     const current = inputRef.current;
-    const isFirstAccountEffect = !accountEffectRanRef.current;
-    accountEffectRanRef.current = true;
+    const previous = lastAccountResetRef.current;
+    const isFirstAccountEffect = !previous.seen;
+    lastAccountResetRef.current = { seen: true, accountId: current.activeAccountId };
+    // React StrictMode replays the mount effect with an unchanged account id;
+    // without an actual account switch there is nothing to reset.
+    if (!isFirstAccountEffect && previous.accountId === current.activeAccountId) {
+      return;
+    }
     executeAccountSwitchReset(current.ports, {
       isFirstAccountEffect,
       locationSearch: current.ports.navigation.getLocationSearch(),

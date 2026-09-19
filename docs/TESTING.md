@@ -1,5 +1,14 @@
 # Testing
 
+### 2026-09-19 — PER-56 folder home-screen shortcuts (deployed)
+
+- Focused suites pass: `features/folderShortcut` 39 tests (model/hook/stage/App integration), platform adapters 6, accounts reset/workspace/registry suites including a new StrictMode replay regression proving the first-mount deep-link restore is not wiped.
+- New desktop+mobile Chromium spec `apps/web/tests/shortcuts.spec.ts` passes 14/14: folder-only shortcut action, account-aware copied link without credentials, Back dismissal, deep-link folder+account restore on reload, unavailable-account suppression + announced warning, experimental manifest swap, and manual fallback.
+- New `apps/web/tests/pwa.spec.ts` case holds the install prompt open and uses real-Chromium CDP `Page.getAppManifest` to prove Chrome parses the swapped blob manifest with zero errors — this surfaced and fixed a real defect: manifest `scope` and icon `src` must be absolute URLs inside a `blob:` manifest.
+- The StrictMode replay of the account-reset mount effect previously wiped restored `?path=` deep links in development builds; `useAccountReset` now ignores a replayed effect whose account id is unchanged.
+- Final `npm run check:fast` passes: lint with 331 baselined findings and no new debt; strict typechecks (quality + web + worker + shared); architecture 475 modules / 1,573 imports / 0 cycles; dependency rules 800 modules / 2,728 dependencies / 0 violations; deploy harness 10/10; quality tests; web 316 files / 2,534 tests; Worker 25 files / 275 tests; shared 13 files / 83 tests; and all three production builds. `behaviorContractCoverage` gained the NAV-06 owner citation for the account-mismatch suppression path.
+- Deployed after user authorization: Worker `998e59a6-a8cc-4d75-8f53-78c9956c6667`, Pages production `https://782600ea.davora.pages.dev`; canonical `https://davora.pages.dev` verified serving the new assets (HTTP 200, `sw.js` 200, manifest valid) and Worker health reports `configLoaded:true`.
+
 ### 2026-09-01 — Refactor release deployed and production-verified
 
 - Seven independent behavior, code, security, commit-readiness, deployment-readiness, architecture, and security-adjudication lanes approved the exact release tree. The only late code-review defect was repaired with a failing-first regression: `apps/worker/package.json` now starts `dev:test` with explicit development mode, and the executable mock server passed health plus reset verification against a fresh ignored local state.

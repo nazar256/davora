@@ -13,6 +13,7 @@ const featureSheets = [
   "features/navigation/pullToRefresh/pullToRefresh.css",
   "features/offline/sync/confirm/offlineSyncConfirm.css",
   "features/pwa/reloadPrompt.css",
+  "features/folderShortcut/folderShortcut.css",
   "features/accounts/accountSurfaces.css",
   "features/browsing/browseHeader/browseHeader.css",
   "features/preview/shell/previewShell.css",

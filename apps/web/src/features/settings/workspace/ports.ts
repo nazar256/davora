@@ -22,6 +22,7 @@ export interface SettingsPreferencesWorkspaceCommands {
   readonly handleKeepAwakeEnabledChange: (enabled: boolean) => void;
   readonly handleShowHiddenFilesChange: (show: boolean) => void;
   readonly handleExperimentalHeicPreviewEnabledChange: (enabled: boolean) => void;
+  readonly handleExperimentalFolderAppShortcutsEnabledChange: (enabled: boolean) => void;
   readonly handleSortModeChange: (mode: UiSettings["sortMode"]) => void;
 }
 

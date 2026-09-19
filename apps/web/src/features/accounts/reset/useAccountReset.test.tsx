@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -50,6 +51,22 @@ describe("useAccountReset", () => {
     detachedReset("Session expired. Create a fresh session for this account.");
     expect(ports.session.applyTerminal).toHaveBeenLastCalledWith("beta", false);
     expect(ports.transfers.failActiveForAccount).toHaveBeenLastCalledWith("beta", expect.any(String));
+  });
+
+  it("keeps a restored deep link when StrictMode replays the mount effect with the same account", async () => {
+    const ports = createPorts();
+    const input = { activeAccountId: "alpha", activeAccountDisplayName: "Alpha workspace", hasActiveAccount: true, ports };
+
+    renderHook((props) => useAccountReset(props), {
+      initialProps: input,
+      wrapper: ({ children }) => <StrictMode>{children}</StrictMode>
+    });
+
+    await waitFor(() => expect(ports.navigation.setPath).toHaveBeenCalledWith("Projects"));
+    // The replayed mount effect must not be mistaken for an account switch.
+    expect(ports.navigation.setPath).toHaveBeenCalledTimes(1);
+    expect(ports.navigation.syncPath).not.toHaveBeenCalled();
+    expect(ports.selection.clearFocused).toHaveBeenCalledTimes(1);
   });
 
   it("no-ops terminal reset without an active account", async () => {

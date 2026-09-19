@@ -44,6 +44,8 @@ function buildProps(overrides: Partial<ComponentProps<typeof SettingsDialogStage
     onShowHiddenFilesChange: vi.fn(),
     experimentalHeicPreviewEnabled: false,
     onExperimentalHeicPreviewEnabledChange: vi.fn(),
+    experimentalFolderAppShortcutsEnabled: false,
+    onExperimentalFolderAppShortcutsEnabledChange: vi.fn(),
     ...overrides
   };
 }

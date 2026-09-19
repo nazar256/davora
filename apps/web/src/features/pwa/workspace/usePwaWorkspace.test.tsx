@@ -15,6 +15,10 @@ const promptState: PwaPromptState = {
   installing: false,
   reloading: true,
   needRefresh: true,
+  installCaptureOwner: "app",
+  installCaptureAvailable: false,
+  setInstallCaptureOwner: vi.fn(),
+  promptInstallCapture: vi.fn(async () => "unavailable" as const),
   dismissUpdatePrompt: vi.fn(),
   installApp: vi.fn(async () => undefined),
   reloadApp: vi.fn(async () => undefined)

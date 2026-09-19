@@ -116,6 +116,7 @@ function settingsInput(overrides: Partial<SettingsDialogStageProjectionInput> = 
     handleKeepAwakeEnabledChange: vi.fn(),
     handleShowHiddenFilesChange: vi.fn(),
     handleExperimentalHeicPreviewEnabledChange: vi.fn(),
+    handleExperimentalFolderAppShortcutsEnabledChange: vi.fn(),
     handleSortModeChange: vi.fn()
   };
   const preferences: UiSettings = { ...DEFAULT_UI_SETTINGS, themeMode: "dark", showHiddenFiles: true };
@@ -183,6 +184,7 @@ function shellInput(gateKind: AppBootstrapBindings["gate"]["kind"], showDetailsR
   };
   const overlays: AppWorkspaceOverlayBindings = {
     settings,
+    folderShortcut: sentinel("folder-shortcut"),
     offlineSync: sentinel("offline-sync"),
     connectAccount: sentinel("connect-account"),
     mutation: sentinel("mutation"),

@@ -97,6 +97,12 @@ export function projectSelectionWorkspacePresentation(
         input.favourite.toggle(input.selection.focusedEntry);
       }
     },
+    onFolderShortcut: () => {
+      const focusedEntry = input.selection.focusedEntry;
+      if (focusedEntry?.isFolder) {
+        input.commands.openFolderShortcut(focusedEntry);
+      }
+    },
     onToggleMobileSheetDetails: () => {
       if (input.selection.focusedMobileSubview === "details") {
         input.commands.showMobileActions();

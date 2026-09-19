@@ -36,7 +36,7 @@ const mockRules: readonly MockRule[] = [
     owner: "app composition",
     removalCondition: "Remove a callsite when that declarative shell or projection test can consume an already-projected public stage without mounting feature owners.",
     testPath: /^src\/app\/(?:AppShell|useAppWorkspacePresentation)\.test\.tsx$/,
-    module: /^(?:\.\/projectAppShellComposition|\.\.\/features\/(?:accounts|browsing|offline\/sync|operations|preview\/(?:folderAudio|shell)|pwa|settings)|\.\.\/components\/StateBanner)$/
+    module: /^(?:\.\/projectAppShellComposition|\.\.\/features\/(?:accounts|browsing|folderShortcut|offline\/sync|operations|preview\/(?:folderAudio|shell)|pwa|settings)|\.\.\/components\/StateBanner)$/
   },
   {
     id: "platform-hook-composition",

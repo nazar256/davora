@@ -21,6 +21,7 @@ const expectedImports = [
   ["./features/navigation/pullToRefresh/pullToRefresh.css", "features"],
   ["./features/offline/sync/confirm/offlineSyncConfirm.css", "features"],
   ["./features/pwa/reloadPrompt.css", "features"],
+  ["./features/folderShortcut/folderShortcut.css", "features"],
   ["./features/accounts/accountSurfaces.css", "features"],
   ["./features/browsing/browseHeader/browseHeader.css", "features"],
   ["./features/preview/shell/previewShell.css", "features"],

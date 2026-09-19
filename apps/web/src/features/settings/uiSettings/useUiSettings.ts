@@ -7,6 +7,7 @@ import type { ThemeMode } from "../model";
 import { saveUiSettingChange } from "./controller";
 import type { UiSettingsPorts } from "./ports";
 import {
+  buildExperimentalFolderAppShortcutsEnabledStatusMessage,
   buildExperimentalHeicPreviewEnabledStatusMessage,
   buildFileSizeDisplayModeStatusMessage,
   buildKeepAwakeEnabledStatusMessage,
@@ -84,6 +85,13 @@ export function useUiSettings(input: UseUiSettingsInput) {
     );
   }, [persistSetting]);
 
+  const handleExperimentalFolderAppShortcutsEnabledChange = useCallback((enabled: boolean) => {
+    persistSetting(
+      { experimentalFolderAppShortcutsEnabled: enabled },
+      buildExperimentalFolderAppShortcutsEnabledStatusMessage(enabled)
+    );
+  }, [persistSetting]);
+
   const handleSortModeChange = useCallback((mode: SortMode) => {
     persistSetting({ sortMode: mode }, buildSortModeStatusMessage(mode));
   }, [persistSetting]);
@@ -98,6 +106,7 @@ export function useUiSettings(input: UseUiSettingsInput) {
     handleKeepAwakeEnabledChange,
     handleShowHiddenFilesChange,
     handleExperimentalHeicPreviewEnabledChange,
+    handleExperimentalFolderAppShortcutsEnabledChange,
     handleSortModeChange
   };
 }

@@ -8,6 +8,7 @@ import { createBrowserConnectivityPort } from "../platform/network/browserConnec
 import type { ConnectivityPort } from "../features/offline/connectivity";
 import type { HistoryPort } from "../features/navigation/ports";
 import type { ResponsiveViewportPort } from "../features/navigation/viewport";
+import { parseLocationSearch } from "../features/navigation";
 import { createBrowserHistoryPort } from "../platform/browser/browserHistoryAdapter";
 import { createBrowserResponsiveViewportPort } from "../platform/browser/browserResponsiveViewportPort";
 import { createBrowserPullToRefreshEnvironmentPort } from "../platform/browser/browserPullToRefreshEnvironmentPort";
@@ -46,7 +47,10 @@ export const createBrowserAppServices = (): AppServices => {
     network: createBrowserBackendNetworkGate()
   };
   const previewRuntime = createPreviewComposition({ retentionRepository });
-  const accountRegistry = createAccountRegistryService(storage, createBrowserAccountRegistryClock());
+  const history = createBrowserHistoryPort() satisfies HistoryPort;
+  const accountRegistry = createAccountRegistryService(storage, createBrowserAccountRegistryClock(), {
+    preferredActiveAccountId: parseLocationSearch(history.getLocation().search).accountId
+  });
   const favourites = createFavouritesService(storage, clock);
   const accountRemovalRuntime = createAccountRemovalRuntime({
     accountTransport,
@@ -66,7 +70,7 @@ export const createBrowserAppServices = (): AppServices => {
     favourites,
     favouritesPointerEnvironment: createBrowserFavouritesPointerEnvironment(),
     folder: createBrowserFolderPorts(browsingCache),
-    history: createBrowserHistoryPort() satisfies HistoryPort,
+    history,
     pullToRefreshEnvironment: createBrowserPullToRefreshEnvironmentPort(),
     responsiveViewport: createBrowserResponsiveViewportPort() satisfies ResponsiveViewportPort,
     search: createBrowserSearchPorts(browsingCache),

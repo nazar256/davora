@@ -14,6 +14,7 @@
 @import "./features/navigation/pullToRefresh/pullToRefresh.css" layer(features);
 @import "./features/offline/sync/confirm/offlineSyncConfirm.css" layer(features);
 @import "./features/pwa/reloadPrompt.css" layer(features);
+@import "./features/folderShortcut/folderShortcut.css" layer(features);
 @import "./features/accounts/accountSurfaces.css" layer(features);
 @import "./features/browsing/browseHeader/browseHeader.css" layer(features);
 @import "./features/preview/shell/previewShell.css" layer(features);

@@ -68,21 +68,24 @@ const createPorts = (overrides: Partial<Record<keyof WorkflowSurfacePorts, boole
     action: overrides.action ?? false,
     destination: overrides.destination ?? false,
     account: overrides.account ?? false,
-    removeAccount: overrides.removeAccount ?? false
+    removeAccount: overrides.removeAccount ?? false,
+    folderShortcut: overrides.folderShortcut ?? false
   };
   const dismiss = {
     preview: vi.fn(() => { state.preview = false; }),
     action: vi.fn(() => { state.action = false; }),
     destination: vi.fn(() => { state.destination = false; }),
     account: vi.fn(() => { state.account = false; }),
-    removeAccount: vi.fn(() => { state.removeAccount = false; })
+    removeAccount: vi.fn(() => { state.removeAccount = false; }),
+    folderShortcut: vi.fn(() => { state.folderShortcut = false; })
   };
   const workflow: WorkflowSurfacePorts = {
     preview: { isOpen: () => state.preview, dismiss: dismiss.preview },
     action: { isOpen: () => state.action, dismiss: dismiss.action },
     destination: { isOpen: () => state.destination, dismiss: dismiss.destination },
     account: { isOpen: () => state.account, dismiss: dismiss.account },
-    removeAccount: { isOpen: () => state.removeAccount, dismiss: dismiss.removeAccount }
+    removeAccount: { isOpen: () => state.removeAccount, dismiss: dismiss.removeAccount },
+    folderShortcut: { isOpen: () => state.folderShortcut, dismiss: dismiss.folderShortcut }
   };
   return { workflow, state, dismiss };
 };
@@ -107,7 +110,7 @@ const createInput = (port: HistoryPort, workflow: WorkflowSurfacePorts, chrome =
 };
 
 describe("useWorkspaceSurfaceCoordinator", () => {
-  it.each(["preview", "action", "destination", "account", "removeAccount"] as const)("dismisses %s before navigation", (surface) => {
+  it.each(["preview", "action", "destination", "account", "removeAccount", "folderShortcut"] as const)("dismisses %s before navigation", (surface) => {
     const port = createHistory();
     const { workflow, dismiss } = createPorts({ [surface]: true });
     const { input, navigation } = createInput(port, workflow);
@@ -224,7 +227,7 @@ describe("useWorkspaceSurfaceCoordinator", () => {
 
   it("combines all eleven surfaces for pull-to-refresh reads", () => {
     const port = createHistory();
-    const { workflow } = createPorts({ preview: true, action: true, destination: true, account: true, removeAccount: true });
+    const { workflow } = createPorts({ preview: true, action: true, destination: true, account: true, removeAccount: true, folderShortcut: true });
     const { input } = createInput(port, workflow, { navigation: true, search: true, mobileDetails: true, settings: true, transfers: true, quickActions: true });
     const { result } = renderHook(() => useWorkspaceSurfaceCoordinator(input));
     expect(result.current.getOpenSurfaces()).toEqual({
@@ -233,6 +236,7 @@ describe("useWorkspaceSurfaceCoordinator", () => {
       destination: true,
       account: true,
       removeAccount: true,
+      folderShortcut: true,
       navigation: true,
       search: true,
       mobileDetails: true,

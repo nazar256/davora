@@ -42,6 +42,10 @@ export const useWorkspaceNavigation = (input: WorkspaceNavigationInput) => {
   const initialLocationRef = useRef(readLocation(input.port));
   const [currentPath, setCurrentPath] = useState(() => {
     const params = new URLSearchParams(initialLocationRef.current.search);
+    const linkedAccountId = params.get("account");
+    if (linkedAccountId !== null && linkedAccountId !== input.accountId) {
+      return "";
+    }
     return params.get("path") ?? "";
   });
   const [chrome, setChrome] = useState<ChromeSurfacesSnapshot>(closedChromeSurfaces);
@@ -118,6 +122,7 @@ export const useWorkspaceNavigation = (input: WorkspaceNavigationInput) => {
         destination: () => undefined,
         account: () => undefined,
         removeAccount: () => undefined,
+        folderShortcut: () => undefined,
         chrome: () => undefined
       },
       navigate: {

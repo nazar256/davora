@@ -7,6 +7,7 @@ export interface NavigationCommandApplicationPorts {
     destination(): void;
     account(): void;
     removeAccount(): void;
+    folderShortcut(): void;
     chrome(surface: DismissSurfaceKind): void;
   };
   navigate: {
@@ -24,6 +25,7 @@ export interface NavigationCommandApplicationSource {
   closeDestinationPicker(): void;
   setShowAccountDialog(open: boolean): void;
   setRemoveAccountTarget(target: undefined): void;
+  dismissFolderShortcut(): void;
   dismissChrome(surface: DismissSurfaceKind): void;
   clearSelectedEntry(): void;
   clearBatchSelection(): void;

@@ -58,6 +58,20 @@ describe("useWorkspaceNavigation", () => {
     expect(port.urls.at(-1)).toBe("http://localhost/?path=Archive&focus=1&account=alpha");
   });
 
+  it("suppresses the location path when the linked account differs from the active account", () => {
+    const mismatched = renderHook(() => useWorkspaceNavigation({
+      ...createInput(createHistory("?path=Projects&account=beta")),
+      accountId: "alpha"
+    }));
+    expect(mismatched.result.current.currentPath).toBe("");
+
+    const matched = renderHook(() => useWorkspaceNavigation({
+      ...createInput(createHistory("?path=Projects&account=alpha")),
+      accountId: "alpha"
+    }));
+    expect(matched.result.current.currentPath).toBe("Projects");
+  });
+
   it("retains path cleanup as an explicit navigation operation without a history listener", () => {
     const port = createHistory();
     const input = createInput(port);

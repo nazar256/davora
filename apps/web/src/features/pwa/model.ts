@@ -16,6 +16,9 @@ export function shouldClearNeedRefreshInDev(needRefresh: boolean, mode: string =
 
 export type InstallOutcome = "accepted" | "dismissed";
 
+/** Which consumer owns the captured beforeinstallprompt event. */
+export type InstallCaptureOwner = "app" | "folder-shortcut";
+
 export function nextInstallStateAfterChoice(outcome: InstallOutcome): { clearPrompt: boolean; dismissed: boolean } {
   if (outcome === "accepted") {
     return { clearPrompt: true, dismissed: false };

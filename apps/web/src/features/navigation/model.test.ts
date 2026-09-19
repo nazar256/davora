@@ -23,6 +23,7 @@ const closedSurfaces = (): OpenSurfacesSnapshot => ({
   destination: false,
   account: false,
   removeAccount: false,
+  folderShortcut: false,
   settings: false,
   search: false,
   navigation: false,
@@ -37,6 +38,7 @@ const surfaceKeyMap: Readonly<Record<DismissSurfaceKind, keyof OpenSurfacesSnaps
   destination: "destination",
   account: "account",
   "remove-account": "removeAccount",
+  "folder-shortcut": "folderShortcut",
   settings: "settings",
   search: "search",
   navigation: "navigation",
@@ -46,6 +48,7 @@ const surfaceKeyMap: Readonly<Record<DismissSurfaceKind, keyof OpenSurfacesSnaps
 };
 
 const surfaceKey = (surface: DismissSurfaceKind): keyof OpenSurfacesSnapshot => surfaceKeyMap[surface];
+
 
 const onlyOpen = (surface: keyof OpenSurfacesSnapshot): OpenSurfacesSnapshot => ({
   ...closedSurfaces(),
@@ -97,6 +100,7 @@ describe("navigation model", () => {
         destination: true,
         account: true,
         removeAccount: true,
+        folderShortcut: true,
         settings: true,
         search: true,
         navigation: true,
@@ -151,6 +155,7 @@ describe("navigation model", () => {
       "preview",
       "action",
       "destination",
+      "folder-shortcut",
       "account",
       "remove-account",
       "settings",
@@ -166,6 +171,7 @@ describe("navigation model", () => {
       destination: true,
       account: true,
       removeAccount: true,
+      folderShortcut: true,
       settings: true,
       search: true,
       navigation: true,
@@ -282,7 +288,8 @@ describe("navigation model", () => {
           action: false,
           destination: false,
           account: false,
-          removeAccount: false
+          removeAccount: false,
+          folderShortcut: false
         }
       )).toEqual({
         preview: true,
@@ -290,6 +297,7 @@ describe("navigation model", () => {
         destination: false,
         account: false,
         removeAccount: false,
+        folderShortcut: false,
         settings: true,
         search: false,
         navigation: true,

@@ -28,9 +28,14 @@ const connectedAccountKeys = new Set([
   "cacheNamespace"
 ]);
 
+export interface DecodeAccountRegistryOptions {
+  /** Account identity requested by the current URL (for example a folder deep link). */
+  readonly preferredActiveAccountId?: string;
+}
+
 export const encodeAccountRegistry = (snapshot: AccountRegistrySnapshot): string => JSON.stringify(snapshot);
 
-export function decodeAccountRegistry(raw: string | null, isExpired: (expiresAt: string) => boolean = () => false): DecodedAccountRegistry {
+export function decodeAccountRegistry(raw: string | null, isExpired: (expiresAt: string) => boolean = () => false, options: DecodeAccountRegistryOptions = {}): DecodedAccountRegistry {
   if (raw === null) {
     return { kind: "ready", snapshot: EMPTY_ACCOUNT_REGISTRY, repair: { kind: "none" } };
   }
@@ -86,7 +91,12 @@ export function decodeAccountRegistry(raw: string | null, isExpired: (expiresAt:
   }
 
   const requestedActiveId = typeof root.activeAccountId === "string" ? root.activeAccountId : undefined;
-  const activeAccountId = requestedActiveId && ids.has(requestedActiveId) ? requestedActiveId : accounts[0]?.account.id;
+  const preferredActiveId = options.preferredActiveAccountId !== undefined
+    && accounts.some((record) => record.account.id === options.preferredActiveAccountId && !record.pendingRemoval)
+    ? options.preferredActiveAccountId
+    : undefined;
+  const activeAccountId = preferredActiveId
+    ?? (requestedActiveId && ids.has(requestedActiveId) ? requestedActiveId : accounts[0]?.account.id);
   const snapshot: AccountRegistrySnapshot = {
     ...(activeAccountId ? { activeAccountId } : {}),
     accounts

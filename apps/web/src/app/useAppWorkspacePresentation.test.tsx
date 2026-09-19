@@ -43,6 +43,7 @@ describe("useAppWorkspacePresentation", () => {
     const openChrome = vi.fn();
     const closeChrome = vi.fn();
     const openPreview = vi.fn(async () => undefined);
+    const openFolderShortcut = vi.fn();
     const favouriteToggle = vi.fn();
     const selectedEntry = { path: "/photo.jpg", name: "photo.jpg", isFolder: false };
 
@@ -115,6 +116,10 @@ describe("useAppWorkspacePresentation", () => {
         },
         interaction: { marker: "selection-interaction" }
       },
+      folderShortcut: {
+        commands: { open: openFolderShortcut },
+        stage: { marker: "folder-shortcut" }
+      },
       preview: {
         bridge: { openFile: openPreview, snapshot: () => ({ modal: { selected: undefined } }) },
         folderAudio: { hasPlayer: true, interaction: { marker: "folder-audio" } },
@@ -160,6 +165,7 @@ describe("useAppWorkspacePresentation", () => {
       interaction: input.operation.interaction
     }));
     const selectionInput = mocks.projectSelectionWorkspacePresentation.mock.calls[0][0];
+    expect(selectionInput.commands.openFolderShortcut).toBe(openFolderShortcut);
     expect(selectionInput.favourite.selected).toBe(true);
     selectionInput.favourite.toggle(selectionInput.selection.focusedEntry!);
     expect(favouriteToggle).toHaveBeenCalledWith(selectedEntry);

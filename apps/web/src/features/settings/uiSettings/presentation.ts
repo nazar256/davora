@@ -37,6 +37,12 @@ export function buildExperimentalHeicPreviewEnabledStatusMessage(enabled: boolea
     : "Experimental HEIC preview is disabled.";
 }
 
+export function buildExperimentalFolderAppShortcutsEnabledStatusMessage(enabled: boolean): string {
+  return enabled
+    ? "Experimental Shortcut as app is enabled for this browser."
+    : "Experimental Shortcut as app is disabled.";
+}
+
 export function buildSortModeStatusMessage(mode: SortMode): string {
   return `Sorted by ${getSortModeLabel(mode)}.`;
 }

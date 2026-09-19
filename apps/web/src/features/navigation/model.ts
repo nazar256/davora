@@ -8,7 +8,8 @@ export type SurfaceKind =
   | "navigation"
   | "mobile-details"
   | "transfers"
-  | "quick-actions";
+  | "quick-actions"
+  | "folder-shortcut";
 
 /** Destination picker shares the action history label but dismisses before account dialogs. */
 export type DismissSurfaceKind = SurfaceKind | "destination";
@@ -32,6 +33,7 @@ export interface OpenSurfacesSnapshot {
   readonly mobileDetails: boolean;
   readonly transfers: boolean;
   readonly quickActions: boolean;
+  readonly folderShortcut: boolean;
 }
 
 export type ChromeSurfaceKind = Extract<
@@ -54,6 +56,7 @@ export interface WorkflowSurfacesSnapshot {
   readonly destination: boolean;
   readonly account: boolean;
   readonly removeAccount: boolean;
+  readonly folderShortcut: boolean;
 }
 
 export const CHROME_SURFACE_KEYS: Readonly<Record<ChromeSurfaceKind, keyof ChromeSurfacesSnapshot>> = {
@@ -107,6 +110,7 @@ export const applyChromeDismiss = (
     case "destination":
     case "account":
     case "remove-account":
+    case "folder-shortcut":
       return snapshot;
   }
 };
@@ -158,6 +162,7 @@ export const DISMISS_SURFACE_ORDER: readonly DismissSurfaceKind[] = [
   "preview",
   "action",
   "destination",
+  "folder-shortcut",
   "account",
   "remove-account",
   "settings",
@@ -171,6 +176,7 @@ const DISMISS_SURFACE_KEYS: Readonly<Record<DismissSurfaceKind, keyof OpenSurfac
   preview: "preview",
   action: "action",
   destination: "destination",
+  "folder-shortcut": "folderShortcut",
   account: "account",
   "remove-account": "removeAccount",
   settings: "settings",
@@ -191,7 +197,8 @@ const isSurfaceKind = (value: unknown): value is SurfaceKind =>
   || value === "navigation"
   || value === "mobile-details"
   || value === "transfers"
-  || value === "quick-actions";
+  || value === "quick-actions"
+  || value === "folder-shortcut";
 
 const isHistoryRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);

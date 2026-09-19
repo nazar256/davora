@@ -2,6 +2,7 @@ import { assertNever } from "@davora/shared";
 
 import {
   buildActiveAccountStatusMessage,
+  buildLinkedAccountUnavailableMessage,
   planAccountSwitchPathReset,
   resolveSessionTerminalMutation,
   type AccountSwitchPathReset,
@@ -44,15 +45,20 @@ export function executeAccountSwitchReset(
   }
 ): void {
   clearAccountScopedUi(ports);
-  applyAccountSwitchPathReset(ports, planAccountSwitchPathReset({
+  const pathReset = planAccountSwitchPathReset({
     isFirstAccountEffect: input.isFirstAccountEffect,
     locationSearch: input.locationSearch,
     hasActiveAccount: input.hasActiveAccount,
     accountId: input.accountId
-  }));
+  });
+  applyAccountSwitchPathReset(ports, pathReset);
   ports.browsing.clearQuery();
   if (input.hasActiveAccount && input.accountDisplayName) {
-    ports.presentation.setStatus(buildActiveAccountStatusMessage(input.accountDisplayName));
+    ports.presentation.setStatus(
+      pathReset.kind === "first-mount-restore" && pathReset.linkedAccountUnavailable
+        ? buildLinkedAccountUnavailableMessage(input.accountDisplayName)
+        : buildActiveAccountStatusMessage(input.accountDisplayName)
+    );
   }
 }
 

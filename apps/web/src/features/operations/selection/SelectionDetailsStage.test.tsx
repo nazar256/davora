@@ -42,6 +42,7 @@ function buildProps(overrides: Partial<ComponentProps<typeof SelectionDetailsSta
     onDownloadSelected: vi.fn(),
     onKeepOfflineSelected: vi.fn(),
     onToggleFavourite: vi.fn(),
+    onFolderShortcut: vi.fn(),
     onToggleMobileSheetDetails: vi.fn(),
     onRenameSelected: vi.fn(),
     onCopyMoveSelected: vi.fn(),

@@ -35,7 +35,8 @@ describe("useNavigationSurfaceWorkspace", () => {
           action: { isOpen: () => false, dismiss: vi.fn() },
           destination: { isOpen: () => false, dismiss: vi.fn() },
           account: { isOpen: () => false, dismiss: vi.fn() },
-          removeAccount: { isOpen: () => false, dismiss: vi.fn() }
+          removeAccount: { isOpen: () => false, dismiss: vi.fn() },
+          folderShortcut: { isOpen: () => false, dismiss: vi.fn() }
         },
         navigation: {
           getCurrentPath: () => "Projects",

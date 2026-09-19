@@ -25,8 +25,8 @@ const sourcePaths = {
 
 const sourceDigest = (path: string): string => createHash("sha256").update(readFileSync(path, "utf8")).digest("hex");
 const lockedSourceDigests = {
-  model: "76f3938ccdfd8f3bca9d2d6eb02c26db75c590f3d69d814914fe0b7e40010420",
-  controller: "42936fe7a5f21a0adb3012477c0ef4ddde727ef61402192a1baf583f405f4f26",
+  model: "af956e1beb930c44eb11d14586ebc6936d0b21403816b9e3d11c5528f7b1104b",
+  controller: "634edfa026797e3ea27f0efd7a5a93f94cca8150c1b16f5c74b36ac580ad45d6",
   coordinator: "3ba508e1ccddf50e80f404b8a3f8541c0337f79c043b1cad84fd7420da3d4280"
 } as const;
 
@@ -36,6 +36,7 @@ const surfaceKeys: Record<string, keyof OpenSurfacesSnapshot> = {
   destination: "destination",
   account: "account",
   "remove-account": "removeAccount",
+  "folder-shortcut": "folderShortcut",
   settings: "settings",
   search: "search",
   navigation: "navigation",
@@ -50,6 +51,7 @@ const closedSurfaces = (): OpenSurfacesSnapshot => ({
   destination: false,
   account: false,
   removeAccount: false,
+  folderShortcut: false,
   settings: false,
   search: false,
   navigation: false,
@@ -97,21 +99,24 @@ const createWorkflow = (open: readonly string[] = [], events: string[] = []) => 
     action: open.includes("action"),
     destination: open.includes("destination"),
     account: open.includes("account"),
-    removeAccount: open.includes("remove-account")
+    removeAccount: open.includes("remove-account"),
+    folderShortcut: open.includes("folder-shortcut")
   };
   const dismiss = {
     preview: vi.fn(() => { state.preview = false; events.push("dismiss:preview"); }),
     action: vi.fn(() => { state.action = false; events.push("dismiss:action"); }),
     destination: vi.fn(() => { state.destination = false; events.push("dismiss:destination"); }),
     account: vi.fn(() => { state.account = false; events.push("dismiss:account"); }),
-    removeAccount: vi.fn(() => { state.removeAccount = false; events.push("dismiss:remove-account"); })
+    removeAccount: vi.fn(() => { state.removeAccount = false; events.push("dismiss:remove-account"); }),
+    folderShortcut: vi.fn(() => { state.folderShortcut = false; events.push("dismiss:folder-shortcut"); })
   };
   const workflow: WorkflowSurfacePorts = {
     preview: { isOpen: () => state.preview, dismiss: dismiss.preview },
     action: { isOpen: () => state.action, dismiss: dismiss.action },
     destination: { isOpen: () => state.destination, dismiss: dismiss.destination },
     account: { isOpen: () => state.account, dismiss: dismiss.account },
-    removeAccount: { isOpen: () => state.removeAccount, dismiss: dismiss.removeAccount }
+    removeAccount: { isOpen: () => state.removeAccount, dismiss: dismiss.removeAccount },
+    folderShortcut: { isOpen: () => state.folderShortcut, dismiss: dismiss.folderShortcut }
   };
   return { state, dismiss, workflow };
 };
@@ -161,7 +166,7 @@ describe("navigation surface and Back characterization", () => {
     const eventLog: string[] = [];
     const port = createLeakyHistory();
     const workflow = createWorkflow([
-      "preview", "action", "destination", "account", "remove-account"
+      "preview", "action", "destination", "folder-shortcut", "account", "remove-account"
     ], eventLog);
     const setup = createCoordinatorInput(
       port,
@@ -226,7 +231,7 @@ describe("navigation surface and Back characterization", () => {
       lockedSourceDigests
     );
     expect(DISMISS_SURFACE_ORDER).toEqual([
-      "quick-actions", "preview", "action", "destination", "account", "remove-account",
+      "quick-actions", "preview", "action", "destination", "folder-shortcut", "account", "remove-account",
       "settings", "search", "navigation", "mobile-details", "transfers"
     ]);
   });
