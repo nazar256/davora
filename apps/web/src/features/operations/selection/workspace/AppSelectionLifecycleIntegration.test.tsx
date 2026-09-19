@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "../../../../App";
 import type { AppServices } from "../../../../app/AppServices";
+import { createMemoryFolderSortService } from "../../../../features/browsing/folderSort/testing/fakeStorage";
 import { ApiRequestError } from "../../../../lib/api";
 import { buildAccount, buildSession } from "../../../../test/accounts";
 import { buildHealthResponse } from "../../../../test/api";
@@ -150,6 +151,7 @@ function createSelectionFixture(): AppServices {
     explicitOfflineRuntime: { storage: { read: () => ({ kind: "ready" as const, enabled: false }), commit: () => ({ kind: "committed" as const }), reset: () => ({ kind: "committed" as const }), repair: () => ({ kind: "repaired" as const }) }, network: { setBlocked: () => undefined } }, clock: { nowIso: () => "2026-01-01T00:00:00.000Z" },
     favourites: { load: () => ({ kind: "loaded" as const, entries: [] }), save: (_account, entries) => ({ kind: "saved" as const, entries: [...entries] }), clear: () => ({ kind: "cleared" as const }), create: (entry, account) => ({ ...entry, accountId: account.id, accountBackend: account.backend, accountRootPath: account.rootPath, cacheNamespace: account.cacheNamespace, addedAt: "2026-01-01T00:00:00.000Z" }) },
     favouritesPointerEnvironment: { elementFromPoint: () => null, addWindowListener: () => () => undefined }, folder,
+    folderSorts: createMemoryFolderSortService(),
     history: { pushState: (state: unknown, url?: string): void => { window.history.pushState(state, "", url); }, replaceState: (state: unknown, url?: string): void => { window.history.replaceState(state, "", url); }, getState: (): unknown => window.history.state, getLocation: (): { readonly href: string; readonly search: string } => ({ href: window.location.href, search: window.location.search }), subscribe: (listener: (state: unknown) => void): (() => void) => { const handler = () => { listener(window.history.state); }; window.addEventListener("popstate", handler); return () => { window.removeEventListener("popstate", handler); }; } },
     pullToRefreshEnvironment: { getWindowScrollY: () => 0 }, responsiveViewport: { getSnapshot: () => matchMediaMatches ? narrowViewport : wideViewport, subscribe: () => () => undefined }, search,
     settings: { load: () => ({ themeMode: "system" as const, showHiddenFiles: false, sortMode: "name-asc" as const, keepAwakeEnabled: true, previewFreshnessIntervalSeconds: 300, maxCacheableFileSizeBytes: 1, fileSizeDisplayMode: "human" as const, imagePreviewFitMode: "fill" as const, experimentalHeicPreviewEnabled: false, experimentalFolderAppShortcutsEnabled: false }), save: (settings) => settings },

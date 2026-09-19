@@ -295,7 +295,8 @@ function createBrowserAppServices() {
       accountTransport,
       retentionRepository: retentionFixture.repository,
       browsingCache: browsingCacheFixture.repository,
-      favourites: services.favourites
+      favourites: services.favourites,
+      folderSorts: services.folderSorts
     }),
     accountSession: { ...services.accountSession, getHealth: accountTransport.getHealth, createSession: accountTransport.createSession },
     browsingCache: browsingCacheFixture.repository,

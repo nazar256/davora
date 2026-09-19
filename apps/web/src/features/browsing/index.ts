@@ -10,4 +10,5 @@ export * from "./navDrawer";
 export * from "./quickActions";
 export * from "./appBar";
 export * from "./cache";
+export * from "./folderSort";
 export * from "./workspace";

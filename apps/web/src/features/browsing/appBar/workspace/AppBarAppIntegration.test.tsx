@@ -334,7 +334,8 @@ function createAppBarFixture(): AppServices {
       accountTransport,
       retentionRepository: mockedRetentionRepository,
       browsingCache: mockedCache,
-      favourites: services.favourites
+      favourites: services.favourites,
+      folderSorts: services.folderSorts
     }),
     accountSession: {
       ...services.accountSession,
@@ -690,7 +691,9 @@ describe("AppBar App integration", () => {
     };
     const discoveredCallablePaths = collectCallablePaths(appBar, "").sort();
     expect(discoveredCallablePaths).toEqual([
-      "install.onInstall", "sortPanel.select", "sortPanel.toggle", "onOpenNavigationDrawer",
+      "install.onInstall", "sortPanel.select", "sortPanel.toggle",
+      "sortPanel.reset.cancel", "sortPanel.reset.confirm", "sortPanel.reset.request",
+      "onOpenNavigationDrawer",
       "onSearchQueryChange", "onCloseMobileSearch", "onNavigateUp", "onOpenMobileSearch", "onOpenSettings",
       "transferTray.props.onClearFinished", "transferTray.props.onRetryFailedSync", "transferTray.props.onToggleOpen"
     ].sort());

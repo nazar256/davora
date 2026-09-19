@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../../App";
 import type { AppServices } from "../../../app/AppServices";
 import type { BrowseHeaderStageProps, FileListStageProps } from "..";
+import { createMemoryFolderSortService } from "../folderSort/testing/fakeStorage";
 type AccountSnapshot = ReturnType<AppServices["accountRegistry"]["getSnapshot"]>;
 type AccountState = ReturnType<AppServices["accountRegistry"]["getState"]>;
 type SeedRecord = AccountSnapshot["accounts"][number];
@@ -367,6 +368,7 @@ function createBrowsingFixture(): AppServices {
     favourites: { load: () => ({ kind: "loaded", entries: [] }), save: (_account, entries) => ({ kind: "saved", entries: [...entries] }), clear: () => ({ kind: "cleared" }), create: (entry, account) => ({ ...entry, accountId: account.id, accountBackend: account.backend, accountRootPath: account.rootPath, cacheNamespace: account.cacheNamespace, addedAt: "2026-01-01T00:00:00.000Z" }) },
     favouritesPointerEnvironment: { elementFromPoint: () => null, addWindowListener: () => () => undefined },
     folder,
+    folderSorts: createMemoryFolderSortService(),
     history: { pushState: (state, url) => window.history.pushState(state, "", url), replaceState: (state, url) => window.history.replaceState(state, "", url), getState: (): unknown => window.history.state, getLocation: () => ({ href: window.location.href, search: window.location.search }), subscribe: (listener) => { const handler = () => listener(window.history.state); window.addEventListener("popstate", handler); return () => window.removeEventListener("popstate", handler); } },
     pullToRefreshEnvironment: { getWindowScrollY: () => window.scrollY },
     responsiveViewport: { getSnapshot: () => wideViewportSnapshot, subscribe: () => () => undefined },
@@ -498,7 +500,7 @@ describe("AppBrowsingSurfaceIntegration", () => {
       "onClearSearch", "onClearSelection", "onCopyMoveSelection", "onCreateFolder", "onDeleteSelection",
       "onDownloadSelection", "onFileSizeDisplayModeChange", "onKeepOfflineSelection", "onNavigateToPath",
       "onSearchQueryChange", "onSortModeChange", "onUploadFiles", "refreshingFolder", "searchActive", "searchQuery",
-      "selectionSummaryLabel", "showBreadcrumbs", "sortMode", "staleFolder", "staleInfo", "status"
+      "selectionSummaryLabel", "showBreadcrumbs", "sortMode", "sortReset", "staleFolder", "staleInfo", "status"
     ].sort());
     expect(Object.keys(fileList.props).sort()).toEqual([
       "batchModeActive", "canMarkForBatchDownload", "clearRowOpenSuppression", "emptyStatus", "emptyTitle", "fileSizeDisplayMode",

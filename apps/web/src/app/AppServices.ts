@@ -1,6 +1,6 @@
 import type { AccountSessionPorts } from "../features/accounts/session";
 import type { AccountRegistryService } from "../features/accounts/registry";
-import type { BrowsingCacheRepository, FavouritesService, FolderPorts, SearchPorts } from "../features/browsing";
+import type { BrowsingCacheRepository, FavouritesService, FolderPorts, FolderSortService, SearchPorts } from "../features/browsing";
 import type { HistoryPort, ResponsiveViewportPort } from "../features/navigation";
 import type { PullToRefreshEnvironmentPort } from "../features/navigation/pullToRefresh";
 import type { ConnectivityPort } from "../features/offline/connectivity";
@@ -28,6 +28,7 @@ export interface AppServices {
   readonly favourites: FavouritesService;
   readonly favouritesPointerEnvironment: FavouritesPointerEnvironment;
   readonly folder: FolderPorts;
+  readonly folderSorts: FolderSortService;
   readonly history: HistoryPort;
   readonly pullToRefreshEnvironment: PullToRefreshEnvironmentPort;
   readonly responsiveViewport: ResponsiveViewportPort;

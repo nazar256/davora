@@ -214,7 +214,6 @@ export function useAppWorkspacePresentation(input: AppWorkspacePresentationInput
       browsing: browsingWorkspace,
       navigation: workspaceNavigation,
       offline: offlineApplication,
-      settings,
       pwa,
       wakeLock,
       transfers,

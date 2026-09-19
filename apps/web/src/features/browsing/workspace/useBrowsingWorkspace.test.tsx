@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createDeferred } from "../../../test/primitives";
 import type { FolderPorts } from "../folder/ports";
+import { createMemoryFolderSortService } from "../folderSort/testing/fakeStorage";
 import type { SearchPorts } from "../search/ports";
 import { useBrowsingWorkspace, type BrowsingWorkspaceInput } from "./index";
 
@@ -63,7 +64,8 @@ const input = (ports = createPorts(), overrides: Partial<BrowsingWorkspaceInput>
     search: ports.search,
     session: { terminate: vi.fn() },
     availability: { setWorkerUnavailable: vi.fn() },
-    presentation: { setStatus: vi.fn() }
+    presentation: { setStatus: vi.fn() },
+    folderSort: { service: createMemoryFolderSortService(), persistBaseline: vi.fn() }
   },
   ...overrides
 });

@@ -32,6 +32,13 @@ function buildProps(overrides: Partial<ComponentProps<typeof BrowseHeaderStage>>
     mutationBusy: false,
     fileSizeDisplayMode: "human" as const,
     sortMode: "name-asc" as const,
+    sortReset: {
+      confirming: false,
+      count: 0,
+      request: vi.fn(),
+      confirm: vi.fn(),
+      cancel: vi.fn()
+    },
     canCreateFolder: true,
     canUploadFiles: true,
     canUploadFolders: true,
@@ -205,5 +212,56 @@ describe("BrowseHeaderStage", () => {
   ])("renders upload tip variant $expected", ({ expected, ...tipProps }) => {
     render(<BrowseHeaderStage {...buildProps(tipProps)} />);
     expect(screen.getByText(expected)).toBeInTheDocument();
+  });
+
+  it("renders a desktop reset control beside the sort field with two-step inline confirmation", () => {
+    const request = vi.fn();
+    const confirm = vi.fn();
+    const cancel = vi.fn();
+    const { rerender } = render(
+      <BrowseHeaderStage
+        {...buildProps({
+          sortReset: { confirming: false, count: 4, request, confirm, cancel }
+        })}
+      />
+    );
+
+    const resetButton = screen.getByRole("button", { name: "Reset saved folder sort settings" });
+    expect(resetButton).not.toBeDisabled();
+    fireEvent.click(resetButton);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(confirm).not.toHaveBeenCalled();
+
+    rerender(
+      <BrowseHeaderStage
+        {...buildProps({
+          sortReset: { confirming: true, count: 4, request, confirm, cancel }
+        })}
+      />
+    );
+
+    const confirmGroup = screen.getByRole("group", { name: "Confirm clearing folder sort settings" });
+    expect(within(confirmGroup).getByText("Clear saved sort for 4 folders?")).toBeInTheDocument();
+    fireEvent.click(within(confirmGroup).getByRole("button", { name: "Cancel" }));
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(confirm).not.toHaveBeenCalled();
+    fireEvent.click(within(confirmGroup).getByRole("button", { name: "Clear" }));
+    expect(confirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables the desktop reset control when no folder sort overrides exist", () => {
+    const request = vi.fn();
+    render(
+      <BrowseHeaderStage
+        {...buildProps({
+          sortReset: { confirming: false, count: 0, request, confirm: vi.fn(), cancel: vi.fn() }
+        })}
+      />
+    );
+
+    const resetButton = screen.getByRole("button", { name: "Reset saved folder sort settings" });
+    expect(resetButton).toBeDisabled();
+    fireEvent.click(resetButton);
+    expect(request).not.toHaveBeenCalled();
   });
 });

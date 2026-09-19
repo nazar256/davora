@@ -52,6 +52,7 @@ const capabilityKeys = [
   "favourites",
   "favouritesPointerEnvironment",
   "folder",
+  "folderSorts",
   "history",
   "pullToRefreshEnvironment",
   "responsiveViewport",
@@ -121,7 +122,7 @@ function assertExactCapabilitySurface(): void {
   expect(browserServicesSource).toContain("folder: createBrowserFolderPorts(browsingCache),");
   expect(browserServicesSource).toContain("search: createBrowserSearchPorts(browsingCache),");
   expect(browserServicesSource).toContain("const previewRuntime = createPreviewComposition({ retentionRepository });");
-  characterization.branches.push("exact-21-capability-surface", "shared-cache-retention-aliases");
+  characterization.branches.push("exact-22-capability-surface", "shared-cache-retention-aliases");
 }
 
 function assertDownstreamServicesOnly(): void {

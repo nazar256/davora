@@ -2,6 +2,7 @@ import type { FileEntry, SearchResult } from "@davora/shared";
 
 import type { FolderMode } from "../folder/controller";
 import type { FolderPorts } from "../folder/ports";
+import type { FolderSortService } from "../folderSort/ports";
 import type { SearchPorts } from "../search/ports";
 import type { SortMode } from "../model";
 
@@ -43,12 +44,18 @@ export interface BrowsingWorkspacePresentationPorts {
   setStatus(message: string): void;
 }
 
+export interface BrowsingWorkspaceFolderSortPorts {
+  readonly service: FolderSortService;
+  persistBaseline(mode: SortMode): void;
+}
+
 export interface BrowsingWorkspacePorts {
   readonly folder: FolderPorts;
   readonly search: SearchPorts;
   readonly session: BrowsingWorkspaceSessionPorts;
   readonly availability: BrowsingWorkspaceAvailabilityPorts;
   readonly presentation: BrowsingWorkspacePresentationPorts;
+  readonly folderSort: BrowsingWorkspaceFolderSortPorts;
 }
 
 export interface BrowsingApplicationWorkspaceInput {
@@ -67,6 +74,7 @@ export interface BrowsingApplicationWorkspaceInput {
     readonly session: { resetActiveSession(message: string, reconnectRequired: boolean): void };
     readonly availability: BrowsingWorkspaceAvailabilityPorts;
     readonly presentation: BrowsingWorkspacePresentationPorts;
+    readonly folderSort: BrowsingWorkspaceFolderSortPorts;
     readonly navigation: {
       getCurrentPath(): string;
       setCurrentPath(path: string): void;

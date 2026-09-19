@@ -9,6 +9,7 @@ import { createAccountRegistryService } from "../../features/accounts/registry/s
 import { createBrowsingCacheRepository, type BrowsingCacheStorage } from "../../features/browsing/cache";
 import { FOLDER_CACHE_PREFIX, SEARCH_CACHE_PREFIX, V1_FOLDER_CACHE_PREFIX, V1_SEARCH_CACHE_PREFIX } from "../../features/browsing/cache/policy";
 import { FAVOURITES_STORAGE_PREFIX } from "../../features/browsing/favourites/service";
+import { FOLDER_SORT_STORAGE_PREFIX } from "../../features/browsing/folderSort/policy";
 import { UI_SETTINGS_STORAGE_KEY } from "../../features/settings/service";
 import { AUDIO_PLAYLIST_PREFIX } from "../../features/preview/folderAudio/model";
 import { buildFileEntry } from "../../test/files";
@@ -181,6 +182,21 @@ const persistedShapes: readonly PersistedShape[] = [
       evidence("account/namespace isolation", "apps/web/src/features/preview/folderAudio/useFolderAudioPlayer.lifecycle.characterization.test.tsx", "T18a account change isolates persisted resume positions and current controls"),
       evidence("idempotent migration", "apps/web/src/features/preview/folderAudio/model.test.ts", "builds stable playlist storage keys"),
       evidence("old-data retention until commit", "apps/web/src/features/preview/folderAudio/useFolderAudioPlayer.test.tsx", "persists and restores playlist state until dismissed")
+    ]
+  },
+  {
+    name: "folder sort overrides",
+    keys: [FOLDER_SORT_STORAGE_PREFIX + "<encoded namespace><encoded canonical path>"],
+    versions: ["unversioned validated sort-mode string"],
+    owner: "features/browsing/folderSort policy and service",
+    evidence: [
+      evidence("current round-trip", "apps/web/src/features/browsing/folderSort/service.test.ts", "round-trips folder sort overrides within a namespace"),
+      evidence("oldest supported fixture", "apps/web/src/features/browsing/folderSort/policy.test.ts", "round-trips namespace and path including separators and colons"),
+      evidence("malformed/unknown version", "apps/web/src/features/browsing/folderSort/service.test.ts", "treats corrupt stored values as absent and removes the bad key"),
+      evidence("failed-write rollback", "apps/web/src/features/browsing/folderSort/useFolderSort.test.tsx", "applies the sort for the session and reports failure when the write fails"),
+      evidence("account/namespace isolation", "apps/web/src/features/browsing/folderSort/service.test.ts", "clears only the target namespace and preserves unrelated keys"),
+      evidence("idempotent migration", "apps/web/src/features/browsing/folderSort/useFolderSort.test.tsx", "converges saved sorts without extra renders under StrictMode"),
+      evidence("old-data retention until commit", "apps/web/src/features/browsing/folderSort/useFolderSort.test.tsx", "reports clear failures and keeps stored overrides")
     ]
   },
   {

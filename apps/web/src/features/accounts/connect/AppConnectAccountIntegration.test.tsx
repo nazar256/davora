@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../../App";
 import type { AppServices } from "../../../app/AppServices";
 import type { AccountTransport } from "../index";
+import { createMemoryFolderSortService } from "../../browsing/folderSort/testing/fakeStorage";
 import { buildAccount, buildSession } from "../../../test/accounts";
 import { buildHealthResponse } from "../../../test/api";
 
@@ -161,6 +162,7 @@ function createAccountFixture(): AppServices {
     clock: { nowIso: () => "2026-01-01T00:00:00.000Z" },
     favourites: { load: () => ({ kind: "loaded", entries: [] }), save: () => ({ kind: "saved", entries: [] }), clear: () => ({ kind: "cleared" }), create: (entry) => ({ ...entry, accountId: "alpha", accountBackend: "mock", accountRootPath: "", cacheNamespace: "ns-alpha", addedAt: "2026-01-01T00:00:00.000Z" }) },
     favouritesPointerEnvironment: { elementFromPoint: () => null, addWindowListener: () => () => undefined }, folder,
+    folderSorts: createMemoryFolderSortService(),
     history,
     pullToRefreshEnvironment: { getWindowScrollY: () => window.scrollY }, responsiveViewport: { getSnapshot: () => wide, subscribe: () => () => undefined }, search,
     settings: { load: () => ({ themeMode: "system", fileSizeDisplayMode: "human", maxCacheableFileSizeBytes: 1000000, imagePreviewFitMode: "fill", previewFreshnessIntervalSeconds: 60, keepAwakeEnabled: true, showHiddenFiles: false, experimentalHeicPreviewEnabled: false, experimentalFolderAppShortcutsEnabled: false, sortMode: "name-asc" }), save: (value) => value },
@@ -183,6 +185,7 @@ function createConnectFixture(baseServices: AppServices): AppServices {
     favourites: baseServices.favourites,
     favouritesPointerEnvironment: baseServices.favouritesPointerEnvironment,
     folder: baseServices.folder,
+    folderSorts: baseServices.folderSorts,
     history: baseServices.history,
     pullToRefreshEnvironment: baseServices.pullToRefreshEnvironment,
     responsiveViewport: baseServices.responsiveViewport,

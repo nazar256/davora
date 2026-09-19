@@ -3,6 +3,7 @@ import type { ConnectedAccount } from "@davora/shared";
 import type { AccountTransport } from "../features/accounts/transport";
 import type { BrowsingCacheRepository } from "../features/browsing/cache";
 import type { FavouritesService } from "../features/browsing/favourites";
+import type { FolderSortService } from "../features/browsing/folderSort";
 import type { RetentionAccount, RetentionRepository } from "../features/offline/retention";
 
 export interface AccountRemovalRuntimePort {
@@ -18,6 +19,7 @@ export interface AccountRemovalRuntimeDependencies {
   readonly retentionRepository: Pick<RetentionRepository, "purgeAccountNamespace">;
   readonly browsingCache: Pick<BrowsingCacheRepository, "clearNamespaceOrThrow">;
   readonly favourites: Pick<FavouritesService, "clear">;
+  readonly folderSorts: Pick<FolderSortService, "clearNamespace">;
 }
 
 const REMOTE_REVOKE_FAILURE = "Unable to revoke remote account access.";
@@ -46,6 +48,9 @@ export function createAccountRemovalRuntime(
         }
         dependencies.browsingCache.clearNamespaceOrThrow(target.cacheNamespace);
         if (dependencies.favourites.clear(target.id).kind === "clear-failed") {
+          throw new Error(LOCAL_PURGE_FAILURE);
+        }
+        if (dependencies.folderSorts.clearNamespace(target.cacheNamespace).kind === "clear-failed") {
           throw new Error(LOCAL_PURGE_FAILURE);
         }
       } catch {

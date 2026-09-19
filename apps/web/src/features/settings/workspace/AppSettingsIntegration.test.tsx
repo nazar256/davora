@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import App from "../../../App";
 import type { AppServices } from "../../../app/AppServices";
+import { createMemoryFolderSortService } from "../../browsing/folderSort/testing/fakeStorage";
 
 const { registerSwMock, accountGetHealthMock, accountCreateSessionMock } = vi.hoisted(() => ({
   registerSwMock: vi.fn(() => ({
@@ -178,6 +179,7 @@ function createSettingsFixture(): AppServices {
     favourites: { load: () => ({ kind: "loaded", entries: [] }), save: () => ({ kind: "saved", entries: [] }), clear: () => ({ kind: "cleared" }), create: (entry) => ({ ...entry, accountId: "alpha", accountBackend: "mock", accountRootPath: "", cacheNamespace: "ns-alpha", addedAt: "2026-01-01T00:00:00.000Z" }) },
     favouritesPointerEnvironment: { elementFromPoint: () => null, addWindowListener: () => () => undefined },
     folder,
+    folderSorts: createMemoryFolderSortService(),
     history: { pushState: (state, url) => window.history.pushState(state, "", url), replaceState: (state, url) => window.history.replaceState(state, "", url), getState: () => null, getLocation: () => ({ href: window.location.href, search: window.location.search }), subscribe: () => () => undefined },
     pullToRefreshEnvironment: { getWindowScrollY: () => window.scrollY },
     responsiveViewport: { getSnapshot: () => matchMediaMatches ? narrowViewport : wideViewport, subscribe: () => () => undefined },

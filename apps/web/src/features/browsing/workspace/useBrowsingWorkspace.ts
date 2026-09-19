@@ -9,6 +9,7 @@ import { selectSearchResults } from "../search/selectors";
 import { useSearch } from "../search";
 import { buildBreadcrumbs, buildBrowseStatusLabel, getFolderLabel, getLocationLabel, isSearchActive } from "../presentation";
 import { selectVisibleItems } from "../selectors";
+import { useFolderSort, type FolderSortController } from "../folderSort";
 import type { FolderState } from "../folder/model";
 import type { SearchState } from "../search/model";
 import type { BrowsingWorkspaceInput } from "./ports";
@@ -43,6 +44,7 @@ export interface BrowsingWorkspaceOutput {
     readonly stale: boolean;
     readonly visibleError?: Error;
   };
+  readonly sort: FolderSortController;
   readonly presentation: {
     readonly breadcrumbs: ReturnType<typeof buildBreadcrumbs>;
     readonly showBreadcrumbs: boolean;
@@ -132,6 +134,14 @@ export function useBrowsingWorkspace(input: BrowsingWorkspaceInput): BrowsingWor
     ports: folderStatusPorts
   });
 
+  const folderSort = useFolderSort({
+    namespace: input.context.cacheNamespace,
+    path: input.context.path,
+    baseline: input.settings.sortMode,
+    service: input.ports.folderSort.service,
+    persistBaseline: input.ports.folderSort.persistBaseline,
+    announceStatus: input.ports.presentation.setStatus
+  });
   const folderItems = selectFolderItems(folder.state);
   const searchResults = selectSearchResults(search.state);
   const folderError = selectFolderError(folder.state);
@@ -144,8 +154,8 @@ export function useBrowsingWorkspace(input: BrowsingWorkspaceInput): BrowsingWor
     searchActive: active,
     searchResults,
     showHiddenFiles: input.settings.showHiddenFiles,
-    sortMode: input.settings.sortMode
-  }), [active, folderItems, input.settings.showHiddenFiles, input.settings.sortMode, searchResults]);
+    sortMode: folderSort.mode
+  }), [active, folderItems, folderSort.mode, input.settings.showHiddenFiles, searchResults]);
   const cachedAt = folder.state.kind === "refreshing" || folder.state.kind === "stale"
     ? folder.state.cachedAt
     : undefined;
@@ -205,6 +215,7 @@ export function useBrowsingWorkspace(input: BrowsingWorkspaceInput): BrowsingWor
     },
     search: { state: search.state, results: searchResults },
     list: { items: visibleItems, stale: folderStale, visibleError },
+    sort: folderSort,
     presentation: {
       breadcrumbs: buildBreadcrumbs(input.context.path),
       showBreadcrumbs: input.context.path !== "",

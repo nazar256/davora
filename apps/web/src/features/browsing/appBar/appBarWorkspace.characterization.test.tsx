@@ -11,6 +11,7 @@ import { AppBarStage, type AppBarStageProps } from "./AppBarStage";
 import { useAppBarSortPanel } from "./useAppBarSortPanel";
 import type { AppBarSortPanelBinding } from "./useAppBarSortPanel";
 import { useAppBarWorkspace, type AppBarWorkspaceOwners } from "./workspace";
+import type { FolderSortResetBinding } from "../folderSort";
 import type { SortMode } from "../model";
 import { useTransferTray } from "../../transfers/tray/useTransferTray";
 import { TransferTrayStage } from "../../transfers/tray/TransferTrayStage";
@@ -19,8 +20,12 @@ import type { TransferTask } from "../../transfers/model";
 const presentationSource = readFileSync(resolve(process.cwd(), "src/app/useAppWorkspacePresentation.ts"), "utf8");
 const appBarPath = resolve(process.cwd(), "src/features/browsing/appBar");
 
+function buildResetBinding(overrides: Partial<FolderSortResetBinding> = {}): FolderSortResetBinding {
+  return { confirming: false, count: 0, request: vi.fn(), confirm: vi.fn(), cancel: vi.fn(), ...overrides };
+}
+
 function buildSortPanel(overrides: Partial<AppBarSortPanelBinding> = {}): AppBarSortPanelBinding {
-  return { open: false, toggle: vi.fn(), select: vi.fn(), ...overrides };
+  return { open: false, toggle: vi.fn(), select: vi.fn(), reset: buildResetBinding(), ...overrides };
 }
 
 function buildProps(overrides: Partial<AppBarStageProps> = {}): AppBarStageProps {
@@ -63,7 +68,8 @@ function buildWorkspaceOwners(currentPath: string, navigateToPath: (path: string
     viewport: { isNarrowScreen: false },
     browsing: {
       query: { raw: "", set: vi.fn() },
-      presentation: { folderLabel: "Home", locationLabel: "Online", showRoutineCachedRefresh: false }
+      presentation: { folderLabel: "Home", locationLabel: "Online", showRoutineCachedRefresh: false },
+      sort: { mode: "name-asc", saved: false, select: vi.fn(), reset: buildResetBinding() }
     },
     navigation: {
       currentPath,
@@ -75,7 +81,6 @@ function buildWorkspaceOwners(currentPath: string, navigateToPath: (path: string
       navigateToPath
     },
     offline: { explicitOfflineMode: false },
-    settings: { preferences: { sortMode: "name-asc" }, commands: { handleSortModeChange: vi.fn() } },
     pwa: { install: { available: false, busy: false, onInstall: vi.fn() } },
     wakeLock: { active: false, reasonLabel: "media playback" },
     transfers: { tasks: [], clearAccountHistory: vi.fn() },
@@ -122,7 +127,7 @@ describe("AppBar application boundary characterization", () => {
 
   it("preserves sort select-before-close, newest callback, throw-keeps-open, StrictMode, and unmount behavior", () => {
     const changes: string[] = [];
-    const { result, rerender, unmount } = renderHook(({ callback }) => useAppBarSortPanel({ onSortModeChange: callback }), {
+    const { result, rerender, unmount } = renderHook(({ callback }) => useAppBarSortPanel({ sort: { select: callback, reset: buildResetBinding() } }), {
       initialProps: { callback: (mode: SortMode) => { changes.push(mode); } },
       wrapper: StrictMode
     });
@@ -281,7 +286,7 @@ describe("AppBar application boundary characterization", () => {
       hasSession: Boolean(sessionToken),
       transferTray: transferElement,
       install: { available: true, busy: false, onInstall: actions.install },
-      sortPanel: { open: false, toggle: actions.sortToggle, select: actions.sortSelect },
+      sortPanel: { open: false, toggle: actions.sortToggle, select: actions.sortSelect, reset: buildResetBinding() },
       onOpenNavigationDrawer: actions.drawer,
       onSearchQueryChange: actions.query,
       onCloseMobileSearch: actions.closeSearch,
@@ -424,7 +429,7 @@ describe("AppBar application boundary characterization", () => {
     expect(appBarCall).toContain("useAppBarWorkspace");
     for (const owner of [
       "accountContext", "session", "bootstrap", "connectivity", "viewport", "browsingWorkspace",
-      "workspaceNavigation", "offlineApplication", "settings", "pwa", "wakeLock", "transfers",
+      "workspaceNavigation", "offlineApplication", "pwa", "wakeLock", "transfers",
       "offlineSyncWorkspace"
     ]) {
       expect(appBarCall).toContain(owner);

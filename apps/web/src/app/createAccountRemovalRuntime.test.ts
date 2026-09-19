@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildAccount } from "../test/accounts";
 import type { BrowsingCacheRepository } from "../features/browsing/cache";
 import type { FavouritesService } from "../features/browsing/favourites";
+import type { FolderSortService } from "../features/browsing/folderSort";
 import type { RetentionRepository } from "../features/offline/retention";
 import { createAccountRemovalRuntime } from "./createAccountRemovalRuntime";
 import { createBrowserAppServices } from "./createBrowserAppServices";
@@ -19,6 +20,7 @@ function dependencies(overrides: {
   readonly retention?: Pick<RetentionRepository, "purgeAccountNamespace">;
   readonly cache?: Pick<BrowsingCacheRepository, "clearNamespaceOrThrow">;
   readonly favourites?: Pick<FavouritesService, "clear">;
+  readonly folderSorts?: Pick<FolderSortService, "clearNamespace">;
 } = {}) {
   return {
     accountTransport: overrides.transport ?? { deleteConnectedAccount: vi.fn(async () => undefined) },
@@ -35,7 +37,8 @@ function dependencies(overrides: {
       }))
     },
     browsingCache: overrides.cache ?? { clearNamespaceOrThrow: vi.fn() },
-    favourites: overrides.favourites ?? { clear: vi.fn(() => ({ kind: "cleared" as const })) }
+    favourites: overrides.favourites ?? { clear: vi.fn(() => ({ kind: "cleared" as const })) },
+    folderSorts: overrides.folderSorts ?? { clearNamespace: vi.fn(() => ({ kind: "cleared" as const, removedCount: 0 })) }
   };
 }
 
@@ -78,15 +81,18 @@ describe("createAccountRemovalRuntime", () => {
     );
     expect(deps.browsingCache.clearNamespaceOrThrow).toHaveBeenCalledWith(alpha.cacheNamespace);
     expect(deps.favourites.clear).toHaveBeenCalledWith(alpha.id);
+    expect(deps.folderSorts.clearNamespace).toHaveBeenCalledWith(alpha.cacheNamespace);
     expect(deps.browsingCache.clearNamespaceOrThrow).not.toHaveBeenCalledWith(beta.cacheNamespace);
     expect(deps.favourites.clear).not.toHaveBeenCalledWith(beta.id);
+    expect(deps.folderSorts.clearNamespace).not.toHaveBeenCalledWith(beta.cacheNamespace);
   });
 
   it.each([
     ["transport", () => dependencies({ transport: { deleteConnectedAccount: vi.fn(async () => { throw new Error("transport-secret"); }) } }), "Unable to revoke remote account access."],
     ["retention", () => dependencies({ retention: { purgeAccountNamespace: vi.fn(async () => { throw new Error("retention-secret"); }) } }), "Account browser data cleanup failed."],
     ["cache", () => dependencies({ cache: { clearNamespaceOrThrow: vi.fn(() => { throw new Error("cache-secret"); }) } }), "Account browser data cleanup failed."],
-    ["favourites", () => dependencies({ favourites: { clear: vi.fn(() => ({ kind: "clear-failed" as const, error: new Error("favourites-secret") })) } }), "Account browser data cleanup failed."]
+    ["favourites", () => dependencies({ favourites: { clear: vi.fn(() => ({ kind: "clear-failed" as const, error: new Error("favourites-secret") })) } }), "Account browser data cleanup failed."],
+    ["folderSorts", () => dependencies({ folderSorts: { clearNamespace: vi.fn(() => ({ kind: "clear-failed" as const, error: new Error("folder-sort-secret") })) } }), "Account browser data cleanup failed."]
   ])("redacts %s failures", async (_name, makeDependencies, expected) => {
     const runtime = createAccountRemovalRuntime(makeDependencies());
     const operation = _name === "transport"
