@@ -9,7 +9,7 @@ import {
 } from "./workspaceSurfaceController";
 
 const createPorts = (
-  openWorkflow: readonly (keyof Pick<OpenSurfacesSnapshot, "preview" | "action" | "destination" | "account" | "removeAccount">)[] = [],
+  openWorkflow: readonly (keyof Pick<OpenSurfacesSnapshot, "preview" | "action" | "destination" | "account" | "removeAccount" | "folderShortcut">)[] = [],
   openChrome: readonly ChromeSurfaceKind[] = [],
   events: string[] = []
 ) => {
@@ -18,21 +18,24 @@ const createPorts = (
     action: openWorkflow.includes("action"),
     destination: openWorkflow.includes("destination"),
     account: openWorkflow.includes("account"),
-    removeAccount: openWorkflow.includes("removeAccount")
+    removeAccount: openWorkflow.includes("removeAccount"),
+    folderShortcut: openWorkflow.includes("folderShortcut")
   };
   const dismiss = {
     preview: vi.fn(() => { workflowState.preview = false; events.push("dismiss:preview"); }),
     action: vi.fn(() => { workflowState.action = false; events.push("dismiss:action"); }),
     destination: vi.fn(() => { workflowState.destination = false; events.push("dismiss:destination"); }),
     account: vi.fn(() => { workflowState.account = false; events.push("dismiss:account"); }),
-    removeAccount: vi.fn(() => { workflowState.removeAccount = false; events.push("dismiss:remove-account"); })
+    removeAccount: vi.fn(() => { workflowState.removeAccount = false; events.push("dismiss:remove-account"); }),
+    folderShortcut: vi.fn(() => { workflowState.folderShortcut = false; events.push("dismiss:folder-shortcut"); })
   };
   const workflow: WorkflowSurfacePorts = {
     preview: { isOpen: () => workflowState.preview, dismiss: dismiss.preview },
     action: { isOpen: () => workflowState.action, dismiss: dismiss.action },
     destination: { isOpen: () => workflowState.destination, dismiss: dismiss.destination },
     account: { isOpen: () => workflowState.account, dismiss: dismiss.account },
-    removeAccount: { isOpen: () => workflowState.removeAccount, dismiss: dismiss.removeAccount }
+    removeAccount: { isOpen: () => workflowState.removeAccount, dismiss: dismiss.removeAccount },
+    folderShortcut: { isOpen: () => workflowState.folderShortcut, dismiss: dismiss.folderShortcut }
   };
   const chromeState = {
     navigation: openChrome.includes("navigation"),
@@ -66,6 +69,7 @@ describe("workspaceSurfaceController", () => {
       { surface: "destination", workflow: ["destination"], chrome: [] },
       { surface: "account", workflow: ["account"], chrome: [] },
       { surface: "remove-account", workflow: ["removeAccount"], chrome: [] },
+      { surface: "folder-shortcut", workflow: ["folderShortcut"], chrome: [] },
       { surface: "settings", workflow: [], chrome: ["settings"] },
       { surface: "search", workflow: [], chrome: ["search"] },
       { surface: "navigation", workflow: [], chrome: ["navigation"] },
@@ -90,9 +94,9 @@ describe("workspaceSurfaceController", () => {
     }
   });
 
-  it("projects all ten live surfaces and returns a frozen snapshot", () => {
+  it("projects all eleven live surfaces and returns a frozen snapshot", () => {
     const setup = createPorts(
-      ["preview", "action", "destination", "account", "removeAccount"],
+      ["preview", "action", "destination", "account", "removeAccount", "folderShortcut"],
       ["settings", "search", "navigation", "mobile-details", "transfers"]
     );
 
@@ -104,6 +108,7 @@ describe("workspaceSurfaceController", () => {
       destination: true,
       account: true,
       removeAccount: true,
+      folderShortcut: true,
       navigation: true,
       search: true,
       mobileDetails: true,

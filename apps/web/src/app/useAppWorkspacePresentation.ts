@@ -25,6 +25,7 @@ import type { usePwaWorkspace } from "../features/pwa";
 import type { useTransfers } from "../features/transfers";
 import type { usePreviewWorkspace } from "../features/preview/workspace";
 import type { useSettingsPreferencesWorkspace } from "../features/settings";
+import type { FolderShortcutWorkspace } from "../features/folderShortcut";
 import {
   projectFileListSelectionBindings,
   projectSelectionWorkspacePresentation,
@@ -56,6 +57,7 @@ export interface AppWorkspacePresentationInput {
   readonly navigation: { readonly workspace: Navigation; readonly surface: NavigationSurfaceWorkspace; readonly viewport: ResponsiveViewport };
   readonly offline: { readonly application: OfflineApplicationWorkspaceResult; readonly sync: OfflineSync };
   readonly operation: { readonly workspace: OperationExecutionWorkspaceOutput; readonly selection: SelectionStateBindings; readonly interaction: SelectionInteractionWorkspaceCommands };
+  readonly folderShortcut: FolderShortcutWorkspace;
   readonly preview: Preview;
   readonly settings: Settings;
   readonly runtime: { readonly connectivity: Connectivity; readonly pwa: Pwa; readonly wakeLock: WakeLock; readonly transfers: Transfers; readonly status: WorkspaceStatus };
@@ -70,7 +72,7 @@ export interface AppWorkspacePresentationInput {
 }
 
 export function useAppWorkspacePresentation(input: AppWorkspacePresentationInput): AppShellProps {
-  const { account, browsing, navigation, offline, operation, preview, settings, runtime, services, ports } = input;
+  const { account, browsing, navigation, offline, operation, folderShortcut, preview, settings, runtime, services, ports } = input;
   const { context: accountContext, session, bootstrap, actions } = account;
   const { workspace: browsingWorkspace, load: folderLoadCoordination } = browsing;
   const { workspace: workspaceNavigation, surface: navigationSurfaceWorkspace, viewport } = navigation;
@@ -145,6 +147,7 @@ export function useAppWorkspacePresentation(input: AppWorkspacePresentationInput
       closeMobileDetails: () => workspaceNavigation.closeChrome("mobile-details"),
       navigateToFolder: workspaceNavigation.navigateToPath,
       openFile: (entry) => { void preview.bridge.openFile(entry, { preferFolderAudioPlayer: true }); },
+      openFolderShortcut: folderShortcut.commands.open,
       downloadFocused: (path, label) => { void operationWorkspace.download.downloadFocused(path, label); },
       downloadBatch: () => { void operationWorkspace.download.downloadBatch(); },
       keepOfflineFocused: (entry) => { void offlineSyncWorkspace.commands.open([entry]); },
@@ -251,6 +254,7 @@ export function useAppWorkspacePresentation(input: AppWorkspacePresentationInput
       }
     },
     overlays: {
+      folderShortcut: folderShortcut.stage,
       offlineSync: offlineSyncWorkspace.stage,
       connectAccount: actions.stages.connectDialog,
       mutation: operationWorkspace.mutation.stage,

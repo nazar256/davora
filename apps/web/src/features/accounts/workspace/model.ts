@@ -1,5 +1,7 @@
 import type { ConnectedAccount } from "@davora/shared";
 
+import { parseLocationSearch } from "../../navigation";
+import { buildLinkedAccountUnavailableMessage } from "../reset/model";
 import { selectActiveAccountRecord, type AccountRegistryState, type StoredAccountRecord } from "../registry";
 
 export type AccountWorkspaceRecord = Omit<StoredAccountRecord, "session">;
@@ -70,7 +72,7 @@ function readBootstrapSafeHost(account: ConnectedAccount | undefined): string | 
   }
 }
 
-export function projectAccountStateWorkspaceSnapshot(state: AccountRegistryState): AccountStateWorkspaceSnapshot {
+export function projectAccountStateWorkspaceSnapshot(state: AccountRegistryState, locationSearch?: string): AccountStateWorkspaceSnapshot {
   const sourceRecords = state.snapshot.accounts;
   const records = Object.freeze(sourceRecords.map(({ session: _session, ...record }) => record));
   const accounts = Object.freeze(records.map((record) => record.account));
@@ -99,11 +101,15 @@ export function projectAccountStateWorkspaceSnapshot(state: AccountRegistryState
   );
   const activeAccountId = operationalActiveAccount?.id;
   const activeAccountName = operationalActiveAccount?.displayName ?? "current account";
+  const linkedAccountId = locationSearch === undefined ? undefined : parseLocationSearch(locationSearch).accountId;
+  const linkedAccountMismatch = linkedAccountId !== undefined && linkedAccountId !== activeAccountId;
   const initialStatus = registryUnavailable
     ? state.message
-    : records.length > 0
-      ? "Restoring account state…"
-      : "Connect an account to begin.";
+    : linkedAccountMismatch
+      ? buildLinkedAccountUnavailableMessage(operationalActiveAccount ? activeAccountName : undefined)
+      : records.length > 0
+        ? "Restoring account state…"
+        : "Connect an account to begin.";
 
   return Object.freeze({
     registryState,

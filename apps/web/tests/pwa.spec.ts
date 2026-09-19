@@ -306,3 +306,72 @@ test("installed PWA opens with cached shell when the worker is stopped but brows
     await persistentContext.close();
   }
 });
+
+test("folder app install swaps to a folder-scoped manifest that Chrome parses", async ({ page, context }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "davora-ui-settings",
+      JSON.stringify({ experimentalFolderAppShortcutsEnabled: true })
+    );
+  });
+  await connectAccount(page, "Folder PWA workspace");
+  await waitForServiceWorkerControl(page);
+
+  // Hold the captured install prompt open so Chrome can resolve the swapped manifest.
+  await page.evaluate(() => {
+    const installEvent = new Event("beforeinstallprompt");
+    Object.defineProperty(installEvent, "prompt", {
+      value: () => new Promise<void>((resolve) => {
+        (window as unknown as { __releaseFolderPrompt: () => void }).__releaseFolderPrompt = resolve;
+      })
+    });
+    Object.defineProperty(installEvent, "userChoice", {
+      value: Promise.resolve({ outcome: "dismissed" })
+    });
+    window.dispatchEvent(installEvent);
+  });
+
+  await page.getByRole("button", { name: /Open actions for Projects/i }).click();
+  await page.getByRole("button", { name: /Folder shortcut/i }).click();
+  const dialog = page.getByRole("dialog", { name: "Folder shortcut" });
+  await expect(dialog).toBeVisible();
+  const link = await dialog.getByLabel("Folder link").inputValue();
+
+  await dialog.getByRole("button", { name: "Shortcut as app" }).click();
+  await expect
+    .poll(async () => page.evaluate(() => document.querySelector('link[rel="manifest"]')?.getAttribute("href")))
+    .toMatch(/^blob:/);
+
+  const client = await context.newCDPSession(page);
+  await client.send("Page.enable");
+  const appManifest = await client.send("Page.getAppManifest") as {
+    url?: string;
+    data?: string;
+    errors?: Array<{ message?: string }>;
+  };
+  expect(appManifest.url).toMatch(/^blob:/);
+  expect(appManifest.errors ?? []).toEqual([]);
+  const folderManifest = JSON.parse(appManifest.data ?? "{}") as {
+    id?: string;
+    start_url?: string;
+    scope?: string;
+    display?: string;
+    short_name?: string;
+    name?: string;
+  };
+  expect(folderManifest.display).toBe("standalone");
+  expect(folderManifest.short_name).toBe("Projects");
+  const expected = new URL(link);
+  const actual = new URL(folderManifest.start_url ?? "");
+  expect(actual.searchParams.get("path")).toBe(expected.searchParams.get("path"));
+  expect(actual.searchParams.get("account")).toBe(expected.searchParams.get("account"));
+  expect(folderManifest.id).toBe(folderManifest.start_url);
+
+  await page.evaluate(() => {
+    (window as unknown as { __releaseFolderPrompt?: () => void }).__releaseFolderPrompt?.();
+  });
+  await expect(dialog.getByText("Install was dismissed.")).toBeVisible();
+  await expect
+    .poll(async () => page.evaluate(() => document.querySelector('link[rel="manifest"]')?.getAttribute("href")))
+    .toBe("/manifest.webmanifest");
+});

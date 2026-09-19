@@ -51,7 +51,7 @@ const appIntegrationPaths = [...new Set(Object.values(appIntegrationOwners))];
 const contractIds = [
   "ACC-01", "ACC-02", "ACC-03", "ACC-04", "ACC-05", "ACC-06",
   "WS-01", "SORT-01", "ACC-07", "ACC-08",
-  "NAV-01", "NAV-02", "NAV-03", "NAV-04", "NAV-05",
+  "NAV-01", "NAV-02", "NAV-03", "NAV-04", "NAV-05", "NAV-06",
   "BRW-01", "BRW-02", "BRW-03", "BRW-04", "BRW-05", "BRW-06", "BRW-07", "BRW-08", "BRW-09", "BRW-10", "BRW-11",
   "MUT-01", "MUT-02", "MUT-03", "MUT-04", "MUT-05", "MUT-06", "MUT-07", "MUT-08", "MUT-09", "MUT-10", "MUT-11", "MUT-12",
   "OFF-01", "OFF-02", "OFF-03", "OFF-04", "OFF-05", "OFF-06", "OFF-07",
@@ -81,7 +81,8 @@ const coverage: Record<ContractId, OwnerCitation> = {
   "NAV-02": owner("integration", "src/features/navigation/AppNavigationIntegration.test.tsx", "keeps browser Back wired to the current workflow after an App rerender"),
   "NAV-03": owner("integration", "src/features/navigation/AppNavigationIntegration.test.tsx", "maps browser back to close settings and mobile search surfaces first"),
   "NAV-04": owner("unit", "src/features/navigation/pullToRefresh/usePullToRefresh.test.tsx", "refreshes and clears after a full pull release"),
-  "NAV-05": owner("unit", "src/features/navigation/useWorkspaceSurfaceCoordinator.test.ts", "combines all ten surfaces for pull-to-refresh reads"),
+  "NAV-05": owner("unit", "src/features/navigation/useWorkspaceSurfaceCoordinator.test.ts", "combines all eleven surfaces for pull-to-refresh reads"),
+  "NAV-06": owner("integration", "src/features/folderShortcut/AppFolderShortcutIntegration.test.tsx", "suppresses the folder path and warns when the linked account is unavailable"),
   "BRW-01": owner("unit", "src/features/browsing/workspace/AppBrowsingDisplayIntegration.test.tsx", "groups folders above files and sorts within each group by the active sort mode"),
   "BRW-02": owner("integration", "src/features/browsing/workspace/AppBrowsingDisplayIntegration.test.tsx", "uses breadcrumb home navigation without redundant all-files or up-level buttons"),
   "BRW-03": owner("unit", "src/features/browsing/favourites/useFavouriteActions.test.tsx", "exposes toggle, remove, reorder, and open through the favourites controller"),

@@ -36,7 +36,7 @@ describe("account reset controller", () => {
   it("restores first-mount path without syncing the url", () => {
     const ports = createPorts();
 
-    applyAccountSwitchPathReset(ports, { kind: "first-mount-restore", path: "Projects" });
+    applyAccountSwitchPathReset(ports, { kind: "first-mount-restore", path: "Projects", linkedAccountUnavailable: false });
 
     expect(ports.navigation.setPath).toHaveBeenCalledWith("Projects");
     expect(ports.navigation.syncPath).not.toHaveBeenCalled();
@@ -67,6 +67,21 @@ describe("account reset controller", () => {
     expect(ports.presentation.setStatus).toHaveBeenCalledWith("Active account: Beta workspace");
     expect(ports.session.applyTerminal).not.toHaveBeenCalled();
     expect(ports.transfers.failActiveForAccount).not.toHaveBeenCalled();
+  });
+
+  it("announces the linked-account warning instead of the active account on a first-mount mismatch", () => {
+    const ports = createPorts();
+
+    executeAccountSwitchReset(ports, {
+      isFirstAccountEffect: true,
+      locationSearch: "?path=Projects&account=beta",
+      hasActiveAccount: true,
+      accountId: "alpha",
+      accountDisplayName: "Alpha workspace"
+    });
+
+    expect(ports.navigation.setPath).toHaveBeenCalledWith("");
+    expect(ports.presentation.setStatus).toHaveBeenCalledWith("The linked account is unavailable; showing Alpha workspace.");
   });
 
   it("invokes session terminal reset without clearing search or path", () => {

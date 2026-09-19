@@ -32,6 +32,7 @@ export interface SelectionDetailsStageProps {
   readonly onDownloadSelected: () => void;
   readonly onKeepOfflineSelected: () => void;
   readonly onToggleFavourite: () => void;
+  readonly onFolderShortcut: () => void;
   readonly onToggleMobileSheetDetails: () => void;
   readonly onRenameSelected: () => void;
   readonly onCopyMoveSelected: () => void;
@@ -103,6 +104,7 @@ function SingleItemDetails(props: SelectionDetailsStageProps) {
           {props.canDownloadSelected ? <button onClick={props.onDownloadSelected} type="button">Download</button> : null}
           <button disabled={!props.canSyncSelectedOffline} onClick={props.onKeepOfflineSelected} type="button">Keep offline</button>
           <button aria-pressed={props.selectedIsFavourite} onClick={props.onToggleFavourite} type="button">{props.selectedFavouriteActionLabel}</button>
+          {item.isFolder ? <button onClick={props.onFolderShortcut} type="button">Folder shortcut</button> : null}
           {props.showMobileSelectionSheet ? (
             <button
               aria-label={props.mobileSheetDetailsExpanded ? "Back to actions" : "View details"}

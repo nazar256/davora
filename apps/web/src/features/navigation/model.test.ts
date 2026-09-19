@@ -22,12 +22,32 @@ const closedSurfaces = (): OpenSurfacesSnapshot => ({
   destination: false,
   account: false,
   removeAccount: false,
+  folderShortcut: false,
   settings: false,
   search: false,
   navigation: false,
   mobileDetails: false,
   transfers: false
 });
+
+const isOpenSurfaceKey = (value: string): value is keyof OpenSurfacesSnapshot =>
+  value in closedSurfaces();
+
+const surfaceKey = (surface: string): keyof OpenSurfacesSnapshot => {
+  if (surface === "remove-account") {
+    return "removeAccount";
+  }
+  if (surface === "mobile-details") {
+    return "mobileDetails";
+  }
+  if (surface === "folder-shortcut") {
+    return "folderShortcut";
+  }
+  if (!isOpenSurfaceKey(surface)) {
+    throw new Error(`Unknown surface kind: ${surface}`);
+  }
+  return surface;
+};
 
 const onlyOpen = (surface: keyof OpenSurfacesSnapshot): OpenSurfacesSnapshot => ({
   ...closedSurfaces(),
@@ -60,11 +80,7 @@ describe("navigation model", () => {
 
   it("dismisses only the top priority open surface on Back", () => {
     for (const surface of DISMISS_SURFACE_ORDER) {
-      const key = surface === "remove-account"
-        ? "removeAccount"
-        : surface === "mobile-details"
-          ? "mobileDetails"
-          : surface;
+      const key = surfaceKey(surface);
       const openSurfaces = onlyOpen(key);
       expect(resolvePopStateCommands({
         historyState: createHistoryState("alpha", "Projects"),
@@ -84,6 +100,7 @@ describe("navigation model", () => {
         destination: true,
         account: true,
         removeAccount: true,
+        folderShortcut: true,
         settings: true,
         search: true,
         navigation: true,
@@ -98,11 +115,7 @@ describe("navigation model", () => {
     let openSurfaces = closedSurfaces();
 
     for (const surface of order) {
-      const key = surface === "remove-account"
-        ? "removeAccount"
-        : surface === "mobile-details"
-          ? "mobileDetails"
-          : surface;
+      const key = surfaceKey(surface);
       openSurfaces = { ...openSurfaces, [key]: true };
       expect(resolvePopStateCommands({
         historyState: createHistoryState("alpha", "Projects"),
@@ -140,6 +153,7 @@ describe("navigation model", () => {
       "preview",
       "action",
       "destination",
+      "folder-shortcut",
       "account",
       "remove-account",
       "settings",
@@ -155,6 +169,7 @@ describe("navigation model", () => {
       destination: true,
       account: true,
       removeAccount: true,
+      folderShortcut: true,
       settings: true,
       search: true,
       navigation: true,
@@ -169,11 +184,7 @@ describe("navigation model", () => {
         openSurfaces
       })).toEqual([{ kind: "dismiss", surface }]);
 
-      const key = surface === "remove-account"
-        ? "removeAccount"
-        : surface === "mobile-details"
-          ? "mobileDetails"
-          : surface;
+      const key = surfaceKey(surface);
       openSurfaces = { ...openSurfaces, [key]: false };
     }
 
@@ -272,7 +283,8 @@ describe("navigation model", () => {
           action: false,
           destination: false,
           account: false,
-          removeAccount: false
+          removeAccount: false,
+          folderShortcut: false
         }
       )).toEqual({
         preview: true,
@@ -280,6 +292,7 @@ describe("navigation model", () => {
         destination: false,
         account: false,
         removeAccount: false,
+        folderShortcut: false,
         settings: true,
         search: false,
         navigation: true,

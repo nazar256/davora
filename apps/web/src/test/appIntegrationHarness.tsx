@@ -349,7 +349,7 @@ const mockedCache = browsingCacheFixture.repository;
 const mockedHeicPreview = vi.mocked(heicPreview);
 const mockedRetentionRepository = retentionFixture.repository;
 
-const createObjectUrlMock = vi.fn(() => "blob:preview");
+const createObjectUrlMock = vi.fn((_blob: Blob) => "blob:preview");
 const revokeObjectUrlMock = vi.fn();
 const windowOpenMock = vi.fn<Window["open"]>(() => window);
 const addMediaListenerMock = vi.fn();

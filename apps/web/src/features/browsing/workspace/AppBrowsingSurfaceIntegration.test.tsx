@@ -139,7 +139,7 @@ const defaultSettings: UiSettings = {
   previewFreshnessIntervalSeconds: 60,
   keepAwakeEnabled: true,
   showHiddenFiles: false,
-  experimentalHeicPreviewEnabled: false,
+  experimentalHeicPreviewEnabled: false, experimentalFolderAppShortcutsEnabled: false,
   sortMode: "name-asc" as const
 };
 let settings: UiSettings = { ...defaultSettings };

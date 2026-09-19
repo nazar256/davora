@@ -28,7 +28,34 @@ describe("account reset model", () => {
         accountId: "alpha"
       })).toEqual({
         kind: "first-mount-restore",
-        path: "Projects"
+        path: "Projects",
+        linkedAccountUnavailable: false
+      });
+    });
+
+    it("suppresses a url path when the linked account does not match the active account", () => {
+      expect(planAccountSwitchPathReset({
+        isFirstAccountEffect: true,
+        locationSearch: "?path=Projects&account=beta",
+        hasActiveAccount: true,
+        accountId: "alpha"
+      })).toEqual({
+        kind: "first-mount-restore",
+        path: "",
+        linkedAccountUnavailable: true
+      });
+    });
+
+    it("restores a url path without a linked account under the active account", () => {
+      expect(planAccountSwitchPathReset({
+        isFirstAccountEffect: true,
+        locationSearch: "?path=Projects",
+        hasActiveAccount: true,
+        accountId: "alpha"
+      })).toEqual({
+        kind: "first-mount-restore",
+        path: "Projects",
+        linkedAccountUnavailable: false
       });
     });
 
@@ -40,7 +67,8 @@ describe("account reset model", () => {
         accountId: "alpha"
       })).toEqual({
         kind: "first-mount-restore",
-        path: ""
+        path: "",
+        linkedAccountUnavailable: false
       });
     });
 
@@ -51,7 +79,8 @@ describe("account reset model", () => {
         hasActiveAccount: false
       })).toEqual({
         kind: "first-mount-restore",
-        path: ""
+        path: "",
+        linkedAccountUnavailable: true
       });
     });
 

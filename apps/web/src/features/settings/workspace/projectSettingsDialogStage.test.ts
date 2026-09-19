@@ -22,6 +22,7 @@ function createInput(): SettingsDialogStageProjectionInput {
       handleKeepAwakeEnabledChange: command,
       handleShowHiddenFilesChange: command,
       handleExperimentalHeicPreviewEnabledChange: command,
+      handleExperimentalFolderAppShortcutsEnabledChange: command,
       handleSortModeChange: command
     },
     surface: {
@@ -84,7 +85,8 @@ describe("projectSettingsDialogStage", () => {
       keepAwakeEnabled: true,
       keepAwakeState: "idle",
       showHiddenFiles: false,
-      experimentalHeicPreviewEnabled: false
+      experimentalHeicPreviewEnabled: false,
+      experimentalFolderAppShortcutsEnabled: false
     });
     expect(stage).not.toHaveProperty("token");
     expect(stage).not.toHaveProperty("password");

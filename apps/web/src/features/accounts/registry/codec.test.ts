@@ -36,6 +36,34 @@ describe("account registry codec", () => {
     expect(decoded.repair.kind).toBe("write");
   });
 
+  it("activates the url-preferred account when it is known and operational", () => {
+    const alpha = buildAccount("alpha");
+    const beta = buildAccount("beta");
+    const raw = JSON.stringify({
+      activeAccountId: "alpha",
+      accounts: [{ account: alpha }, { account: beta }]
+    });
+
+    const decoded = decodeAccountRegistry(raw, () => false, { preferredActiveAccountId: "beta" });
+
+    expect(decoded.snapshot.activeAccountId).toBe("beta");
+  });
+
+  it("ignores a url-preferred account that is unknown or pending removal", () => {
+    const alpha = buildAccount("alpha");
+    const beta = buildAccount("beta");
+    const raw = JSON.stringify({
+      activeAccountId: "alpha",
+      accounts: [
+        { account: alpha },
+        { account: beta, pendingRemoval: { phase: "revoke" } }
+      ]
+    });
+
+    expect(decodeAccountRegistry(raw, () => false, { preferredActiveAccountId: "missing" }).snapshot.activeAccountId).toBe("alpha");
+    expect(decodeAccountRegistry(raw, () => false, { preferredActiveAccountId: "beta" }).snapshot.activeAccountId).toBe("alpha");
+  });
+
   it("turns a corrupt root into a deferred delete repair and stable warning", () => {
     expect(decodeAccountRegistry("not-json", (value) => Date.parse(value) <= NOW)).toEqual({
       kind: "repaired",

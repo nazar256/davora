@@ -10,6 +10,8 @@ export interface AccountStateWorkspaceInput {
   readonly registry: AccountRegistryService;
   readonly transport: Pick<AccountTransport, "connectAccount">;
   readonly session: Pick<AccountSessionPorts, "markAccountReconnectRequired" | "clearAccountSession">;
+  /** Initial URL search, used to notice when a linked account cannot be shown. */
+  readonly locationSearch?: string;
 }
 
 export interface AccountStateWorkspaceCommands {

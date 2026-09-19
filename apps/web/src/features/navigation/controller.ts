@@ -21,6 +21,7 @@ export const createNavigationCommandApplicationPorts = (
     destination: () => source.closeDestinationPicker(),
     account: () => source.setShowAccountDialog(false),
     removeAccount: () => source.setRemoveAccountTarget(undefined),
+    folderShortcut: () => source.dismissFolderShortcut(),
     chrome: (surface) => source.dismissChrome(surface)
   },
   navigate: {
@@ -62,6 +63,9 @@ export const applyNavigationDismiss = (
       break;
     case "remove-account":
       ports.dismiss.removeAccount();
+      break;
+    case "folder-shortcut":
+      ports.dismiss.folderShortcut();
       break;
     case "settings":
     case "search":

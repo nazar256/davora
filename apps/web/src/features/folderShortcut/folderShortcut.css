@@ -1,0 +1,45 @@
+.folder-shortcut-dialog {
+  max-height: min(90dvh, 42rem);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  overflow: hidden;
+}
+
+.folder-shortcut-dialog .dialog-scroll-body {
+  min-height: 0;
+}
+
+.folder-shortcut-dialog .dialog-actions {
+  justify-content: flex-end;
+  padding-top: var(--space-3);
+  border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+.folder-shortcut-link {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.folder-shortcut-link input {
+  width: 100%;
+  font-family: var(--font-body);
+}
+
+.folder-shortcut-app-section {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+.folder-shortcut-app-section .subtitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.folder-shortcut-note {
+  color: var(--color-text-muted);
+}

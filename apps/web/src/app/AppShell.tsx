@@ -14,6 +14,7 @@ import {
 import {
   SettingsDialogStage
 } from "../features/settings";
+import { FolderShortcutStage } from "../features/folderShortcut";
 import { OfflineSyncConfirmStage } from "../features/offline/sync";
 import {
   MutationWorkflowStage,
@@ -63,6 +64,7 @@ interface WorkspaceBindings {
 
 interface WorkspaceOverlayBindings {
   readonly settings: ComponentProps<typeof SettingsDialogStage>;
+  readonly folderShortcut: ComponentProps<typeof FolderShortcutStage>;
   readonly offlineSync: ComponentProps<typeof OfflineSyncConfirmStage>;
   readonly connectAccount: ComponentProps<typeof ConnectAccountDialogStage>;
   readonly mutation: ComponentProps<typeof MutationWorkflowStage>;
@@ -136,6 +138,7 @@ export function AppShell(props: AppShellProps) {
       </main>
 
       <SettingsDialogStage {...overlays.settings} />
+      <FolderShortcutStage {...overlays.folderShortcut} />
       <OfflineSyncConfirmStage {...overlays.offlineSync} />
       <ConnectAccountDialogStage {...overlays.connectAccount} />
       <RemoveAccountStage {...common.removeAccount} />

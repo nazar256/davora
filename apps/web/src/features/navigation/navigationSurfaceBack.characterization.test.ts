@@ -25,8 +25,8 @@ const sourcePaths = {
 
 const sourceDigest = (path: string): string => createHash("sha256").update(readFileSync(path, "utf8")).digest("hex");
 const lockedSourceDigests = {
-  model: "a8f61bdd45ce516c26471f9962ff2a05e45c66c119d6f571596811ce9a9b3309",
-  controller: "26dad85af388bbdb384fda6323c6855f6bb43e32a0b7576a4238ba726fab4d0f",
+  model: "b5d3712ef51780ebd1483c97cb8e33e7dec939e5895297d22b5653e2dae85e03",
+  controller: "4b20520fe5fd86731699a6ce07c53bfd060fa7363d345b5fd0fa49744c3a6fa4",
   coordinator: "3ba508e1ccddf50e80f404b8a3f8541c0337f79c043b1cad84fd7420da3d4280"
 } as const;
 
@@ -36,6 +36,7 @@ const surfaceKeys: Record<string, keyof OpenSurfacesSnapshot> = {
   destination: "destination",
   account: "account",
   "remove-account": "removeAccount",
+  "folder-shortcut": "folderShortcut",
   settings: "settings",
   search: "search",
   navigation: "navigation",
@@ -49,6 +50,7 @@ const closedSurfaces = (): OpenSurfacesSnapshot => ({
   destination: false,
   account: false,
   removeAccount: false,
+  folderShortcut: false,
   settings: false,
   search: false,
   navigation: false,
@@ -95,21 +97,24 @@ const createWorkflow = (open: readonly string[] = [], events: string[] = []) => 
     action: open.includes("action"),
     destination: open.includes("destination"),
     account: open.includes("account"),
-    removeAccount: open.includes("remove-account")
+    removeAccount: open.includes("remove-account"),
+    folderShortcut: open.includes("folder-shortcut")
   };
   const dismiss = {
     preview: vi.fn(() => { state.preview = false; events.push("dismiss:preview"); }),
     action: vi.fn(() => { state.action = false; events.push("dismiss:action"); }),
     destination: vi.fn(() => { state.destination = false; events.push("dismiss:destination"); }),
     account: vi.fn(() => { state.account = false; events.push("dismiss:account"); }),
-    removeAccount: vi.fn(() => { state.removeAccount = false; events.push("dismiss:remove-account"); })
+    removeAccount: vi.fn(() => { state.removeAccount = false; events.push("dismiss:remove-account"); }),
+    folderShortcut: vi.fn(() => { state.folderShortcut = false; events.push("dismiss:folder-shortcut"); })
   };
   const workflow: WorkflowSurfacePorts = {
     preview: { isOpen: () => state.preview, dismiss: dismiss.preview },
     action: { isOpen: () => state.action, dismiss: dismiss.action },
     destination: { isOpen: () => state.destination, dismiss: dismiss.destination },
     account: { isOpen: () => state.account, dismiss: dismiss.account },
-    removeAccount: { isOpen: () => state.removeAccount, dismiss: dismiss.removeAccount }
+    removeAccount: { isOpen: () => state.removeAccount, dismiss: dismiss.removeAccount },
+    folderShortcut: { isOpen: () => state.folderShortcut, dismiss: dismiss.folderShortcut }
   };
   return { state, dismiss, workflow };
 };
@@ -154,7 +159,7 @@ describe("navigation surface and Back characterization", () => {
     const eventLog: string[] = [];
     const port = createLeakyHistory();
     const workflow = createWorkflow([
-      "preview", "action", "destination", "account", "remove-account"
+      "preview", "action", "destination", "folder-shortcut", "account", "remove-account"
     ], eventLog);
     const setup = createCoordinatorInput(
       port,
@@ -174,7 +179,7 @@ describe("navigation surface and Back characterization", () => {
       `navigate:Archive-${index}`
     ]);
     expect(eventLog).toEqual(expectedEvents);
-    expect(eventLog.filter((event) => event.startsWith("dismiss:"))).toHaveLength(10);
+    expect(eventLog.filter((event) => event.startsWith("dismiss:"))).toHaveLength(11);
     expect(new Set(eventLog.filter((event) => event.startsWith("dismiss:")))).toEqual(
       new Set(DISMISS_SURFACE_ORDER.map((surface) => `dismiss:${surface}`))
     );
@@ -219,7 +224,7 @@ describe("navigation surface and Back characterization", () => {
       lockedSourceDigests
     );
     expect(DISMISS_SURFACE_ORDER).toEqual([
-      "preview", "action", "destination", "account", "remove-account",
+      "preview", "action", "destination", "folder-shortcut", "account", "remove-account",
       "settings", "search", "navigation", "mobile-details", "transfers"
     ]);
   });

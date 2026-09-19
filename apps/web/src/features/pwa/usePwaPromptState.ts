@@ -4,7 +4,9 @@ import {
   isInstallAvailable,
   nextInstallStateAfterChoice,
   shouldClearNeedRefreshInDev,
-  shouldShowUpdatePrompt
+  shouldShowUpdatePrompt,
+  type InstallCaptureOwner,
+  type InstallOutcome
 } from "./model";
 import type { BeforeInstallPromptEvent, PwaRuntimePorts } from "./ports";
 
@@ -13,6 +15,10 @@ export interface PwaPromptState {
   installing: boolean;
   reloading: boolean;
   needRefresh: boolean;
+  installCaptureOwner: InstallCaptureOwner;
+  installCaptureAvailable: boolean;
+  setInstallCaptureOwner(owner: InstallCaptureOwner): void;
+  promptInstallCapture(owner: InstallCaptureOwner): Promise<InstallOutcome | "unavailable">;
   dismissUpdatePrompt(): void;
   installApp(): Promise<void>;
   reloadApp(): Promise<void>;
@@ -27,6 +33,17 @@ export function usePwaPromptState(ports: PwaRuntimePorts): PwaPromptState {
     updateServiceWorker
   } = ports;
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | undefined>();
+  const installPromptRef = useRef<BeforeInstallPromptEvent | undefined>();
+  const storeInstallPrompt = useCallback((event: BeforeInstallPromptEvent | undefined) => {
+    installPromptRef.current = event;
+    setInstallPrompt(event);
+  }, []);
+  const [installCaptureOwner, setInstallCaptureOwnerState] = useState<InstallCaptureOwner>("app");
+  const installCaptureOwnerRef = useRef<InstallCaptureOwner>("app");
+  const setInstallCaptureOwner = useCallback((owner: InstallCaptureOwner) => {
+    installCaptureOwnerRef.current = owner;
+    setInstallCaptureOwnerState(owner);
+  }, []);
   const [installing, setInstalling] = useState(false);
   const [installPromptDismissed, setInstallPromptDismissed] = useState(false);
   const [reloading, setReloading] = useState(false);
@@ -75,12 +92,12 @@ export function usePwaPromptState(ports: PwaRuntimePorts): PwaPromptState {
 
     const unsubscribeStandalone = subscribeStandaloneChange(syncStandalone);
     const unsubscribeBeforeInstallPrompt = subscribeBeforeInstallPrompt((event) => {
-      setInstallPrompt(event);
+      storeInstallPrompt(event);
       setInstallPromptDismissed(false);
     });
     const unsubscribeAppInstalled = subscribeAppInstalled(() => {
       setStandalone(true);
-      setInstallPrompt(undefined);
+      storeInstallPrompt(undefined);
       setInstallPromptDismissed(false);
     });
 
@@ -89,7 +106,7 @@ export function usePwaPromptState(ports: PwaRuntimePorts): PwaPromptState {
       unsubscribeBeforeInstallPrompt();
       unsubscribeAppInstalled();
     };
-  }, [isStandalone, subscribeStandaloneChange, subscribeBeforeInstallPrompt, subscribeAppInstalled]);
+  }, [isStandalone, subscribeStandaloneChange, subscribeBeforeInstallPrompt, subscribeAppInstalled, storeInstallPrompt]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -124,7 +141,8 @@ export function usePwaPromptState(ports: PwaRuntimePorts): PwaPromptState {
     setNeedRefresh(false);
   }, [needRefresh, setNeedRefresh]);
 
-  const installAvailable = isInstallAvailable(Boolean(installPrompt), installPromptDismissed, standalone);
+  const installAvailable = isInstallAvailable(Boolean(installPrompt), installPromptDismissed, standalone)
+    && installCaptureOwner === "app";
 
   const installApp = async () => {
     if (!installPrompt) {
@@ -137,7 +155,7 @@ export function usePwaPromptState(ports: PwaRuntimePorts): PwaPromptState {
       const choice = await installPrompt.userChoice;
       const nextState = nextInstallStateAfterChoice(choice.outcome);
       if (nextState.clearPrompt) {
-        setInstallPrompt(undefined);
+        storeInstallPrompt(undefined);
       }
       setInstallPromptDismissed(nextState.dismissed);
     } catch {
@@ -146,6 +164,25 @@ export function usePwaPromptState(ports: PwaRuntimePorts): PwaPromptState {
       setInstalling(false);
     }
   };
+
+  const promptInstallCapture = useCallback(async (owner: InstallCaptureOwner): Promise<InstallOutcome | "unavailable"> => {
+    if (owner !== installCaptureOwnerRef.current) {
+      return "unavailable";
+    }
+    const event = installPromptRef.current;
+    if (!event) {
+      return "unavailable";
+    }
+    try {
+      await event.prompt();
+      const choice = await event.userChoice;
+      storeInstallPrompt(undefined);
+      return choice.outcome;
+    } catch {
+      storeInstallPrompt(undefined);
+      return "unavailable";
+    }
+  }, [storeInstallPrompt]);
 
   const reloadApp = async () => {
     if (reloadInFlightRef.current || !mountedRef.current) {
@@ -233,6 +270,10 @@ export function usePwaPromptState(ports: PwaRuntimePorts): PwaPromptState {
     installing,
     reloading,
     needRefresh: visibleNeedRefresh,
+    installCaptureOwner,
+    installCaptureAvailable: installPrompt !== undefined,
+    setInstallCaptureOwner,
+    promptInstallCapture,
     dismissUpdatePrompt: () => setNeedRefresh(false),
     installApp,
     reloadApp

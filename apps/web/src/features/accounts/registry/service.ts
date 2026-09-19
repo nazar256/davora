@@ -60,9 +60,15 @@ export interface AccountRegistryService {
   retryRemovalCommit(retryToken: string): RegistryRemovalOutcome;
 }
 
+export interface AccountRegistryServiceOptions {
+  /** Account identity requested by the current URL (for example a folder deep link). */
+  readonly preferredActiveAccountId?: string;
+}
+
 export function createAccountRegistryService(
   storage: AccountRegistryStorage,
-  clock: AccountRegistryClock = { isExpired: () => false }
+  clock: AccountRegistryClock = { isExpired: () => false },
+  options: AccountRegistryServiceOptions = {}
 ): AccountRegistryService {
   const read = storage.readItem(STORAGE_KEY);
   let pendingRepair: RegistryRepair = { kind: "none" };
@@ -72,7 +78,7 @@ export function createAccountRegistryService(
   if (!read.ok) {
     state = { kind: "unavailable", snapshot: EMPTY_ACCOUNT_REGISTRY, message: "Saved account data is unavailable." };
   } else {
-    const decoded = decodeAccountRegistry(read.value ?? null, clock.isExpired);
+    const decoded = decodeAccountRegistry(read.value ?? null, clock.isExpired, options);
     pendingRepair = decoded.repair;
     repairWarning = decoded.warning;
     state = {

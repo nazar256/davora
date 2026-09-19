@@ -25,6 +25,7 @@ function settingsCommands(): SettingsPreferencesWorkspaceCommands {
     handleKeepAwakeEnabledChange: vi.fn(),
     handleShowHiddenFilesChange: vi.fn(),
     handleExperimentalHeicPreviewEnabledChange: vi.fn(),
+    handleExperimentalFolderAppShortcutsEnabledChange: vi.fn(),
     handleSortModeChange: vi.fn()
   };
 }
@@ -119,6 +120,7 @@ function compositionInput(
       shellToggle
     },
     overlays: {
+      folderShortcut: leaf("folder-shortcut"),
       offlineSync: leaf("offline-sync"),
       connectAccount: leaf("connect-account"),
       mutation: leaf("mutation"),

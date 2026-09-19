@@ -34,6 +34,7 @@ export const hasAnyOpenSurface = (openSurfaces: OpenSurfacesSnapshot): boolean =
   || openSurfaces.destination
   || openSurfaces.account
   || openSurfaces.removeAccount
+  || openSurfaces.folderShortcut
   || openSurfaces.settings
   || openSurfaces.search
   || openSurfaces.navigation
