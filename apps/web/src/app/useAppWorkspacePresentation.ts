@@ -7,6 +7,7 @@ import {
   projectBrowsingSurfaceBindings,
   useAppBarWorkspace,
   useNavigationDrawerWorkspace,
+  useQuickActionsWorkspace,
   type BrowsingWorkspaceOutput,
   type FolderLoadCoordination
 } from "../features/browsing";
@@ -160,6 +161,27 @@ export function useAppWorkspacePresentation(input: AppWorkspacePresentationInput
       deleteBatch: operationWorkspace.commands.openDeleteSelection
     }
   });
+  const quickActionsWorkspace = useQuickActionsWorkspace({
+    owners: {
+      account: accountContext,
+      navigation: workspaceNavigation,
+      operation: operationWorkspace,
+      viewport,
+      surfaces: {
+        navigationDrawerOpen: workspaceNavigation.navigationDrawerOpen,
+        mobileSearchOpen: workspaceNavigation.mobileSearchOpen,
+        mobileDetailsOpen: workspaceNavigation.mobileDetailsOpen,
+        settingsOpen: workspaceNavigation.showSettingsDialog,
+        transfersOpen: workspaceNavigation.transferOpen,
+        mutationSurfaceOpen: operationWorkspace.mutation.state.surface.kind !== "none",
+        previewOpen: preview.modal.previewOpen,
+        accountSurfaceOpen: actions.snapshot.surface !== "none",
+        offlineSyncOpen: offlineSyncWorkspace.snapshot.dialog !== undefined,
+        selectionModeActive: selectionPresentation.selectionModeActive
+      }
+    },
+    ports: { directoryUploadInputRef: ports.directoryUploadInputRef }
+  });
   const browsingSurface = projectBrowsingSurfaceBindings({
     owners: {
       browse: browsingWorkspace,
@@ -225,7 +247,8 @@ export function useAppWorkspacePresentation(input: AppWorkspacePresentationInput
       browseHeader: browsingSurface.browseHeader,
       folderAudio: { interaction: preview.folderAudio.interaction },
       fileList: browsingSurface.fileList,
-      selectionDetails: selectionPresentation.detailsStage
+      selectionDetails: selectionPresentation.detailsStage,
+      quickActions: quickActionsWorkspace.binding?.props
     },
     settings: {
       preferences: settings.preferences,

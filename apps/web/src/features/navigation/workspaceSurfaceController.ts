@@ -38,7 +38,8 @@ const isChromeSurface = (surface: DismissSurfaceKind): surface is ChromeSurfaceK
   || surface === "search"
   || surface === "navigation"
   || surface === "mobile-details"
-  || surface === "transfers";
+  || surface === "transfers"
+  || surface === "quick-actions";
 
 const dismissWorkflowSurface = (ports: WorkflowSurfacePorts, surface: DismissSurfaceKind): boolean => {
   switch (surface) {
@@ -62,6 +63,7 @@ const dismissWorkflowSurface = (ports: WorkflowSurfacePorts, surface: DismissSur
     case "navigation":
     case "mobile-details":
     case "transfers":
+    case "quick-actions":
       return false;
   }
 };

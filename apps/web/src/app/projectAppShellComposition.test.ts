@@ -101,7 +101,8 @@ function compositionInput(
       browseHeader: leaf("browse-header"),
       folderAudio: leaf("folder-audio"),
       fileList: leaf("file-list"),
-      selectionDetails: leaf("selection-details")
+      selectionDetails: leaf("selection-details"),
+      quickActions: leaf("quick-actions")
     },
     settings,
     bootstrap: {
@@ -141,6 +142,7 @@ describe("projectAppShellComposition", () => {
     expect(projected.workspace.folderAudio).toBe(input.workspace.folderAudio);
     expect(projected.workspace.fileList).toBe(input.workspace.fileList);
     expect(projected.workspace.selectionDetails).toBe(input.workspace.selectionDetails);
+    expect(projected.workspace.quickActions).toBe(input.workspace.quickActions);
     expect(projected.common.reloadPrompt).toBe(input.common.reloadPrompt);
     expect(projected.common.appBar).toBe(input.common.appBar);
     expect(projected.common.navigationDrawer).toBe(input.common.navigationDrawer);

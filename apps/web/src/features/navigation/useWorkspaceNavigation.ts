@@ -35,7 +35,8 @@ const isChromeSurface = (surface: DismissSurfaceKind): surface is ChromeSurfaceK
   || surface === "search"
   || surface === "navigation"
   || surface === "mobile-details"
-  || surface === "transfers";
+  || surface === "transfers"
+  || surface === "quick-actions";
 
 export const useWorkspaceNavigation = (input: WorkspaceNavigationInput) => {
   const initialLocationRef = useRef(readLocation(input.port));
@@ -106,7 +107,7 @@ export const useWorkspaceNavigation = (input: WorkspaceNavigationInput) => {
     }
   }, [closeChrome]);
   const clearChromeForPathNavigate = useCallback(() => {
-    setChrome((previous) => ({ ...previous, navigation: false, mobileDetails: false }));
+    setChrome((previous) => ({ ...previous, navigation: false, mobileDetails: false, quickActions: false }));
   }, []);
   const applyHistoryPath = useCallback((path: string) => {
     const current = inputRef.current;
@@ -146,6 +147,7 @@ export const useWorkspaceNavigation = (input: WorkspaceNavigationInput) => {
     mobileDetailsOpen: chrome.mobileDetails,
     showSettingsDialog: chrome.settings,
     transferOpen: chrome.transfers,
+    quickActionsOpen: chrome.quickActions,
     openChrome,
     closeChrome,
     dismissChrome,

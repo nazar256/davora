@@ -7,7 +7,8 @@ export type SurfaceKind =
   | "search"
   | "navigation"
   | "mobile-details"
-  | "transfers";
+  | "transfers"
+  | "quick-actions";
 
 /** Destination picker shares the action history label but dismisses before account dialogs. */
 export type DismissSurfaceKind = SurfaceKind | "destination";
@@ -30,11 +31,12 @@ export interface OpenSurfacesSnapshot {
   readonly navigation: boolean;
   readonly mobileDetails: boolean;
   readonly transfers: boolean;
+  readonly quickActions: boolean;
 }
 
 export type ChromeSurfaceKind = Extract<
   SurfaceKind,
-  "navigation" | "search" | "mobile-details" | "settings" | "transfers"
+  "navigation" | "search" | "mobile-details" | "settings" | "transfers" | "quick-actions"
 >;
 
 export interface ChromeSurfacesSnapshot {
@@ -43,6 +45,7 @@ export interface ChromeSurfacesSnapshot {
   readonly mobileDetails: boolean;
   readonly settings: boolean;
   readonly transfers: boolean;
+  readonly quickActions: boolean;
 }
 
 export interface WorkflowSurfacesSnapshot {
@@ -58,7 +61,8 @@ export const CHROME_SURFACE_KEYS: Readonly<Record<ChromeSurfaceKind, keyof Chrom
   search: "search",
   "mobile-details": "mobileDetails",
   settings: "settings",
-  transfers: "transfers"
+  transfers: "transfers",
+  "quick-actions": "quickActions"
 };
 
 export const closedChromeSurfaces = (): ChromeSurfacesSnapshot => Object.freeze({
@@ -66,7 +70,8 @@ export const closedChromeSurfaces = (): ChromeSurfacesSnapshot => Object.freeze(
   search: false,
   mobileDetails: false,
   settings: false,
-  transfers: false
+  transfers: false,
+  quickActions: false
 });
 
 export const openChromeSurface = (
@@ -95,6 +100,7 @@ export const applyChromeDismiss = (
     case "navigation":
     case "mobile-details":
     case "transfers":
+    case "quick-actions":
       return closeChromeSurface(snapshot, surface);
     case "preview":
     case "action":
@@ -110,7 +116,8 @@ export const clearChromeOnPathNavigate = (
 ): ChromeSurfacesSnapshot => Object.freeze({
   ...snapshot,
   navigation: false,
-  mobileDetails: false
+  mobileDetails: false,
+  quickActions: false
 });
 
 export const mergeOpenSurfaces = (
@@ -122,7 +129,8 @@ export const mergeOpenSurfaces = (
   search: chrome.search,
   navigation: chrome.navigation,
   mobileDetails: chrome.mobileDetails,
-  transfers: chrome.transfers
+  transfers: chrome.transfers,
+  quickActions: chrome.quickActions
 });
 
 export type ChromeOpenHistoryMode = boolean | "if-closed";
@@ -146,6 +154,7 @@ export type NavigationCommand =
   | { readonly kind: "navigate"; readonly path: string };
 
 export const DISMISS_SURFACE_ORDER: readonly DismissSurfaceKind[] = [
+  "quick-actions",
   "preview",
   "action",
   "destination",
@@ -168,7 +177,8 @@ const DISMISS_SURFACE_KEYS: Readonly<Record<DismissSurfaceKind, keyof OpenSurfac
   search: "search",
   navigation: "navigation",
   "mobile-details": "mobileDetails",
-  transfers: "transfers"
+  transfers: "transfers",
+  "quick-actions": "quickActions"
 };
 
 const isSurfaceKind = (value: unknown): value is SurfaceKind =>
@@ -180,7 +190,8 @@ const isSurfaceKind = (value: unknown): value is SurfaceKind =>
   || value === "search"
   || value === "navigation"
   || value === "mobile-details"
-  || value === "transfers";
+  || value === "transfers"
+  || value === "quick-actions";
 
 const isHistoryRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);

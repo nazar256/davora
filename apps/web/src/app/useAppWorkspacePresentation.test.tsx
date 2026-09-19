@@ -2,7 +2,7 @@ import { renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AppShellCompositionInput } from "./projectAppShellComposition";
-import type { AppBarWorkspaceInput, BrowsingSurfaceInput, NavigationDrawerWorkspaceInput } from "../features/browsing";
+import type { AppBarWorkspaceInput, BrowsingSurfaceInput, NavigationDrawerWorkspaceInput, QuickActionsWorkspaceInput } from "../features/browsing";
 import type { SelectionFileListBindingsInput, SelectionWorkspacePresentationInput } from "../features/operations";
 
 const mocks = vi.hoisted(() => ({
@@ -11,14 +11,16 @@ const mocks = vi.hoisted(() => ({
   projectFileListSelectionBindings: vi.fn<(input: SelectionFileListBindingsInput) => unknown>(),
   projectSelectionWorkspacePresentation: vi.fn<(input: SelectionWorkspacePresentationInput) => unknown>(),
   useAppBarWorkspace: vi.fn<(input: AppBarWorkspaceInput) => unknown>(),
-  useNavigationDrawerWorkspace: vi.fn<(input: NavigationDrawerWorkspaceInput) => unknown>()
+  useNavigationDrawerWorkspace: vi.fn<(input: NavigationDrawerWorkspaceInput) => unknown>(),
+  useQuickActionsWorkspace: vi.fn<(input: QuickActionsWorkspaceInput) => unknown>()
 }));
 
 vi.mock("./projectAppShellComposition", () => ({ projectAppShellComposition: mocks.projectAppShellComposition }));
 vi.mock("../features/browsing", () => ({
   projectBrowsingSurfaceBindings: mocks.projectBrowsingSurfaceBindings,
   useAppBarWorkspace: mocks.useAppBarWorkspace,
-  useNavigationDrawerWorkspace: mocks.useNavigationDrawerWorkspace
+  useNavigationDrawerWorkspace: mocks.useNavigationDrawerWorkspace,
+  useQuickActionsWorkspace: mocks.useQuickActionsWorkspace
 }));
 vi.mock("../features/operations", () => ({
   projectFileListSelectionBindings: mocks.projectFileListSelectionBindings,
@@ -33,10 +35,11 @@ describe("useAppWorkspacePresentation", () => {
     const appBarBinding = { marker: "app-bar" };
     const fileListSelection = { marker: "file-list-selection" };
     const selectionDetails = { marker: "selection-details" };
-    const selectionPresentation = { detailsStage: selectionDetails, showDetailsRail: true, marker: "selection" };
+    const selectionPresentation = { detailsStage: selectionDetails, showDetailsRail: true, marker: "selection", selectionModeActive: false };
     const browseHeader = { marker: "browse-header" };
     const browsingFileList = { marker: "browsing-file-list" };
     const shell = { marker: "app-shell" };
+    const quickActions = { marker: "quick-actions" };
     const openChrome = vi.fn();
     const closeChrome = vi.fn();
     const openPreview = vi.fn(async () => undefined);
@@ -47,6 +50,7 @@ describe("useAppWorkspacePresentation", () => {
       binding: navigationDrawerBinding,
       favourites: { entries: [], isFavourite: () => true, toggle: favouriteToggle }
     });
+    mocks.useQuickActionsWorkspace.mockReturnValue({ binding: { props: quickActions } });
     mocks.projectFileListSelectionBindings.mockReturnValue(fileListSelection);
     mocks.projectSelectionWorkspacePresentation.mockReturnValue(selectionPresentation);
     mocks.projectBrowsingSurfaceBindings.mockReturnValue({ browseHeader, fileList: browsingFileList });
@@ -73,6 +77,7 @@ describe("useAppWorkspacePresentation", () => {
         },
         actions: {
           commands: { marker: "account-commands" },
+          snapshot: { surface: "none" },
           stages: {
             bootstrapConnect: { marker: "bootstrap-connect" },
             connectDialog: { marker: "connect-dialog" },
@@ -89,20 +94,20 @@ describe("useAppWorkspacePresentation", () => {
         load: { loadFolder: vi.fn() }
       },
       navigation: {
-        workspace: { closeChrome, navigateToPath: vi.fn(), openChrome, mobileDetailsOpen: false, showSettingsDialog: true },
+        workspace: { closeChrome, navigateToPath: vi.fn(), openChrome, mobileDetailsOpen: false, showSettingsDialog: true, navigationDrawerOpen: false, mobileSearchOpen: false, transferOpen: false, quickActionsOpen: false },
         surface: { pullToRefresh: { shell: { marker: "pull-shell" } } },
         viewport: { isNarrowScreen: false }
       },
       offline: {
         application: { explicitOfflineMode: false, settingsCache: { marker: "settings-cache" }, shellToggle: vi.fn() },
-        sync: { commands: { open: vi.fn() }, stage: { marker: "offline-sync" } }
+        sync: { commands: { open: vi.fn() }, snapshot: { busy: false, dialog: undefined }, stage: { marker: "offline-sync" } }
       },
       operation: {
         workspace: {
           capabilities: { canDownloadSelected: true },
           commands: { openCopyMove: vi.fn(), openCopyMoveSelection: vi.fn(), openDelete: vi.fn(), openDeleteSelection: vi.fn(), openMove: vi.fn() },
           download: { downloadBatch: vi.fn(), downloadFocused: vi.fn() },
-          mutation: { stage: { marker: "mutation" }, state: { busy: false } }
+          mutation: { stage: { marker: "mutation" }, state: { busy: false, surface: { kind: "none" } } }
         },
         selection: {
           focused: { selectedEntry, mobileSubview: "actions", clear: vi.fn(), showMobileActions: vi.fn(), showMobileDetails: vi.fn() },
@@ -113,6 +118,7 @@ describe("useAppWorkspacePresentation", () => {
       preview: {
         bridge: { openFile: openPreview, snapshot: () => ({ modal: { selected: undefined } }) },
         folderAudio: { hasPlayer: true, interaction: { marker: "folder-audio" } },
+        modal: { previewOpen: false },
         stage: { marker: "preview" }
       },
       settings: { preferences: { fileSizeDisplayMode: "binary" }, commands: { marker: "settings-commands" } },
@@ -171,8 +177,22 @@ describe("useAppWorkspacePresentation", () => {
       browseHeader,
       fileList: browsingFileList,
       selectionDetails,
+      quickActions,
       browsePanelClassName: "browse-panel-with-audio"
     }));
+    const quickActionsInput = mocks.useQuickActionsWorkspace.mock.calls[0][0];
+    expect(quickActionsInput.owners.navigation).toBe(input.navigation.workspace);
+    expect(quickActionsInput.owners.operation).toBe(input.operation.workspace);
+    expect(quickActionsInput.owners.viewport).toBe(input.navigation.viewport);
+    expect(quickActionsInput.owners.surfaces).toEqual(expect.objectContaining({
+      settingsOpen: true,
+      mutationSurfaceOpen: false,
+      previewOpen: false,
+      accountSurfaceOpen: false,
+      offlineSyncOpen: false,
+      selectionModeActive: false
+    }));
+    expect(quickActionsInput.ports.directoryUploadInputRef).toBe(input.ports.directoryUploadInputRef);
     expect(shellInput.settings).toEqual(expect.objectContaining({ open: true, closeChrome }));
     shellInput.settings.closeChrome("settings");
     expect(closeChrome).toHaveBeenCalledWith("settings");

@@ -7,6 +7,7 @@ export * from "./presentation";
 export * from "./browseHeader";
 export * from "./fileList";
 export * from "./navDrawer";
+export * from "./quickActions";
 export * from "./appBar";
 export * from "./cache";
 export * from "./workspace";

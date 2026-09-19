@@ -8,7 +8,8 @@ vi.mock("../features/browsing", () => ({
   AppBarStage: () => <div data-stage="app-bar" />,
   BrowseHeaderStage: () => <div data-stage="browse-header" />,
   FileListStage: forwardRef<HTMLElement>((_props, ref) => <section data-stage="file-list" ref={ref} />),
-  NavDrawerStage: () => <div data-stage="nav-drawer" />
+  NavDrawerStage: () => <div data-stage="nav-drawer" />,
+  QuickActionsStage: () => <div data-stage="quick-actions" />
 }));
 
 vi.mock("../features/accounts", () => ({
@@ -63,6 +64,21 @@ function stageOrder(container: HTMLElement): string[] {
 }
 
 const mockedStageProps = null!;
+const mockedQuickActionsStage: NonNullable<
+  Extract<AppShellProps, { kind: "workspace" }>["workspace"]["quickActions"]
+> = {
+  open: false,
+  canUploadFiles: true,
+  canUploadFolders: true,
+  canCreateFolder: true,
+  mutationBusy: false,
+  onToggle: vi.fn(),
+  onDismiss: vi.fn(),
+  onUploadFiles: vi.fn(),
+  onUploadFolder: vi.fn(),
+  onCreateFolder: vi.fn(),
+  directoryUploadInputRef: vi.fn()
+};
 
 function commonBindings(navigationKey = "account-a") {
   return {
@@ -85,6 +101,7 @@ function workspaceProps(input: {
   navigationKey?: string;
   fileListRef?: (element: HTMLElement | null) => void;
   onToggleOffline?: () => void;
+  quickActions?: boolean;
   pullToRefresh?: {
     visible?: boolean;
     progress?: number;
@@ -119,7 +136,8 @@ function workspaceProps(input: {
       browseHeader: mockedStageProps,
       folderAudio: mockedStageProps,
       fileList: { props: mockedStageProps, ref: input.fileListRef },
-      selectionDetails: mockedStageProps
+      selectionDetails: mockedStageProps,
+      quickActions: input.quickActions ? mockedQuickActionsStage : undefined
     },
     overlays: {
       settings: mockedStageProps,
@@ -184,6 +202,7 @@ describe("AppShell", () => {
       "mutation",
       "preview"
     ]);
+    expect(container.querySelector("[data-stage='quick-actions']")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Go offline" }));
     expect(onToggleOffline).toHaveBeenCalledTimes(1);
@@ -191,6 +210,18 @@ describe("AppShell", () => {
 
     unmount();
     expect(fileListRef).toHaveBeenLastCalledWith(null);
+  });
+
+  it("mounts the quick-actions stage inside the workspace when bound", () => {
+    const { container, unmount } = render(<AppShell {...workspaceProps({ quickActions: true })} />);
+
+    const stage = container.querySelector("[data-stage='quick-actions']");
+    expect(stage).not.toBeNull();
+    expect(stage?.parentElement?.tagName).toBe("MAIN");
+    expect(stageOrder(container).indexOf("quick-actions")).toBeGreaterThan(stageOrder(container).indexOf("file-list"));
+    expect(stageOrder(container).indexOf("quick-actions")).toBeLessThan(stageOrder(container).indexOf("selection-details"));
+
+    unmount();
   });
 
   it("uses the active-account key as the navigation-drawer remount boundary", () => {

@@ -162,6 +162,7 @@ describe("useWorkspaceNavigation", () => {
       result.current.openChrome("search", { pushHistory: false });
       result.current.openChrome("mobile-details", { pushHistory: false });
       result.current.openChrome("settings", { pushHistory: false });
+      result.current.openChrome("quick-actions", { pushHistory: false });
       result.current.clearChromeForPathNavigate();
     });
     expect(result.current.snapshot).toEqual({
@@ -169,8 +170,22 @@ describe("useWorkspaceNavigation", () => {
       search: true,
       mobileDetails: false,
       settings: true,
-      transfers: false
+      transfers: false,
+      quickActions: false
     });
+  });
+
+  it("opens and dismisses the quick-actions chrome surface with history", () => {
+    const port = createHistory();
+    const { result } = renderHook(() => useWorkspaceNavigation(createInput(port)));
+
+    act(() => result.current.openChrome("quick-actions"));
+    expect(result.current.quickActionsOpen).toBe(true);
+    expect(port.getState()).toEqual(createHistoryState("alpha", "Projects", "quick-actions"));
+    expect(port.pushes).toBe(1);
+
+    act(() => result.current.dismissChrome("quick-actions"));
+    expect(result.current.quickActionsOpen).toBe(false);
   });
 
   it("applies commands and navigates to a path with the stable workspace callbacks", () => {

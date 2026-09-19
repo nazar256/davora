@@ -13,6 +13,7 @@ import {
   resolvePathFromHistoryState,
   resolvePopStateCommands,
   shouldPushChromeHistory,
+  type DismissSurfaceKind,
   type OpenSurfacesSnapshot
 } from "./model";
 
@@ -26,8 +27,25 @@ const closedSurfaces = (): OpenSurfacesSnapshot => ({
   search: false,
   navigation: false,
   mobileDetails: false,
-  transfers: false
+  transfers: false,
+  quickActions: false
 });
+
+const surfaceKeyMap: Readonly<Record<DismissSurfaceKind, keyof OpenSurfacesSnapshot>> = {
+  preview: "preview",
+  action: "action",
+  destination: "destination",
+  account: "account",
+  "remove-account": "removeAccount",
+  settings: "settings",
+  search: "search",
+  navigation: "navigation",
+  "mobile-details": "mobileDetails",
+  transfers: "transfers",
+  "quick-actions": "quickActions"
+};
+
+const surfaceKey = (surface: DismissSurfaceKind): keyof OpenSurfacesSnapshot => surfaceKeyMap[surface];
 
 const onlyOpen = (surface: keyof OpenSurfacesSnapshot): OpenSurfacesSnapshot => ({
   ...closedSurfaces(),
@@ -60,12 +78,7 @@ describe("navigation model", () => {
 
   it("dismisses only the top priority open surface on Back", () => {
     for (const surface of DISMISS_SURFACE_ORDER) {
-      const key = surface === "remove-account"
-        ? "removeAccount"
-        : surface === "mobile-details"
-          ? "mobileDetails"
-          : surface;
-      const openSurfaces = onlyOpen(key);
+      const openSurfaces = onlyOpen(surfaceKey(surface));
       expect(resolvePopStateCommands({
         historyState: createHistoryState("alpha", "Projects"),
         currentPath: "Projects",
@@ -74,7 +87,7 @@ describe("navigation model", () => {
     }
   });
 
-  it("prefers preview over every other open surface", () => {
+  it("prefers quick actions over every other open surface", () => {
     expect(resolvePopStateCommands({
       historyState: createHistoryState("alpha", "Projects"),
       currentPath: "Projects",
@@ -88,9 +101,10 @@ describe("navigation model", () => {
         search: true,
         navigation: true,
         mobileDetails: true,
-        transfers: true
+        transfers: true,
+        quickActions: true
       }
-    })).toEqual([{ kind: "dismiss", surface: "preview" }]);
+    })).toEqual([{ kind: "dismiss", surface: "quick-actions" }]);
   });
 
   it("follows the NAV-02 dismiss order across surfaces used today", () => {
@@ -98,11 +112,7 @@ describe("navigation model", () => {
     let openSurfaces = closedSurfaces();
 
     for (const surface of order) {
-      const key = surface === "remove-account"
-        ? "removeAccount"
-        : surface === "mobile-details"
-          ? "mobileDetails"
-          : surface;
+      const key = surfaceKey(surface);
       openSurfaces = { ...openSurfaces, [key]: true };
       expect(resolvePopStateCommands({
         historyState: createHistoryState("alpha", "Projects"),
@@ -137,6 +147,7 @@ describe("navigation model", () => {
 
   it("uses the exact dismiss order when workflow and chrome surfaces are simultaneous", () => {
     expect(DISMISS_SURFACE_ORDER).toEqual([
+      "quick-actions",
       "preview",
       "action",
       "destination",
@@ -159,7 +170,8 @@ describe("navigation model", () => {
       search: true,
       navigation: true,
       mobileDetails: true,
-      transfers: true
+      transfers: true,
+      quickActions: true
     };
 
     for (const surface of DISMISS_SURFACE_ORDER) {
@@ -169,12 +181,7 @@ describe("navigation model", () => {
         openSurfaces
       })).toEqual([{ kind: "dismiss", surface }]);
 
-      const key = surface === "remove-account"
-        ? "removeAccount"
-        : surface === "mobile-details"
-          ? "mobileDetails"
-          : surface;
-      openSurfaces = { ...openSurfaces, [key]: false };
+      openSurfaces = { ...openSurfaces, [surfaceKey(surface)]: false };
     }
 
     expect(resolvePopStateCommands({
@@ -240,13 +247,14 @@ describe("navigation model", () => {
       expect(applyChromeDismiss(chrome, "search").search).toBe(false);
     });
 
-    it("clears drawer and mobile details on path navigation", () => {
+    it("clears drawer, mobile details, and quick actions on path navigation", () => {
       const chrome = clearChromeOnPathNavigate({
         navigation: true,
         search: true,
         mobileDetails: true,
         settings: true,
-        transfers: true
+        transfers: true,
+        quickActions: true
       });
 
       expect(chrome).toEqual({
@@ -254,7 +262,8 @@ describe("navigation model", () => {
         search: true,
         mobileDetails: false,
         settings: true,
-        transfers: true
+        transfers: true,
+        quickActions: false
       });
     });
 
@@ -265,7 +274,8 @@ describe("navigation model", () => {
           search: false,
           mobileDetails: false,
           settings: true,
-          transfers: false
+          transfers: false,
+          quickActions: true
         },
         {
           preview: true,
@@ -284,7 +294,8 @@ describe("navigation model", () => {
         search: false,
         navigation: true,
         mobileDetails: false,
-        transfers: false
+        transfers: false,
+        quickActions: true
       });
     });
 

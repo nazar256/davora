@@ -25,8 +25,8 @@ const sourcePaths = {
 
 const sourceDigest = (path: string): string => createHash("sha256").update(readFileSync(path, "utf8")).digest("hex");
 const lockedSourceDigests = {
-  model: "a8f61bdd45ce516c26471f9962ff2a05e45c66c119d6f571596811ce9a9b3309",
-  controller: "26dad85af388bbdb384fda6323c6855f6bb43e32a0b7576a4238ba726fab4d0f",
+  model: "76f3938ccdfd8f3bca9d2d6eb02c26db75c590f3d69d814914fe0b7e40010420",
+  controller: "42936fe7a5f21a0adb3012477c0ef4ddde727ef61402192a1baf583f405f4f26",
   coordinator: "3ba508e1ccddf50e80f404b8a3f8541c0337f79c043b1cad84fd7420da3d4280"
 } as const;
 
@@ -40,7 +40,8 @@ const surfaceKeys: Record<string, keyof OpenSurfacesSnapshot> = {
   search: "search",
   navigation: "navigation",
   "mobile-details": "mobileDetails",
-  transfers: "transfers"
+  transfers: "transfers",
+  "quick-actions": "quickActions"
 };
 
 const closedSurfaces = (): OpenSurfacesSnapshot => ({
@@ -53,7 +54,8 @@ const closedSurfaces = (): OpenSurfacesSnapshot => ({
   search: false,
   navigation: false,
   mobileDetails: false,
-  transfers: false
+  transfers: false,
+  quickActions: false
 });
 
 type MutableOpenSurfacesSnapshot = {
@@ -125,7 +127,8 @@ const createCoordinatorInput = (
     search: openChrome.includes("search"),
     mobileDetails: openChrome.includes("mobile-details"),
     settings: openChrome.includes("settings"),
-    transfers: openChrome.includes("transfers")
+    transfers: openChrome.includes("transfers"),
+    quickActions: openChrome.includes("quick-actions")
   };
   let currentPath = "Projects";
   const navigation = {
@@ -133,7 +136,11 @@ const createCoordinatorInput = (
     getChromeSnapshot: () => chrome,
     dismissChrome: vi.fn((surface: ChromeSurfaceKind) => {
       eventLog.push(`dismiss:${surface}`);
-      const key = surface === "mobile-details" ? "mobileDetails" : surface;
+      const key = surface === "mobile-details"
+        ? "mobileDetails"
+        : surface === "quick-actions"
+          ? "quickActions"
+          : surface;
       chrome[key] = false;
     }),
     applyHistoryPath: vi.fn((path: string) => {
@@ -159,7 +166,7 @@ describe("navigation surface and Back characterization", () => {
     const setup = createCoordinatorInput(
       port,
       workflow.workflow,
-      ["settings", "search", "navigation", "mobile-details", "transfers"],
+      ["settings", "search", "navigation", "mobile-details", "transfers", "quick-actions"],
       eventLog
     );
     const hook = renderHook(() => useWorkspaceSurfaceCoordinator(setup.input));
@@ -174,7 +181,7 @@ describe("navigation surface and Back characterization", () => {
       `navigate:Archive-${index}`
     ]);
     expect(eventLog).toEqual(expectedEvents);
-    expect(eventLog.filter((event) => event.startsWith("dismiss:"))).toHaveLength(10);
+    expect(eventLog.filter((event) => event.startsWith("dismiss:"))).toHaveLength(11);
     expect(new Set(eventLog.filter((event) => event.startsWith("dismiss:")))).toEqual(
       new Set(DISMISS_SURFACE_ORDER.map((surface) => `dismiss:${surface}`))
     );
@@ -219,7 +226,7 @@ describe("navigation surface and Back characterization", () => {
       lockedSourceDigests
     );
     expect(DISMISS_SURFACE_ORDER).toEqual([
-      "preview", "action", "destination", "account", "remove-account",
+      "quick-actions", "preview", "action", "destination", "account", "remove-account",
       "settings", "search", "navigation", "mobile-details", "transfers"
     ]);
   });

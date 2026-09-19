@@ -1,0 +1,156 @@
+/* Floating quick-action chrome owned by QuickActionsStage. Renders only on
+ * narrow viewports where the browse header toolbar is hidden; the workspace
+ * binding also withholds it whenever a competing surface is active. */
+.quick-actions {
+  position: fixed;
+  right: max(var(--space-4), env(safe-area-inset-right));
+  bottom: max(var(--space-4), env(safe-area-inset-bottom));
+  z-index: 16;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.quick-actions-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.quick-actions-menu {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: var(--space-1);
+  min-width: 12rem;
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-overlay);
+  box-shadow: var(--shadow-overlay);
+  transform-origin: bottom right;
+  animation: quick-actions-menu-in var(--motion-normal) ease;
+}
+
+@keyframes quick-actions-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.quick-actions-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--touch-target);
+  padding-inline: 0.85rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+  font-weight: 500;
+  text-align: left;
+}
+
+.quick-actions-item > svg {
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+  flex: 0 0 auto;
+}
+
+.quick-actions-item:hover {
+  border-color: transparent;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+
+.quick-actions-item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.quick-actions-fab {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  box-shadow: var(--shadow-overlay);
+  cursor: pointer;
+}
+
+.quick-actions-fab > svg {
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  transition: transform var(--motion-fast) ease;
+}
+
+.quick-actions.open .quick-actions-fab > svg {
+  transform: rotate(45deg);
+}
+
+.quick-actions-fab:hover {
+  background: var(--color-accent-strong);
+}
+
+.quick-actions-fab:focus-visible,
+.quick-actions-item:focus-visible,
+.quick-actions-scrim:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-overlay), var(--focus-ring);
+}
+
+.quick-actions-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  clip-path: inset(50%);
+}
+
+@media (min-width: 901px) {
+  .quick-actions {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  /* Keep the last file row scrollable above the FAB without shrinking the
+   * panel itself, so outer viewport geometry stays unchanged. */
+  .shell:has(.quick-actions) .file-list-panel {
+    padding-bottom: 5.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quick-actions-menu,
+  .quick-actions-fab > svg {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -30,5 +30,6 @@
 @import "./features/browsing/favourites/favourites.css" layer(features);
 @import "./features/browsing/appBar/appBar.css" layer(features);
 @import "./features/browsing/navDrawer/navDrawer.css" layer(features);
+@import "./features/browsing/quickActions/quickActions.css" layer(features);
 @import "./css/utilities.css" layer(utilities);
 @import "./css/overrides.css" layer(overrides);

@@ -39,14 +39,19 @@ const createPorts = (
     search: openChrome.includes("search"),
     mobileDetails: openChrome.includes("mobile-details"),
     settings: openChrome.includes("settings"),
-    transfers: openChrome.includes("transfers")
+    transfers: openChrome.includes("transfers"),
+    quickActions: openChrome.includes("quick-actions")
   };
   let currentPath = "Projects";
   const navigation = {
     getCurrentPath: () => currentPath,
     getChromeSnapshot: () => chromeState,
     dismissChrome: vi.fn((surface: ChromeSurfaceKind) => {
-      const key = surface === "mobile-details" ? "mobileDetails" : surface;
+      const key = surface === "mobile-details"
+        ? "mobileDetails"
+        : surface === "quick-actions"
+          ? "quickActions"
+          : surface;
       chromeState[key] = false;
       events.push(`dismiss:${surface}`);
     }),
@@ -70,7 +75,8 @@ describe("workspaceSurfaceController", () => {
       { surface: "search", workflow: [], chrome: ["search"] },
       { surface: "navigation", workflow: [], chrome: ["navigation"] },
       { surface: "mobile-details", workflow: [], chrome: ["mobile-details"] },
-      { surface: "transfers", workflow: [], chrome: ["transfers"] }
+      { surface: "transfers", workflow: [], chrome: ["transfers"] },
+      { surface: "quick-actions", workflow: [], chrome: ["quick-actions"] }
     ] as const;
     for (const testCase of cases) {
       const events: string[] = [];
@@ -90,10 +96,10 @@ describe("workspaceSurfaceController", () => {
     }
   });
 
-  it("projects all ten live surfaces and returns a frozen snapshot", () => {
+  it("projects all eleven live surfaces and returns a frozen snapshot", () => {
     const setup = createPorts(
       ["preview", "action", "destination", "account", "removeAccount"],
-      ["settings", "search", "navigation", "mobile-details", "transfers"]
+      ["settings", "search", "navigation", "mobile-details", "transfers", "quick-actions"]
     );
 
     const snapshot = getWorkspaceOpenSurfaces(setup.ports);
@@ -108,7 +114,8 @@ describe("workspaceSurfaceController", () => {
       search: true,
       mobileDetails: true,
       settings: true,
-      transfers: true
+      transfers: true,
+      quickActions: true
     });
     expect(Object.isFrozen(snapshot)).toBe(true);
   });
