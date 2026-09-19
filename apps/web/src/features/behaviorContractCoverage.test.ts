@@ -50,7 +50,7 @@ const appIntegrationPaths = [...new Set(Object.values(appIntegrationOwners))];
 
 const contractIds = [
   "ACC-01", "ACC-02", "ACC-03", "ACC-04", "ACC-05", "ACC-06",
-  "WS-01", "SORT-01", "ACC-07", "ACC-08",
+  "WS-01", "SORT-01", "SORT-02", "ACC-07", "ACC-08",
   "NAV-01", "NAV-02", "NAV-03", "NAV-04", "NAV-05",
   "BRW-01", "BRW-02", "BRW-03", "BRW-04", "BRW-05", "BRW-06", "BRW-07", "BRW-08", "BRW-09", "BRW-10", "BRW-11",
   "MUT-01", "MUT-02", "MUT-03", "MUT-04", "MUT-05", "MUT-06", "MUT-07", "MUT-08", "MUT-09", "MUT-10", "MUT-11", "MUT-12",
@@ -74,7 +74,8 @@ const coverage: Record<ContractId, OwnerCitation> = {
   "ACC-05": owner("integration", "src/features/accounts/workspace/AppAccountBootstrapIntegration.test.tsx", "pauses automatic restore after a terminal session failure until the user retries manually"),
   "ACC-06": owner("integration", "src/features/accounts/workspace/AppAccountBootstrapIntegration.test.tsx", "uses the first operational account for bootstrap while settings keeps a pending management target"),
   "WS-01": owner("unit", "src/features/workspace/status/useWorkspaceStatus.test.tsx", "keeps commands stable and preserves same-turn last-writer order"),
-  "SORT-01": owner("unit", "src/features/browsing/appBar/useAppBarSortPanel.test.tsx", "keeps the panel open when the settings callback throws"),
+  "SORT-01": owner("unit", "src/features/browsing/appBar/useAppBarSortPanel.test.tsx", "keeps the panel open when the sort callback throws"),
+  "SORT-02": owner("unit", "src/features/browsing/folderSort/useFolderSort.test.tsx", "promotes a saved folder sort into the carried context for later unsaved folders"),
   "ACC-07": owner("unit", "../worker/tests/persisted-account-state-codec.test.ts", "rejects malformed envelopes and wrong secrets without exposing error details"),
   "ACC-08": owner("unit", "src/browser-ownership-account-transport.characterization.test.ts", "reads the latest committed pair for every request rather than caching authority"),
   "NAV-01": owner("unit", "src/features/navigation/useWorkspaceNavigation.test.ts", "syncs path and account to the URL through the port"),

@@ -239,3 +239,40 @@ test("captures the mobile pull-to-refresh gesture indicator", async ({ page }, t
   await expect(indicator).toHaveCSS("pointer-events", "none");
   await saveScreenshot(page, "davora-mobile-pull-refresh-gesture.png");
 });
+
+test("captures the PER-54 folder sort reset confirmation in both themes", async ({ page }, testInfo) => {
+  const isMobile = testInfo.project.name === "mobile-chrome";
+  await connectAccount(page, "PER-54 folder sort workspace");
+  await page.getByRole("button", { name: /Open folder Projects/i }).click();
+  if (isMobile) {
+    await page.getByRole("button", { name: /Open sort options/i }).click();
+    await page.getByRole("button", { name: "Name Z-A", exact: true }).click();
+  } else {
+    await page.getByLabel("Sort files and folders").selectOption("name-desc");
+  }
+
+  for (const mode of ["Light", "Dark"] as const) {
+    const suffix = mode.toLowerCase();
+    await setThemeMode(page, mode);
+    if (isMobile) {
+      const sortPanel = page.getByRole("group", { name: "Sort options", exact: true });
+      if (!await sortPanel.isVisible().catch(() => false)) {
+        await page.getByRole("button", { name: /Open sort options/i }).click();
+      }
+      await sortPanel.getByRole("button", { name: "Reset folder sort settings" }).click();
+      await expect(sortPanel.getByText("Clear saved sort for 1 folder?")).toBeVisible();
+      await page.mouse.move(1, 1);
+      await saveScreenshot(page, `davora-folder-sort-reset-mobile-${suffix}.png`);
+      await sortPanel.getByRole("button", { name: "Cancel", exact: true }).click();
+    } else {
+      const resetButton = page.getByRole("button", { name: /Reset saved folder sort settings/i });
+      await expect(resetButton).toBeEnabled();
+      await resetButton.click();
+      const confirm = page.getByRole("group", { name: /Confirm clearing folder sort settings/i });
+      await expect(confirm.getByText("Clear saved sort for 1 folder?")).toBeVisible();
+      await page.mouse.move(1, 1);
+      await saveScreenshot(page, `davora-folder-sort-reset-desktop-${suffix}.png`);
+      await confirm.getByRole("button", { name: "Cancel" }).click();
+    }
+  }
+});

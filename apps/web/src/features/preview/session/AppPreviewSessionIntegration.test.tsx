@@ -11,6 +11,7 @@ import { createAccountRegistryService, type AccountRegistryService, type Account
 import type { AccountTransport } from "../../../features/accounts/transport/ports";
 import type { AccountSessionPorts } from "../../../features/accounts/session/ports";
 import type { BrowsingCacheRepository, FavouriteEntry, FavouritesService } from "../../../features/browsing";
+import { createMemoryFolderSortService } from "../../../features/browsing/folderSort/testing/fakeStorage";
 import type { FolderLoadOutcome } from "../../../features/browsing/folder/ports";
 import type { SearchLoadOutcome } from "../../../features/browsing/search/ports";
 import type { FavouritesPointerEnvironment } from "../../../features/browsing/favourites/ports";
@@ -137,7 +138,7 @@ function createPreviewSessionFixture(): AppServices {
   const accountRegistry: AccountRegistryService = createAccountRegistryService(storageFor());
   const accountSession: AccountSessionPorts = { getHealth: accountTransport.getHealth, createSession: accountTransport.createSession, commitSession: (accountId, session) => accountRegistry.commitSession(accountId, session), markAccountReconnectRequired: (accountId) => accountRegistry.markAccountReconnectRequired(accountId), clearAccountSession: (accountId) => accountRegistry.clearAccountSession(accountId), delay: async (ms) => { await new Promise((resolve) => setTimeout(resolve, ms)); } };
   const previewRuntime = createPreviewComposition({ retentionRepository: mockedRetentionRepository, previewTransport });
-  const services = { accountRegistry, accountTransport, accountSession, browsingCache, favouriteResolveRuntime: { listFiles: async (path: string, token: string) => mockedApi.listFiles(path, token), cacheFolder: () => undefined }, connectivity, explicitOfflineRuntime, clock, favourites, favouritesPointerEnvironment: pointerEnvironment, folder: folderPorts, history: historyPort, pullToRefreshEnvironment: pullToRefresh, responsiveViewport: viewport, search: searchPorts, settings: { load: () => DEFAULT_UI_SETTINGS, save: (settings) => settings } satisfies SettingsService, operationRuntime, offlineSyncRuntime, retentionRepository: mockedRetentionRepository, previewRuntime, accountRemovalRuntime } satisfies AppServices;
+  const services = { accountRegistry, accountTransport, accountSession, browsingCache, favouriteResolveRuntime: { listFiles: async (path: string, token: string) => mockedApi.listFiles(path, token), cacheFolder: () => undefined }, connectivity, explicitOfflineRuntime, clock, favourites, favouritesPointerEnvironment: pointerEnvironment, folder: folderPorts, folderSorts: createMemoryFolderSortService(), history: historyPort, pullToRefreshEnvironment: pullToRefresh, responsiveViewport: viewport, search: searchPorts, settings: { load: () => DEFAULT_UI_SETTINGS, save: (settings) => settings } satisfies SettingsService, operationRuntime, offlineSyncRuntime, retentionRepository: mockedRetentionRepository, previewRuntime, accountRemovalRuntime } satisfies AppServices;
   return services;
 }
 beforeEach(() => {

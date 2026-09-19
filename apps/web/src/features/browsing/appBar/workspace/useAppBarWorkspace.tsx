@@ -5,7 +5,7 @@ import { dirname, type ConnectedAccount } from "@davora/shared";
 import type { AccountBootstrapGate } from "../../../accounts";
 import type { AppBarStageProps } from "../stage";
 import { useAppBarSortPanel } from "../sortPanel";
-import type { SortMode } from "../../model";
+import type { FolderSortController } from "../../folderSort";
 import type { PwaInstallBinding } from "../../../pwa";
 import { TransferTrayStage, type TransferTask, useTransferTray } from "../../../transfers";
 
@@ -30,6 +30,7 @@ export interface AppBarWorkspaceOwners {
       readonly locationLabel: string;
       readonly showRoutineCachedRefresh: boolean;
     };
+    readonly sort: FolderSortController;
   };
   readonly navigation: {
     readonly currentPath: string;
@@ -41,10 +42,6 @@ export interface AppBarWorkspaceOwners {
     readonly navigateToPath: (path: string) => void;
   };
   readonly offline: { readonly explicitOfflineMode: boolean };
-  readonly settings: {
-    readonly preferences: { readonly sortMode: SortMode };
-    readonly commands: { readonly handleSortModeChange: (mode: SortMode) => void };
-  };
   readonly pwa: { readonly install: PwaInstallBinding };
   readonly wakeLock: { readonly active: boolean; readonly reasonLabel: string };
   readonly transfers: {
@@ -63,7 +60,7 @@ export interface AppBarWorkspaceOutput {
 }
 
 export function useAppBarWorkspace({ owners }: AppBarWorkspaceInput): AppBarWorkspaceOutput {
-  const sortPanel = useAppBarSortPanel({ onSortModeChange: owners.settings.commands.handleSortModeChange });
+  const sortPanel = useAppBarSortPanel({ sort: owners.browsing.sort });
   const transferTray = useTransferTray({
     ports: useMemo(() => ({
       chrome: {
@@ -110,7 +107,7 @@ export function useAppBarWorkspace({ owners }: AppBarWorkspaceInput): AppBarWork
       screenWakeLockReasonLabel: owners.wakeLock.reasonLabel,
       searchQuery: owners.browsing.query.raw,
       showRoutineCachedRefresh: owners.browsing.presentation.showRoutineCachedRefresh,
-      sortMode: owners.settings.preferences.sortMode,
+      sortMode: owners.browsing.sort.mode,
       sortPanel,
       supportText: owners.bootstrap.gate.kind === "continue"
         ? owners.browsing.presentation.locationLabel

@@ -8,6 +8,7 @@ import { createPreviewComposition } from "../../../app/createPreviewComposition"
 import { createAccountRegistryService } from "../../accounts";
 import type { AccountTransport } from "../../accounts";
 import type { BrowsingCacheRepository, FolderPorts, SearchPorts } from "../../browsing";
+import { createMemoryFolderSortService } from "../../browsing/folderSort/testing/fakeStorage";
 import { DEFAULT_UI_SETTINGS, normalizeUiSettings } from "../../settings";
 import { WIDE_RESPONSIVE_VIEWPORT_SNAPSHOT, type ResponsiveViewportPort } from "../../navigation";
 type ConnectedAccount = ReturnType<AppServices["accountRegistry"]["getState"]>["snapshot"]["accounts"][number]["account"];
@@ -167,6 +168,7 @@ function createAudioFixture(): AppServices {
     accountRegistry: registry, accountTransport, accountSession, browsingCache: cache, favouriteResolveRuntime: { listFiles: async () => ({ items: [] }), cacheFolder: () => undefined }, connectivity, explicitOfflineRuntime, clock,
     favourites: { load: () => ({ kind: "loaded", entries: [] }), save: () => ({ kind: "saved", entries: [] }), clear: () => ({ kind: "cleared" }), create: (entry: FileEntry) => ({ ...entry, accountId: "alpha", accountBackend: "mock", accountRootPath: "", cacheNamespace: "ns-alpha", addedAt: clock.nowIso() }) },
     favouritesPointerEnvironment: { elementFromPoint: () => null, addWindowListener: () => () => undefined }, folder,
+    folderSorts: createMemoryFolderSortService(),
     history: { pushState: (state: unknown, url?: string) => window.history.pushState(state, "", url), replaceState: (state: unknown, url?: string) => window.history.replaceState(state, "", url), getState: (): unknown => window.history.state, getLocation: () => ({ href: window.location.href, search: window.location.search }), subscribe: (listener: (state: unknown) => void) => { const handler = () => listener(window.history.state); window.addEventListener("popstate", handler); return () => window.removeEventListener("popstate", handler); } },
     pullToRefreshEnvironment: { getWindowScrollY: () => window.scrollY }, responsiveViewport, search, settings, operationRuntime,
     offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "image-sync", listFiles: async (path) => ({ path, items: [] }), fetchDownloadBlob: vi.fn(), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },

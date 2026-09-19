@@ -116,6 +116,23 @@
   min-width: min(10rem, 100%);
 }
 
+.sort-reset-field {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.sort-reset-confirm {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  white-space: nowrap;
+}
+
+.sort-reset-confirm .status {
+  font-size: 0.78rem;
+}
+
 .file-size-toolbar-field .summary-label {
   display: none;
 }

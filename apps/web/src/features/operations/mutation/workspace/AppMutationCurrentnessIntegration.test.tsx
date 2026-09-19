@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "../../../../App";
 import type { AppServices } from "../../../../app/AppServices";
+import { createMemoryFolderSortService } from "../../../../features/browsing/folderSort/testing/fakeStorage";
 import { buildAccount, buildSession } from "../../../../test/accounts";
 import { buildHealthResponse } from "../../../../test/api";
 import { buildFileEntry } from "../../../../test/files";
@@ -161,6 +162,7 @@ function createMutationCurrentnessFixture(): AppServices {
     explicitOfflineRuntime: { storage: { read: () => ({ kind: "ready", enabled: false }), commit: () => ({ kind: "committed" }), reset: () => ({ kind: "committed" }), repair: () => ({ kind: "repaired" }) }, network: { setBlocked: () => undefined } }, clock: { nowIso: () => "2026-01-01T00:00:00.000Z" },
     favourites,
     favouritesPointerEnvironment: { elementFromPoint: () => null, addWindowListener: () => () => undefined }, folder,
+    folderSorts: createMemoryFolderSortService(),
     history: { pushState: (state: unknown, url: string) => window.history.pushState(state, "", url), replaceState: (state: unknown, url: string) => window.history.replaceState(state, "", url), getState: () => window.history.state as unknown, getLocation: () => ({ href: window.location.href, search: window.location.search }), subscribe: (listener: (state: unknown) => void) => { const handler = () => listener(window.history.state); window.addEventListener("popstate", handler); return () => window.removeEventListener("popstate", handler); } },
     pullToRefreshEnvironment: { getWindowScrollY: () => 0 }, responsiveViewport: { getSnapshot: () => wideViewport, subscribe: () => () => undefined }, search,
     settings: { load: () => ({ themeMode: "system", showHiddenFiles: false, sortMode: "name-asc", keepAwakeEnabled: true, previewFreshnessIntervalSeconds: 300, maxCacheableFileSizeBytes: 1, fileSizeDisplayMode: "human", imagePreviewFitMode: "fill", experimentalHeicPreviewEnabled: false }), save: (settings) => settings },

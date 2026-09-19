@@ -1,4 +1,4 @@
-import { createBrowsingCacheRepository, createFavouritesService } from "../features/browsing";
+import { createBrowsingCacheRepository, createFavouritesService, createFolderSortService } from "../features/browsing";
 import { createAccountRegistryService } from "../features/accounts/registry";
 import { createSettingsService } from "../features/settings";
 import { createBrowserAccountSessionPorts } from "./browserAccountSessionPorts";
@@ -48,11 +48,13 @@ export const createBrowserAppServices = (): AppServices => {
   const previewRuntime = createPreviewComposition({ retentionRepository });
   const accountRegistry = createAccountRegistryService(storage, createBrowserAccountRegistryClock());
   const favourites = createFavouritesService(storage, clock);
+  const folderSorts = createFolderSortService(storage);
   const accountRemovalRuntime = createAccountRemovalRuntime({
     accountTransport,
     retentionRepository,
     browsingCache,
-    favourites
+    favourites,
+    folderSorts
   });
   return {
     accountRegistry,
@@ -66,6 +68,7 @@ export const createBrowserAppServices = (): AppServices => {
     favourites,
     favouritesPointerEnvironment: createBrowserFavouritesPointerEnvironment(),
     folder: createBrowserFolderPorts(browsingCache),
+    folderSorts,
     history: createBrowserHistoryPort() satisfies HistoryPort,
     pullToRefreshEnvironment: createBrowserPullToRefreshEnvironmentPort(),
     responsiveViewport: createBrowserResponsiveViewportPort() satisfies ResponsiveViewportPort,

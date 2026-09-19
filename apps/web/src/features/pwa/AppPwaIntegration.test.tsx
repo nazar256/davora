@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "../../App";
 import type { AppServices } from "../../app/AppServices";
+import { createMemoryFolderSortService } from "../browsing/folderSort/testing/fakeStorage";
 import { buildAccount, buildSession } from "../../test/accounts";
 import { buildHealthResponse } from "../../test/api";
 
@@ -170,6 +171,7 @@ function createPwaFixture(): AppServices {
     favourites: { load: () => ({ kind: "loaded", entries: [] }), save: () => ({ kind: "saved", entries: [] }), clear: () => ({ kind: "cleared" }), create: (entry) => ({ ...entry, accountId: "alpha", accountBackend: "mock", accountRootPath: "", cacheNamespace: "ns-alpha", addedAt: "2026-01-01T00:00:00.000Z" }) },
     favouritesPointerEnvironment: { elementFromPoint: () => null, addWindowListener: () => () => undefined },
     folder,
+    folderSorts: createMemoryFolderSortService(),
     history: { pushState: (state, url) => window.history.pushState(state, "", url), replaceState: (state, url) => window.history.replaceState(state, "", url), getState: (): unknown => { const state: unknown = window.history.state; return state; }, getLocation: () => ({ href: window.location.href, search: window.location.search }), subscribe: (listener) => { const handler = () => listener(window.history.state); window.addEventListener("popstate", handler); return () => window.removeEventListener("popstate", handler); } },
     pullToRefreshEnvironment: { getWindowScrollY: () => window.scrollY },
     responsiveViewport: { getSnapshot: () => wide, subscribe: () => () => undefined },

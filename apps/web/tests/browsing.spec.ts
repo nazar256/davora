@@ -65,6 +65,79 @@ test("browsing sort and hidden search filtering preserve their distinct ordering
   await expect(rowNames).toHaveText(["zeta.txt", ".hidden.txt", "alpha.txt"]);
 });
 
+test("folder sort settings persist per folder, inherit through context, and reset clears overrides", async ({ page }, testInfo) => {
+  const isMobile = testInfo.project.name === "mobile-chrome";
+  await connectAccount(page, "Folder sort workspace");
+
+  const rowNames = page.locator(".file-list-items .item-name");
+  const folderSortKeys = () => page.evaluate(() =>
+    Object.keys(localStorage).filter((key) => key.startsWith("davora-folder-sort:")).sort());
+
+  const chooseSort = async (label: string, value: string) => {
+    if (isMobile) {
+      await page.getByRole("button", { name: /Open sort options/i }).click();
+      await page.getByRole("button", { name: label, exact: true }).click();
+    } else {
+      await page.getByLabel("Sort files and folders").selectOption(value);
+    }
+  };
+  const goHome = async () => {
+    await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).click();
+  };
+
+  await expect(rowNames).toHaveText(["Archive", "Design", "Projects"]);
+  await page.getByRole("button", { name: /Open folder Projects/i }).click();
+  await expect(rowNames).toHaveText(["clip.mp4", "demo.json", "roadmap.txt", "song.mp3"]);
+
+  await chooseSort("Name Z-A", "name-desc");
+  await expect(rowNames).toHaveText(["song.mp3", "roadmap.txt", "demo.json", "clip.mp4"]);
+  expect(await folderSortKeys()).toHaveLength(1);
+
+  await goHome();
+  await expect(rowNames).toHaveText(["Projects", "Design", "Archive"]);
+  expect(await folderSortKeys()).toHaveLength(1);
+
+  await page.getByRole("button", { name: /Open folder Archive/i }).click();
+  await expect(rowNames).toHaveText(["photo.png", "photo.heic", "image.bin", "guide.pdf"]);
+  expect(await folderSortKeys()).toHaveLength(1);
+
+  await chooseSort("Size smallest", "size-asc");
+  await expect(rowNames).toHaveText(["image.bin", "photo.heic", "photo.png", "guide.pdf"]);
+  expect(await folderSortKeys()).toHaveLength(2);
+
+  await goHome();
+  await page.getByRole("button", { name: /Open folder Projects/i }).click();
+  await expect(rowNames).toHaveText(["song.mp3", "roadmap.txt", "demo.json", "clip.mp4"]);
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: /Open folder Projects/i })).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: /Open folder Projects/i }).click();
+  await expect(rowNames).toHaveText(["song.mp3", "roadmap.txt", "demo.json", "clip.mp4"]);
+  expect(await folderSortKeys()).toHaveLength(2);
+
+  if (isMobile) {
+    await page.getByRole("button", { name: /Open sort options/i }).click();
+    const sortPanel = page.getByRole("group", { name: "Sort options", exact: true });
+    await sortPanel.getByRole("button", { name: "Reset folder sort settings" }).click();
+    await expect(sortPanel.getByText("Clear saved sort for 2 folders?")).toBeVisible();
+    await sortPanel.getByRole("button", { name: "Clear", exact: true }).click();
+  } else {
+    await page.getByRole("button", { name: /Reset saved folder sort settings/i }).click();
+    const confirm = page.getByRole("group", { name: /Confirm clearing folder sort settings/i });
+    await expect(confirm.getByText("Clear saved sort for 2 folders?")).toBeVisible();
+    await confirm.getByRole("button", { name: "Clear", exact: true }).click();
+  }
+
+  expect(await folderSortKeys()).toHaveLength(0);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("davora-ui-settings"))).not.toBeNull();
+
+  await goHome();
+  await expect(rowNames).toHaveText(["Projects", "Design", "Archive"]);
+  await page.getByRole("button", { name: /Open folder Projects/i }).click();
+  await expect(rowNames).toHaveText(["song.mp3", "roadmap.txt", "demo.json", "clip.mp4"]);
+  expect(await folderSortKeys()).toHaveLength(0);
+});
+
 test("favourites provide quick access to files and folders from the navigation drawer", async ({ page }, testInfo) => {
   const isMobile = testInfo.project.name === "mobile-chrome";
   await connectAccount(page, "Favourites workspace");

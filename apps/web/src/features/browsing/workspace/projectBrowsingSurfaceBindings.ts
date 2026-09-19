@@ -20,6 +20,11 @@ interface BrowsingSurfaceOwners {
       readonly empty: Pick<FileListStageProps, "emptyStatus" | "emptyTitle" | "showEmptyState"> & { readonly listRecoveryAvailable: boolean };
       readonly showBreadcrumbs: boolean;
     };
+    readonly sort: {
+      readonly mode: BrowseHeaderStageProps["sortMode"];
+      select: BrowseHeaderStageProps["onSortModeChange"];
+      readonly reset: BrowseHeaderStageProps["sortReset"];
+    };
   };
   readonly selection: {
     readonly fileList: Pick<FileListStageProps, "batchModeActive" | "selectionModeActive" | "isItemBatchSelected" | "isItemSelected" | "clearRowOpenSuppression" | "getRowOpenSuppressed" | "onRowPointerCancel" | "onRowPointerDown" | "onRowPointerLeave" | "onRowPointerUp" | "onToggleBatchSelection" | "onToggleEntrySelection" | "suppressNarrowScreenContextMenu">;
@@ -40,7 +45,7 @@ interface BrowsingSurfaceOwners {
   };
   readonly offline: { readonly explicitOfflineMode: boolean; readonly isItemAvailableOffline: FileListStageProps["isItemAvailableOffline"] };
   readonly navigation: { getCurrentPath(): string; readonly navigateToPath: BrowseHeaderStageProps["onNavigateToPath"] };
-  readonly settings: { readonly preferences: Pick<BrowseHeaderStageProps, "fileSizeDisplayMode" | "sortMode">; readonly commands: { readonly handleFileSizeDisplayModeChange: BrowseHeaderStageProps["onFileSizeDisplayModeChange"]; readonly handleSortModeChange: BrowseHeaderStageProps["onSortModeChange"] } };
+  readonly settings: { readonly preferences: Pick<BrowseHeaderStageProps, "fileSizeDisplayMode">; readonly commands: { readonly handleFileSizeDisplayModeChange: BrowseHeaderStageProps["onFileSizeDisplayModeChange"] } };
   readonly status: { readonly message: string };
   readonly pullToRefresh: { readonly fileListRef: Ref<HTMLElement> };
 }
@@ -95,14 +100,15 @@ export function projectBrowsingSurfaceBindings(input: BrowsingSurfaceInput): Bro
       onKeepOfflineSelection: () => ports.openOfflineSync(selection.batch.entries, selection.batch.archiveInput, selection.batch.capture()),
       onNavigateToPath: navigation.navigateToPath,
       onSearchQueryChange: browse.query.set,
-      onSortModeChange: settings.commands.handleSortModeChange,
+      onSortModeChange: browse.sort.select,
       onUploadFiles: (files) => { void operation.upload.uploadFiles(files); },
       refreshingFolder: browse.folder.refreshing,
       searchActive: browse.query.active,
       searchQuery: browse.query.raw,
       selectionSummaryLabel: selection.presentation.selectionSummaryLabel,
       showBreadcrumbs: browse.presentation.showBreadcrumbs,
-      sortMode: settings.preferences.sortMode,
+      sortMode: browse.sort.mode,
+      sortReset: browse.sort.reset,
       staleFolder: browse.folder.stale,
       staleInfo,
       status: status.message
