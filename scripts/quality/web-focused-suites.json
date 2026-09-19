@@ -1,0 +1,117 @@
+[
+  {
+    "owner": "account-session-model",
+    "files": [
+      "src/features/accounts/session/model.test.ts"
+    ]
+  },
+  {
+    "owner": "account-session-controller",
+    "files": [
+      "src/features/accounts/session/controller.test.ts"
+    ]
+  },
+  {
+    "owner": "browsing-cache-repository",
+    "files": [
+      "src/features/browsing/cache/repository.test.ts"
+    ]
+  },
+  {
+    "owner": "browsing-cache-properties",
+    "files": [
+      "src/features/browsing/cache/repository.property.test.ts"
+    ]
+  },
+  {
+    "owner": "navigation-model",
+    "files": [
+      "src/features/navigation/model.test.ts"
+    ]
+  },
+  {
+    "owner": "navigation-controller",
+    "files": [
+      "src/features/navigation/controller.test.ts"
+    ]
+  },
+  {
+    "owner": "navigation-surface-controller",
+    "files": [
+      "src/features/navigation/workspaceSurfaceController.test.ts"
+    ]
+  },
+  {
+    "owner": "offline-sync-controller",
+    "files": [
+      "src/features/offline/sync/controller.test.ts"
+    ]
+  },
+  {
+    "owner": "offline-sync-model",
+    "files": [
+      "src/features/offline/sync/model.test.ts",
+      "src/features/offline/sync/workspace/model.test.ts"
+    ]
+  },
+  {
+    "owner": "mutation-reducer",
+    "files": [
+      "src/features/operations/mutation/model.test.ts"
+    ]
+  },
+  {
+    "owner": "mutation-properties",
+    "files": [
+      "src/features/operations/mutation/model.property.test.ts"
+    ]
+  },
+  {
+    "owner": "image-geometry-model",
+    "files": [
+      "src/features/preview/image/geometry.test.ts"
+    ]
+  },
+  {
+    "owner": "image-geometry-properties",
+    "files": [
+      "src/features/preview/image/geometry.property.test.ts"
+    ]
+  },
+  {
+    "owner": "pwa-model",
+    "files": [
+      "src/features/pwa/model.test.ts"
+    ]
+  },
+  {
+    "owner": "settings-theme-model",
+    "files": [
+      "src/features/settings/theme/model.test.ts"
+    ]
+  },
+  {
+    "owner": "settings-ui-controller",
+    "files": [
+      "src/features/settings/uiSettings/controller.test.ts"
+    ]
+  },
+  {
+    "owner": "transfer-ledger-model",
+    "files": [
+      "src/features/transfers/model.test.ts"
+    ]
+  },
+  {
+    "owner": "transfer-ledger-selectors",
+    "files": [
+      "src/features/transfers/selectors.test.ts"
+    ]
+  },
+  {
+    "owner": "transfer-ledger-properties",
+    "files": [
+      "src/features/transfers/model.property.test.ts"
+    ]
+  }
+]

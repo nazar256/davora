@@ -4,6 +4,8 @@ import { join } from "node:path";
 
 import dotenv from "dotenv";
 
+import { buildRealValidationWorkerEnvironment } from "./real-validation-runtime";
+
 dotenv.config({ path: join(process.cwd(), ".env") });
 
 const SAFE_VALIDATION_ROOT = ".davora-agent-test";
@@ -198,18 +200,16 @@ async function main() {
   const { spawn } = await import("node:child_process");
   const worker = spawn(process.execPath, ["--import", "tsx", "scripts/worker-real-validation.mjs"], {
     cwd: process.cwd(),
-    env: {
-      ...process.env,
-      PORT: String(workerPort),
-      SESSION_SECRET: sessionSecret,
-      MOCK_BACKEND: "false",
-      ALLOWED_ORIGINS: "http://127.0.0.1:4173",
-      NEXTCLOUD_ROOT_PATH: rootPath,
-      ...(process.env.NEXTCLOUD_ALLOWED_HOSTS?.trim()
-        ? { NEXTCLOUD_ALLOWED_HOSTS: process.env.NEXTCLOUD_ALLOWED_HOSTS.trim() }
-        : {}),
-      ...(unlockCode ? { APP_UNLOCK_CODE: unlockCode } : {})
-    },
+    env: buildRealValidationWorkerEnvironment({
+      baseEnvironment: process.env,
+      repoRoot: process.cwd(),
+      processId: process.pid,
+      runId: randomUUID(),
+      workerPort,
+      sessionSecret,
+      rootPath,
+      unlockCode
+    }),
     stdio: ["ignore", "pipe", "pipe"]
   });
 
@@ -255,6 +255,7 @@ async function main() {
         baseUrl,
         username,
         appPassword: password,
+        rootPath,
         label: "Real validation"
       })
     }) as { data: { account: { id: string } } };
@@ -379,7 +380,12 @@ async function main() {
       headers: requestHeaders(token)
     }) as { data: { file: { viewer: string; requiresOriginalBlob?: boolean } } };
 
-    const streamRangeResponse = await fetch(`http://127.0.0.1:${workerPort}/api/file/stream?path=${encodeURIComponent("docs/stream-check.mp3")}&token=${encodeURIComponent(token)}`, {
+    const streamTokenPayload = await expectOk(`/api/file/stream-token?path=${encodeURIComponent("docs/stream-check.mp3")}`, {
+      method: "POST",
+      headers: requestHeaders(token)
+    }) as { data: { token: string } };
+
+    const streamRangeResponse = await fetch(`http://127.0.0.1:${workerPort}/api/file/stream?path=${encodeURIComponent("docs/stream-check.mp3")}&streamToken=${encodeURIComponent(streamTokenPayload.data.token)}`, {
       headers: {
         origin: "http://127.0.0.1:4173",
         range: "bytes=7-11"

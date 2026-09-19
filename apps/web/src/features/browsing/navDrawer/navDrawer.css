@@ -1,0 +1,158 @@
+/* Navigation drawer chrome owned by NavDrawerStage. */
+.nav-drawer-scrim {
+  display: none;
+}
+
+.nav-drawer {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: min(19rem, calc(100vw - 2.5rem));
+  z-index: 40;
+  transform: translateX(-105%);
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform 180ms ease, visibility 0ms linear 180ms;
+  border-right: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-overlay);
+  box-shadow: var(--shadow-overlay);
+  padding: var(--space-4);
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  overflow: auto;
+  color: var(--color-text);
+  backdrop-filter: none;
+}
+
+.nav-drawer.open {
+  transform: translateX(0);
+  visibility: visible;
+  pointer-events: auto;
+  transition: transform 180ms ease;
+}
+
+.nav-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding-bottom: var(--space-2);
+}
+
+.nav-drawer-header h2 {
+  margin-bottom: 0;
+  font-size: 1.05rem;
+}
+
+.nav-drawer-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.nav-drawer-section {
+  display: grid;
+  gap: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+.nav-drawer-section button,
+.nav-drawer-upload {
+  width: 100%;
+  text-align: left;
+  min-height: var(--touch-target);
+  padding-inline: 0.85rem;
+}
+
+.nav-drawer-section > button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+}
+
+.nav-drawer-upload {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.nav-drawer-section > button > svg,
+.nav-drawer-upload > svg {
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+  flex: 0 0 auto;
+}
+
+.nav-drawer-upload input {
+  display: none;
+}
+
+.nav-drawer-upload.disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.nav-drawer-section > button:hover,
+.nav-drawer-section button.active,
+.nav-drawer-section > button.active,
+.nav-drawer-section button[aria-current="page"],
+.nav-drawer-section > button[aria-current="page"],
+.nav-drawer-upload:hover {
+  border-color: transparent;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+
+.drawer-offline-toggle {
+  color: var(--color-accent-strong) !important;
+}
+
+.nav-drawer-empty {
+  margin: 0;
+  padding-inline: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.35;
+}
+
+@media (max-width: 900px) {
+  .nav-drawer-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    background: rgba(2, 6, 23, 0.58);
+    backdrop-filter: blur(8px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 160ms ease;
+  }
+
+  .nav-drawer-scrim.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-drawer,
+  .nav-drawer.open,
+  .nav-drawer-scrim {
+    transition-duration: 0.01ms !important;
+  }
+}

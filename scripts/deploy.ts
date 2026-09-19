@@ -7,7 +7,7 @@ type WorkerSecretSummary = { name?: string; type?: string };
 
 export const DEFAULT_DEPLOYED_WORKER_ORIGIN = "https://davora.xyofn8h7t.workers.dev";
 export const DEFAULT_PAGES_PROJECT_NAME = "davora";
-export const REQUIRED_WORKER_SECRETS = ["SESSION_SECRET"];
+export const REQUIRED_WORKER_SECRETS = ["SESSION_SECRET", "ACCOUNT_STATE_SECRET", "SESSION_TOKEN_SECRET"];
 const WORKER_SECRET_LIST_VALUE_FLAGS = new Set(["--config", "-c", "--cwd", "--env", "-e", "--env-file", "--name"]);
 const WORKER_SECRET_LIST_INLINE_FLAGS = ["--config=", "-c=", "--cwd=", "--env=", "-e=", "--env-file=", "--name="];
 
@@ -18,6 +18,15 @@ const defaultWorkerDryRunOutdir = resolve(workerDir, "../../.tmp/worker-dry-run"
 
 function fail(message: string): never {
   throw new Error(message);
+}
+
+export function parseCommandJson<T>(renderedCommand: string, output: string): T {
+  try {
+    return JSON.parse(output || "null") as T;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown JSON parse failure.";
+    fail(`${renderedCommand} returned invalid JSON: ${message}`);
+  }
 }
 
 function run(command: string, args: string[], options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}): void {
@@ -56,20 +65,7 @@ function runJson<T>(command: string, args: string[], options: { cwd?: string; en
     fail(stderr ? `${rendered} failed: ${stderr}` : `${rendered} failed with status ${result.status ?? 1}`);
   }
 
-  try {
-    return JSON.parse(result.stdout || "null") as T;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown JSON parse failure.";
-    fail(`${rendered} returned invalid JSON: ${message}`);
-  }
-}
-
-function requireEnv(name: string, reason: string, env: NodeJS.ProcessEnv = process.env): string {
-  const value = env[name]?.trim();
-  if (!value) {
-    fail(`${name} is required ${reason}`);
-  }
-  return value;
+  return parseCommandJson<T>(rendered, result.stdout);
 }
 
 function readEnv(name: string, env: NodeJS.ProcessEnv = process.env): string | undefined {
@@ -159,7 +155,17 @@ export function buildWorkerSecretListArgs(extraArgs: string[]): string[] {
   return args;
 }
 
+export function assertWorkerDestinationPolicy(env: NodeJS.ProcessEnv = process.env): void {
+  const runtimeMode = readEnv("RUNTIME_MODE", env)?.toLowerCase() === "development" ? "development" : "production";
+  const allowLocal = readEnv("ALLOW_LOCAL_NEXTCLOUD", env)?.toLowerCase() === "true";
+
+  if (runtimeMode === "production" && allowLocal) {
+    fail("ALLOW_LOCAL_NEXTCLOUD=true requires RUNTIME_MODE=development.");
+  }
+}
+
 function verifyWorkerDeployPreflight(extraArgs: string[]): void {
+  assertWorkerDestinationPolicy();
   const secrets = runJson<WorkerSecretSummary[]>("wrangler", buildWorkerSecretListArgs(extraArgs), { cwd: workerDir });
   assertRequiredWorkerSecrets(secrets);
 }

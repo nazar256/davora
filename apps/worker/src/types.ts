@@ -1,12 +1,17 @@
 import type { CapabilitySet, ConnectedAccount } from "@davora/shared";
+import type { AccountStateStorage } from "./accounts/storage";
 
 export interface WorkerEnv {
   SESSION_SECRET: string;
+  ACCOUNT_STATE_SECRET?: string;
+  SESSION_TOKEN_SECRET?: string;
   SESSION_TTL_SECONDS: number;
   ALLOWED_ORIGINS: string[];
   APP_UNLOCK_CODE?: string;
   NEXTCLOUD_ROOT_PATH: string;
   NEXTCLOUD_ALLOWED_HOSTS: string[];
+  RUNTIME_MODE: "production" | "development";
+  ALLOW_LOCAL_NEXTCLOUD: boolean;
   NEXTCLOUD_MAX_FILE_BYTES: number;
   NEXTCLOUD_MAX_TEXT_FILE_BYTES: number;
   MOCK_BACKEND: boolean;
@@ -17,6 +22,7 @@ export interface WorkerEnv {
       fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
     };
   };
+  ACCOUNT_STATE_STORAGE?: AccountStateStorage;
 }
 
 export interface SessionPayload {

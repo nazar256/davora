@@ -7,8 +7,9 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:coverage:pure": "vitest run --config vitest.pure-coverage.config.ts --coverage.enabled",
     "dev": "node --import ../../node_modules/tsx/dist/loader.mjs src/node-server.ts",
-    "dev:test": "SESSION_SECRET=playwright-dev-secret MOCK_BACKEND=true PORT=8787 node --import ../../node_modules/tsx/dist/loader.mjs src/node-server.ts"
+    "dev:test": "RUNTIME_MODE=development SESSION_SECRET=playwright-dev-secret MOCK_BACKEND=true PORT=8787 node --import ../../node_modules/tsx/dist/loader.mjs src/node-server.ts"
   },
   "dependencies": {
     "@davora/shared": "1.0.0"

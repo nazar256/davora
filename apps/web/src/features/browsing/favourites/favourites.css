@@ -1,0 +1,114 @@
+.favourites-list {
+  display: grid;
+  gap: 0;
+}
+
+.favourite-row.unavailable {
+  border-color: rgba(248, 113, 113, 0.36);
+}
+
+.favourite-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 0.35rem;
+  border: 0;
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
+  border-radius: 0;
+  background: transparent;
+}
+
+.favourite-row:last-child {
+  border-bottom: 0;
+}
+
+.favourite-row.dragging {
+  border-color: rgba(96, 165, 250, 0.62);
+  background: var(--color-accent-soft);
+}
+
+.favourite-drag-handle,
+.favourite-remove-button,
+.favourite-open-button {
+  min-height: 0;
+  border: 0;
+  background: transparent;
+}
+
+.favourite-drag-handle {
+  width: 2.2rem;
+  padding: 0;
+  color: #93c5fd;
+  text-align: center;
+  touch-action: none;
+  cursor: grab;
+}
+
+.favourite-open-button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: center;
+  column-gap: 0.45rem;
+  row-gap: 0.12rem;
+  padding: 0.55rem 0.35rem;
+  text-align: left;
+}
+
+.favourite-title,
+.favourite-path,
+.favourite-stale {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.favourite-title {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.favourite-path,
+.favourite-stale {
+  grid-column: 2;
+  color: var(--color-text-muted);
+}
+
+.favourite-path {
+  font-size: 0.78rem;
+}
+
+.favourite-stale {
+  color: var(--color-danger);
+  font-size: 0.78rem;
+}
+
+.favourite-icon {
+  grid-row: 1 / span 2;
+  align-self: center;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  color: var(--color-accent-strong);
+}
+
+.favourite-icon-folder {
+  color: var(--color-folder);
+  fill: color-mix(in srgb, var(--color-folder) 22%, transparent);
+}
+
+.favourite-drag-handle,
+.favourite-remove-button {
+  width: var(--touch-target);
+  min-width: var(--touch-target);
+  color: var(--color-text-subtle);
+}
+
+.favourite-remove-button {
+  padding: 0 0.55rem;
+}
+
+.favourite-drag-handle svg,
+.favourite-remove-button svg {
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+}

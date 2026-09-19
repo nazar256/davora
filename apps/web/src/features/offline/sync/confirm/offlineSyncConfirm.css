@@ -1,0 +1,14 @@
+.offline-sync-dialog .dialog-actions {
+  justify-content: flex-end;
+  padding-top: var(--space-3);
+  border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+@media (max-width: 900px) {
+  .offline-sync-dialog {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: var(--space-3);
+    overflow: hidden;
+  }
+}

@@ -9,6 +9,7 @@
 - The Worker validates and uses upstream credentials, then exposes only a normalized JSON API plus account-bound session tokens.
 - Signed session tokens gate access to normalized API endpoints and are bound to a specific account + runtime account nonce.
 - The Worker validates allowed origins, sandbox root paths, allowed Nextcloud hosts, optional unlock-code requirements, and browser ownership for connect/reconnect/remove/session bootstrap.
+- `NEXTCLOUD_ALLOWED_HOSTS` is an optional production restriction: empty means any public HTTPS hostname, while a non-empty value is an exact hostname allowlist. The destination policy still rejects IP literals, localhost/private/special-use names, credentials, query/fragment syntax, insecure schemes, and unsafe redirect destinations.
 - Local web development uses same-origin `/api` proxying by default, reducing reliance on browser CORS allowlists while keeping Worker-side origin validation available for explicit cross-origin setups.
 - Real validation writes are hard-pinned to `.davora-agent-test` and cleaned up after use.
 - Opened-file cache is isolated by account namespace from any future pinned/sync semantics.
@@ -18,6 +19,10 @@
 - Do not include real secrets in docs, screenshots, test snapshots, browser storage fixtures, or browser console output.
 - Keep env files out of source control.
 - Treat `APP_UNLOCK_CODE` as a deployment secret; share it only out-of-band.
+- `APP_UNLOCK_CODE` is accepted only in explicit development mode; production configuration fails closed if it is set.
+- Production `SESSION_SECRET` values must contain at least 32 UTF-8 bytes. Generate them from fresh `/dev/urandom` bytes and pipe them directly to the secret manager. Rotating it requires an intentional reset or versioned migration of encrypted Worker account state. For session-only invalidation, provision a separate production `SESSION_TOKEN_SECRET`; it signs account-session and stream tokens while `SESSION_SECRET` continues to encrypt account state.
+- Worker observability disables request invocation logs and traces. This is required because media stream authority is deliberately short-lived and query-bound; tokens must not be retained in telemetry URLs.
+- An already-deployed short legacy `SESSION_SECRET` is accepted only during an explicit migration with strong `ACCOUNT_STATE_SECRET` and `SESSION_TOKEN_SECRET` values. The Worker re-encrypts state under the new state key and signs tokens with the new token key; new production deployments without migration keys fail closed until the state key is strong.
 - Treat session tokens and browser-ownership tokens as sensitive operational material even though they are not raw app passwords.
 
 ## Browser boundary evidence

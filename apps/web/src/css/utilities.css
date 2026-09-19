@@ -1,0 +1,20 @@
+/* Low-specificity shared utility behavior that is safe after feature owners. */
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.empty-title {
+  margin-bottom: 0;
+}
+
+.cache-limit-presets {
+  display: grid;
+  gap: 0.35rem;
+}

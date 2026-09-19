@@ -9,7 +9,7 @@ Davora is a Nextcloud-focused PWA for browsing and modifying files through a nor
 - Canonical deploy entry points live at the repo root: `npm run deploy:web`, `npm run deploy:worker`, and `npm run deploy`.
 
 ## What you need
-- Node.js 22+.
+- Node.js 22.13+.
 - npm.
 - `npm install` so the repo-pinned Wrangler CLI is available for root deploy scripts.
 - Wrangler CLI on `PATH` if you want to run the exact raw operator smoke command `cd apps/worker && wrangler dev` outside npm.
@@ -22,24 +22,26 @@ Use this for normal local development, deterministic tests, and UI validation.
 - `MOCK_BACKEND=true`
 - No real Nextcloud credentials required at server start.
 - The app still asks for base URL / username / app password in-browser, but mock mode accepts placeholder values and exercises the same in-app account flow.
-- Optional `APP_UNLOCK_CODE` lets you test the unlock bootstrap flow locally.
+- Optional `APP_UNLOCK_CODE` is a development-only unlock-bootstrap test control; production rejects it.
 
 ### Real mode
 Use this only when validating the Worker against a live Nextcloud instance.
 - `MOCK_BACKEND=false`
-- Worker startup requires `SESSION_SECRET`; `NEXTCLOUD_ALLOWED_HOSTS` is optional and an empty value allows any valid Nextcloud host while preserving the existing URL-safety checks.
+- Worker startup requires `SESSION_SECRET`; production requires at least 32 UTF-8 bytes generated from fresh randomness. Real-backend mode accepts any valid public HTTPS Nextcloud host by default; `NEXTCLOUD_ALLOWED_HOSTS` can restrict it to exact normalized hostnames (for example `nextcloud.ownhost.top`). Localhost requires both `RUNTIME_MODE=development` and `ALLOW_LOCAL_NEXTCLOUD=true`.
 - Account credentials are entered in-app or passed only to the real-validation script.
 - Keep `NEXTCLOUD_ROOT_PATH=.davora-agent-test` for automated live validation safety.
 
 ## Environment setup
 1. Copy `.env.example` to `.env`.
 2. Fill in these required values:
-   - always: `SESSION_SECRET`
+   - always: `SESSION_SECRET` (use at least 32 raw random bytes in production; this encrypts Worker account state)
+   - migration: `ACCOUNT_STATE_SECRET` (strong replacement state key; the Worker migrates existing state from the legacy `SESSION_SECRET`)
+   - optional production rotation: `SESSION_TOKEN_SECRET` (use fresh 32-byte randomness to invalidate sessions/stream tokens without changing account-state encryption)
    - mock mode: `MOCK_BACKEND=true`
    - real mode: `MOCK_BACKEND=false`
-3. Optional values:
-    - `APP_UNLOCK_CODE`: if set, the web app will ask for an unlock code before creating an account session.
-    - `NEXTCLOUD_ALLOWED_HOSTS`: optional comma-separated hostname allowlist. Leave it empty to allow any valid Nextcloud host.
+3. Additional values:
+    - `APP_UNLOCK_CODE`: development only; production rejects it rather than treating it as an online security boundary.
+    - `NEXTCLOUD_ALLOWED_HOSTS`: optional comma-separated exact normalized hostname allowlist for restricting real mode. When omitted in production, any valid public HTTPS Nextcloud hostname is allowed.
     - `NEXTCLOUD_BASE_URL`, `NEXTCLOUD_USERNAME`, `NEXTCLOUD_APP_PASSWORD`: only needed for `rtk npm run validate:real`.
     - `LOCAL_DEV_STATE_PATH`: overrides the local Node worker account-store file. Default: `.tmp/local-dev/worker-state.json`.
     - `VITE_OPENED_FILE_CACHE_LIMIT_BYTES`: overrides the browser opened-file cache limit.
@@ -62,7 +64,7 @@ Use this only when validating the Worker against a live Nextcloud instance.
 - Video preview uses muted inline autoplay for the most reliable browser-compatible behavior.
 - A normal local dev restart preserves connected accounts and now retries transient bootstrap/session startup races before falling back; explicit worker state resets, secret changes, or non-local runtimes still surface reconnect-required honestly.
 - If a local relaunch happens while the browser still carries a stale reconnect-required marker, Davora now retries restoration first and clears that stale state automatically once the worker can recreate the session.
-- If `APP_UNLOCK_CODE` is configured, the app shows an unlock screen after account connection but before creating the account session.
+- If development-only `APP_UNLOCK_CODE` is configured, the app shows an unlock screen after account connection but before creating the account session.
 - The app now keeps installability honest without interrupting first run: onboarding stays clear, the browser-native install opportunity becomes a contextual `Install app` action once a workspace is active, and the non-essential offline-ready success toast is suppressed instead of behaving like a global prompt.
 - Preview-build offline behavior is explicit: the service worker keeps the installable shell available, cached account data stays usable after it has been opened online first, installed standalone launches reuse that cached shell instead of blanking white when the local server is down even if the browser still reports online connectivity, and uncached account state falls back to the normal zero-state instead of pretending offline data exists.
 - The update toast is now specific to a ready app-shell update, and accepting it waits for the new service worker to take control before reloading so the new build/content is actually active.
@@ -115,7 +117,7 @@ The deployed topology is explicit:
 - `apps/worker` deploys via Wrangler as the API origin.
 - `apps/web/dist` deploys to Cloudflare Pages.
 - Pages builds need a deployed Worker origin because the local same-origin `/api` proxy does not exist on Pages. The root deploy script now defaults that origin to `https://davora.xyofn8h7t.workers.dev`, defaults the Pages project name to `davora`, and refuses to deploy the Worker if required runtime secrets such as `SESSION_SECRET` are missing.
-- Worker observability is part of the standard release posture through `apps/worker/wrangler.toml`; use `cd apps/worker && wrangler tail davora --format pretty` when you need operator-facing live logs.
+- Worker observability keeps application logs and errors available through `apps/worker/wrangler.toml`, while request invocation logs and traces are disabled so short-lived stream tokens are not retained; use `cd apps/worker && wrangler tail davora --format pretty` when you need operator-facing live logs.
 
 Required root scripts:
 
@@ -212,7 +214,7 @@ _Mobile keeps browsing first while preserving account-aware state and the bottom
 27. If Cloudflare rejects the Pages upload because auth, account access, or the target project is missing, record that exact external blocker instead of marking the deploy path unverified.
 
 ### Unlock flow
-1. Set `APP_UNLOCK_CODE` in `.env`.
+1. For local development only, set `APP_UNLOCK_CODE` in `.env`.
 2. Restart `rtk npm run dev`.
 3. Connect an account and confirm the unlock screen appears before folder data loads.
 4. Enter a wrong code and verify the invalid-code guidance appears.

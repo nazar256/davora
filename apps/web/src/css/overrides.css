@@ -1,0 +1,8 @@
+/* Exception ledger: button-danger keeps !important so feature hover/focus rules
+ * cannot accidentally make destructive actions look safe. Remove this entry only
+ * after all destructive-action states have a stronger, explicitly owned primitive. */
+.button-danger {
+  border-color: color-mix(in srgb, var(--color-danger) 55%, transparent) !important;
+  background: var(--color-danger-soft) !important;
+  color: var(--color-danger) !important;
+}

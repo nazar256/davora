@@ -2,7 +2,10 @@ import {
   basename,
   dirname,
   getViewerKind,
+  parseNormalizedPath,
+  relativeToSandbox,
   resolveSandboxPath,
+  resolveWithinSandbox,
   stripSandboxRoot,
   type CreateFolderRequest,
   type DeleteRequest,
@@ -11,12 +14,14 @@ import {
   type FilePreview,
   type MoveCopyRequest,
   type MutationResult,
+  type NormalizedPath,
   type SearchResult,
   type UploadFileRequest,
   type ViewerKind
 } from "@davora/shared";
 
 import { parseMultiStatusXml } from "./xml";
+import type { NextcloudDestinationPolicy } from "../security/nextcloudDestinationPolicy";
 
 interface NextcloudCredentials {
   baseUrl: string;
@@ -127,17 +132,22 @@ function ensureDeleteConfirmation(path: string, confirmName: string): void {
 }
 
 export class NextcloudClient {
+  private readonly rootPath: NormalizedPath;
   private readonly fetchImpl: typeof fetch;
 
   constructor(
     private readonly credentials: NextcloudCredentials,
-    fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)
+    fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
+    private readonly destinationPolicy: NextcloudDestinationPolicy
   ) {
+    this.rootPath = parseNormalizedPath(credentials.rootPath);
     this.fetchImpl = (input, init) => fetchImpl(input, init);
   }
 
   private async request(path: string, init: RequestInit & { headers?: Record<string, string> }, allowedStatuses: number[] = []): Promise<Response> {
-    const response = await this.fetchImpl(encodeDavPath(this.credentials.baseUrl, this.credentials.username, path), {
+    const targetUrl = encodeDavPath(this.credentials.baseUrl, this.credentials.username, path);
+    this.destinationPolicy.assertAllowed(new URL(targetUrl));
+    const response = await this.fetchImpl(targetUrl, {
       ...init,
       redirect: "manual",
       headers: {
@@ -231,8 +241,9 @@ export class NextcloudClient {
   }
 
   async listFolder(path = ""): Promise<FileEntry[]> {
-    const target = resolveSandboxPath(this.credentials.rootPath, path);
-    const folderPath = stripSandboxRoot(this.credentials.rootPath, target);
+    const requestedPath = parseNormalizedPath(path);
+    const target = resolveWithinSandbox(this.rootPath, requestedPath);
+    const folderPath = relativeToSandbox(this.rootPath, target);
     const items = await this.propfind(target, 1, 201);
 
     return items

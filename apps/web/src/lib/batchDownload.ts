@@ -1,5 +1,4 @@
 import type { FileEntry } from "@davora/shared";
-import { basename } from "@davora/shared";
 import JSZip from "jszip";
 
 export interface BatchDownloadFile {
@@ -11,6 +10,11 @@ export interface BatchDownloadFile {
 export interface BatchDownloadFailure {
   sourcePath: string;
   error: string;
+}
+
+export interface BatchDownloadRoot {
+  readonly entry: FileEntry;
+  readonly archiveRoot: string;
 }
 
 export interface BatchDownloadPlan {
@@ -42,26 +46,13 @@ function sanitizeArchiveLabel(value: string): string {
   return normalized || "download";
 }
 
-function resolveArchiveRoot(entry: FileEntry, currentPath: string, searchActive: boolean): string {
-  if (searchActive) {
-    return normalizePath(entry.path || entry.name);
-  }
-  const normalizedCurrentPath = normalizePath(currentPath);
-  if (!normalizedCurrentPath) {
-    return normalizePath(entry.path || entry.name);
-  }
-  const normalizedEntryPath = normalizePath(entry.path);
-  const prefix = `${normalizedCurrentPath}/`;
-  return normalizedEntryPath.startsWith(prefix) ? normalizedEntryPath.slice(prefix.length) : normalizePath(entry.name);
-}
-
-function dedupeRootSelections(entries: FileEntry[]): FileEntry[] {
-  const uniqueEntries = Array.from(new Map(entries.map((entry) => [entry.path, entry])).values());
-  const sortedEntries = [...uniqueEntries].sort((left, right) => left.path.length - right.path.length);
-  const roots: FileEntry[] = [];
+function dedupeRootSelections(entries: readonly BatchDownloadRoot[]): BatchDownloadRoot[] {
+  const uniqueEntries = Array.from(new Map(entries.map((root) => [root.entry.path, root])).values());
+  const sortedEntries = [...uniqueEntries].sort((left, right) => left.entry.path.length - right.entry.path.length);
+  const roots: BatchDownloadRoot[] = [];
 
   for (const entry of sortedEntries) {
-    const coveredByFolder = roots.some((root) => root.isFolder && isDescendantPath(entry.path, root.path));
+    const coveredByFolder = roots.some((root) => root.entry.isFolder && isDescendantPath(entry.entry.path, root.entry.path));
     if (!coveredByFolder) {
       roots.push(entry);
     }
@@ -70,22 +61,20 @@ function dedupeRootSelections(entries: FileEntry[]): FileEntry[] {
   return roots;
 }
 
-export function createBatchDownloadArchiveName(currentPath: string, searchActive: boolean): string {
-  const label = searchActive ? "search-results" : basename(normalizePath(currentPath)) || "home";
+export function createBatchDownloadArchiveName(label: string): string {
   return `davora-${sanitizeArchiveLabel(label)}-download.zip`;
 }
 
 export async function buildBatchDownloadPlan(options: {
-  entries: FileEntry[];
-  currentPath: string;
-  searchActive: boolean;
+  roots: readonly BatchDownloadRoot[];
+  archiveLabel: string;
   listFiles: (path: string) => Promise<{ items: FileEntry[] }>;
   archiveName?: string;
 }): Promise<BatchDownloadPlan> {
-  const roots = dedupeRootSelections(options.entries);
+  const roots = dedupeRootSelections(options.roots);
   const directories = new Set<string>();
   const files: BatchDownloadFile[] = [];
-  const archiveRoots = roots.map((root) => resolveArchiveRoot(root, options.currentPath, options.searchActive)).filter(Boolean);
+  const archiveRoots = roots.map((root) => normalizePath(root.archiveRoot)).filter(Boolean);
 
   const collect = async (entry: FileEntry, archivePath: string): Promise<void> => {
     if (entry.isFolder) {
@@ -106,8 +95,7 @@ export async function buildBatchDownloadPlan(options: {
   };
 
   for (const root of roots) {
-    const archiveRoot = resolveArchiveRoot(root, options.currentPath, options.searchActive);
-    await collect(root, archiveRoot);
+    await collect(root.entry, normalizePath(root.archiveRoot));
   }
 
   const totalBytes = files.every((file) => typeof file.size === "number" && Number.isFinite(file.size))
@@ -117,10 +105,10 @@ export async function buildBatchDownloadPlan(options: {
   return {
     archiveName: options.archiveName ?? (archiveRoots.length === 1
       ? `${sanitizeArchiveLabel(archiveRoots[0] ?? "download")}.zip`
-      : createBatchDownloadArchiveName(options.currentPath, options.searchActive)),
-    selectedCount: options.entries.length,
-    selectedFileCount: options.entries.filter((entry) => !entry.isFolder).length,
-    selectedDirectoryCount: options.entries.filter((entry) => entry.isFolder).length,
+      : createBatchDownloadArchiveName(options.archiveLabel)),
+    selectedCount: options.roots.length,
+    selectedFileCount: options.roots.filter((root) => !root.entry.isFolder).length,
+    selectedDirectoryCount: options.roots.filter((root) => root.entry.isFolder).length,
     directories: Array.from(directories).sort((left, right) => left.split("/").length - right.split("/").length),
     files,
     failedFiles: [],
@@ -129,9 +117,8 @@ export async function buildBatchDownloadPlan(options: {
 }
 
 export async function downloadSelectionAsZip(options: {
-  entries: FileEntry[];
-  currentPath: string;
-  searchActive: boolean;
+  roots: readonly BatchDownloadRoot[];
+  archiveLabel: string;
   listFiles: (path: string) => Promise<{ items: FileEntry[] }>;
   fetchFile: (path: string, callbacks?: { onProgress?: (loadedBytes: number, totalBytes?: number) => void }) => Promise<{ blob: Blob; filename?: string }>;
   archiveName?: string;
@@ -155,7 +142,7 @@ export async function downloadSelectionAsZip(options: {
   for (const file of plan.files) {
     try {
       const { blob } = await options.fetchFile(file.sourcePath, {
-        onProgress: (loadedBytes, totalBytes) => {
+        onProgress: (loadedBytes) => {
           options.onFileProgress?.(completedBytes + loadedBytes, plan.totalBytes);
         }
       });

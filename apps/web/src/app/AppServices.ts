@@ -1,0 +1,41 @@
+import type { AccountSessionPorts } from "../features/accounts/session";
+import type { AccountRegistryService } from "../features/accounts/registry";
+import type { BrowsingCacheRepository, FavouritesService, FolderPorts, SearchPorts } from "../features/browsing";
+import type { HistoryPort, ResponsiveViewportPort } from "../features/navigation";
+import type { PullToRefreshEnvironmentPort } from "../features/navigation/pullToRefresh";
+import type { ConnectivityPort } from "../features/offline/connectivity";
+import type { ExplicitOfflineModeRuntimePort } from "../features/offline/mode";
+import type { SettingsService } from "../features/settings";
+import type { TransferClock } from "../features/transfers";
+import type { FavouritesPointerEnvironment } from "../features/browsing/favourites/ports";
+import type { AccountTransport } from "../features/accounts";
+import type { OperationRuntimePort } from "../features/operations/workspace";
+import type { BrowserOfflineSyncRuntime } from "../platform/offline/browserOfflineSyncRuntime";
+import type { RetentionRepository } from "../features/offline/retention";
+import type { PreviewRuntimePort } from "../features/preview/workspace";
+import type { AccountRemovalRuntimePort } from "./createAccountRemovalRuntime";
+import type { FavouriteResolveRuntimePort } from "../features/browsing/navDrawer/workspace";
+
+export interface AppServices {
+  readonly accountRegistry: AccountRegistryService;
+  readonly accountTransport: AccountTransport;
+  readonly accountSession: AccountSessionPorts;
+  readonly browsingCache: BrowsingCacheRepository;
+  readonly favouriteResolveRuntime: FavouriteResolveRuntimePort;
+  readonly connectivity: ConnectivityPort;
+  readonly explicitOfflineRuntime: ExplicitOfflineModeRuntimePort;
+  readonly clock: TransferClock;
+  readonly favourites: FavouritesService;
+  readonly favouritesPointerEnvironment: FavouritesPointerEnvironment;
+  readonly folder: FolderPorts;
+  readonly history: HistoryPort;
+  readonly pullToRefreshEnvironment: PullToRefreshEnvironmentPort;
+  readonly responsiveViewport: ResponsiveViewportPort;
+  readonly search: SearchPorts;
+  readonly settings: SettingsService;
+  readonly operationRuntime: OperationRuntimePort;
+  readonly offlineSyncRuntime: BrowserOfflineSyncRuntime;
+  readonly retentionRepository: RetentionRepository;
+  readonly previewRuntime: PreviewRuntimePort;
+  readonly accountRemovalRuntime: AccountRemovalRuntimePort;
+}

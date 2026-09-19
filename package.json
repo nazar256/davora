@@ -4,16 +4,33 @@
   "license": "MIT",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "test": "npm run test:deploy && npm run test:workspaces",
+    "test": "npm run check:architecture && npm run test:deploy && npm run test:quality && npm run test:workspaces",
     "test:workspaces": "npm run test --workspaces --if-present",
-    "test:deploy": "vitest run scripts/deploy.test.ts",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test:deploy": "vitest run scripts/deploy.test.ts scripts/real-validation-runtime.test.ts --exclude '.tmp/**'",
+    "test:quality": "vitest run scripts/quality/*.test.ts --exclude '.tmp/**' --testTimeout=20000",
+    "test:coverage:pure": "npm run test:coverage:pure --workspace=@davora/shared && npm run test:coverage:pure --workspace=@davora/worker && npm run test:coverage:pure --workspace=@davora/web",
+    "check:architecture": "npm run check:architecture:semantic && npm run check:dependencies",
+    "check:architecture:semantic": "node --import ./node_modules/tsx/dist/loader.mjs scripts/quality/check-architecture.ts",
+    "check:dependencies": "depcruise --config .dependency-cruiser.cjs --output-type err apps/web/src apps/worker/src packages/shared/src",
+    "check:test-timing": "node --import ./node_modules/tsx/dist/loader.mjs scripts/quality/check-web-test-timing.ts .tmp/wave3/web-timing.json",
+    "check:test-timing:focused": "node --import ./node_modules/tsx/dist/loader.mjs scripts/quality/run-web-focused-timing.ts",
+    "metrics": "node --import ./node_modules/tsx/dist/loader.mjs scripts/quality/report-metrics.ts",
+    "baseline:architecture:prune": "node --import ./node_modules/tsx/dist/loader.mjs scripts/quality/prune-architecture-baseline.ts",
+    "lint": "node --import ./node_modules/tsx/dist/loader.mjs scripts/quality/lint.ts",
+    "baseline:lint:create": "node --import ./node_modules/tsx/dist/loader.mjs scripts/quality/lint.ts create-baseline",
+    "baseline:lint:prune": "node --import ./node_modules/tsx/dist/loader.mjs scripts/quality/lint.ts prune-baseline",
+    "check:fast": "npm run lint && npm run typecheck && npm test && npm run build",
+    "typecheck": "npm run typecheck:quality && npm run typecheck --workspaces --if-present",
+    "typecheck:quality": "tsc -p tsconfig.quality.json --noEmit",
     "dev:web": "npm run dev --workspace=@davora/web",
     "dev:worker": "node --env-file-if-exists=.env --import ./node_modules/tsx/dist/loader.mjs apps/worker/src/node-server.ts",
     "deploy:web": "node --env-file-if-exists=.env --import ./node_modules/tsx/dist/loader.mjs scripts/deploy.ts web",
@@ -27,15 +44,20 @@
     "test:pwa": "npm run test:pwa --workspace=@davora/web"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "@types/node": "^22.15.30",
+    "@vitest/coverage-v8": "^3.2.7",
     "concurrently": "^9.1.2",
+    "dependency-cruiser": "18.1.0",
     "dotenv": "^16.5.0",
+    "eslint": "10.7.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "fast-check": "4.9.0",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
-    "vitest": "^3.2.4",
-    "wrangler": "4.86.0"
-  },
-  "dependencies": {
-    "puppeteer-core": "^24.43.1"
+    "typescript-eslint": "8.64.0",
+    "vite": "^6.4.3",
+    "vitest": "^3.2.7",
+    "wrangler": "^4.123.0"
   }
 }

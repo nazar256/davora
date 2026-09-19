@@ -2,12 +2,20 @@ import { resolve } from "node:path";
 
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
-import { defineConfig } from "vite";
+import { defineConfig, type UserConfig } from "vite";
+import type { UserConfig as VitestUserConfig } from "vitest/config";
+
+import { injectThemeBootstrapHtml } from "./src/features/settings/theme/bootstrapSource";
 
 const apiProxyTarget = process.env.VITE_DEV_API_PROXY_TARGET ?? "http://127.0.0.1:8787";
 
-export default defineConfig({
+const config = {
   plugins: [
+    {
+      name: "davora-theme-bootstrap",
+      enforce: "pre",
+      transformIndexHtml: (html) => injectThemeBootstrapHtml(html)
+    },
     react(),
     VitePWA({
       registerType: "prompt",
@@ -20,8 +28,8 @@ export default defineConfig({
         description: "Nextcloud account-aware file manager through a normalized Worker API.",
         categories: ["productivity", "utilities"],
         lang: "en-US",
-        theme_color: "#0f172a",
-        background_color: "#020617",
+        theme_color: "#07101f",
+        background_color: "#07101f",
         display: "standalone",
         display_override: ["window-controls-overlay", "standalone"],
         scope: "/",
@@ -126,4 +134,6 @@ export default defineConfig({
       }
     }
   }
-});
+} satisfies UserConfig & Pick<VitestUserConfig, "test">;
+
+export default defineConfig(config);

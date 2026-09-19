@@ -18,7 +18,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `SESSION_SECRET=playwright-dev-secret MOCK_BACKEND=true PORT=${workerPort} node --import ../../node_modules/tsx/dist/loader.mjs src/node-server.ts`,
+      command: `SESSION_SECRET=playwright-dev-secret RUNTIME_MODE=development MOCK_BACKEND=true LOCAL_DEV_STATE_PATH=../../.tmp/playwright-pwa/worker-state-$$.json PORT=${workerPort} node --import ../../node_modules/tsx/dist/loader.mjs src/node-server.ts`,
       cwd: "../worker",
       url: `http://127.0.0.1:${workerPort}/api/health`,
       reuseExistingServer: false,

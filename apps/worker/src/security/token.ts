@@ -2,6 +2,31 @@ import { Buffer } from "node:buffer";
 
 import type { SessionPayload, StreamTokenPayload } from "../types";
 
+export type TokenVerificationFailureKind =
+  | "malformed"
+  | "invalid_signature"
+  | "expired"
+  | "invalid_session_scope"
+  | "invalid_stream_scope";
+
+const tokenVerificationFailureMessages: Record<TokenVerificationFailureKind, string> = {
+  malformed: "Malformed session token.",
+  invalid_signature: "Invalid session token signature.",
+  expired: "Token expired.",
+  invalid_session_scope: "Invalid session token scope.",
+  invalid_stream_scope: "Invalid stream token scope."
+};
+
+export class TokenVerificationError extends Error {
+  readonly kind: TokenVerificationFailureKind;
+
+  constructor(kind: TokenVerificationFailureKind) {
+    super(tokenVerificationFailureMessages[kind]);
+    this.name = "TokenVerificationError";
+    this.kind = kind;
+  }
+}
+
 function toBase64Url(bytes: Uint8Array): string {
   return Buffer.from(bytes)
     .toString("base64")
@@ -44,7 +69,7 @@ async function signToken(payload: SessionPayload | StreamTokenPayload, secret: s
 async function verifyToken(token: string, secret: string): Promise<SessionPayload | StreamTokenPayload> {
   const parts = token.split(".");
   if (parts.length !== 3) {
-    throw new Error("Malformed session token.");
+    throw new TokenVerificationError("malformed");
   }
 
   const [encodedHeader, encodedPayload, encodedSignature] = parts;
@@ -53,12 +78,12 @@ async function verifyToken(token: string, secret: string): Promise<SessionPayloa
   const valid = await crypto.subtle.verify("HMAC", key, toArrayBuffer(fromBase64Url(encodedSignature)), new TextEncoder().encode(message));
 
   if (!valid) {
-    throw new Error("Invalid session token signature.");
+    throw new TokenVerificationError("invalid_signature");
   }
 
   const payload = JSON.parse(Buffer.from(fromBase64Url(encodedPayload)).toString("utf8")) as SessionPayload | StreamTokenPayload;
   if (payload.exp * 1000 <= Date.now()) {
-    throw new Error("Token expired.");
+    throw new TokenVerificationError("expired");
   }
 
   return payload;
@@ -71,7 +96,7 @@ export async function signSessionToken(payload: SessionPayload, secret: string):
 export async function verifySessionToken(token: string, secret: string): Promise<SessionPayload> {
   const payload = await verifyToken(token, secret);
   if (payload.scope !== "davora") {
-    throw new Error("Invalid session token scope.");
+    throw new TokenVerificationError("invalid_session_scope");
   }
   return payload;
 }
@@ -83,7 +108,7 @@ export async function signStreamToken(payload: StreamTokenPayload, secret: strin
 export async function verifyStreamToken(token: string, secret: string): Promise<StreamTokenPayload> {
   const payload = await verifyToken(token, secret);
   if (payload.scope !== "davora-stream") {
-    throw new Error("Invalid stream token scope.");
+    throw new TokenVerificationError("invalid_stream_scope");
   }
   return payload;
 }

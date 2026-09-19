@@ -1,0 +1,191 @@
+.destination-picker-dialog {
+  width: min(42rem, calc(100vw - 1.5rem));
+}
+
+.destination-picker-dialog {
+  max-height: min(90dvh, 48rem);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.destination-picker-form,
+.destination-picker-scroll,
+.destination-summary,
+.destination-folder-list,
+.destination-manual-path {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.destination-picker-form {
+  min-height: 0;
+  min-width: 0;
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.destination-picker-scroll {
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.2rem;
+}
+
+.destination-picker-header {
+  display: flex;
+  align-items: center;
+}
+
+.destination-picker-header {
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.destination-picker-header h2 {
+  margin: 0;
+  min-width: 0;
+}
+
+.destination-picker-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.destination-summary {
+  min-width: 0;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+}
+
+.destination-summary p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.destination-breadcrumbs {
+  padding: 0.2rem 0;
+}
+
+.destination-folder-list {
+  max-height: min(34vh, 20rem);
+  overflow: auto;
+  padding: 0.35rem;
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: 0.85rem;
+  background: var(--color-surface-raised);
+}
+
+.destination-folder-list > .status {
+  margin: 0;
+  padding: var(--space-3);
+}
+
+.destination-breadcrumbs button > svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.destination-folder-list button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  text-align: left;
+}
+
+.destination-folder-list button span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.destination-manual-path {
+  justify-items: start;
+}
+
+.destination-manual-path label,
+.destination-manual-path input,
+.destination-picker-form > label,
+.destination-picker-form > label input {
+  width: 100%;
+}
+
+.destination-picker-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: var(--border-width) solid var(--color-border-subtle);
+  background: var(--color-surface-overlay);
+}
+
+.destination-picker-actions > button {
+  min-width: 0;
+}
+
+.destination-source-paths {
+  min-width: 0;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1200px) {
+}
+
+@media (min-width: 901px) {
+}
+
+@media (max-width: 900px) {
+
+  .destination-picker-dialog {
+    overflow: hidden;
+  }
+
+  .destination-picker-actions {
+    margin-inline: calc(var(--space-4) * -1);
+    padding: var(--space-3) var(--space-4) max(var(--space-3), env(safe-area-inset-bottom));
+  }
+
+  .destination-picker-actions button {
+    padding-inline: var(--space-2);
+  }
+}
+
+@media (max-width: 900px) {
+}
+
+/*
+ * Davora semantic design tokens. Screen styles should consume these names instead
+ * of palette literals so light, dark, focus, motion, and elevation stay coherent.
+ */
+
+.destination-summary {
+  border-color: var(--color-border-subtle);
+  background: var(--color-surface-overlay);
+  color: var(--color-text);
+}
+
+.destination-picker-form input {
+  border-color: var(--color-border-subtle);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+/* PER-71 browser surfaces */
+
+@media (max-width: 900px) {
+}
+
+@media (min-width: 901px) {
+}
+
+@media (min-width: 901px) and (max-width: 1200px) {
+}
+
+@media (prefers-reduced-motion: reduce) {
+}

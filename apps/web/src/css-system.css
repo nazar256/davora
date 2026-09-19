@@ -1,0 +1,34 @@
+/*
+ * The cascade contract is deliberately centralized here. Keep this order stable:
+ * low-level reset, semantic tokens, shared primitives, layout, feature owners,
+ * utilities, then the explicitly audited exception ledger.
+ */
+@layer reset, tokens, primitives, layout, features, utilities, overrides;
+
+@import "./styles.css" layer(reset);
+@import "./css/tokens.css" layer(tokens);
+@import "./css/primitives.css" layer(primitives);
+@import "./design-system.css" layer(primitives);
+@import "./css/layout.css" layer(layout);
+@import "./features/workspace/status/workspaceStatus.css" layer(features);
+@import "./features/navigation/pullToRefresh/pullToRefresh.css" layer(features);
+@import "./features/offline/sync/confirm/offlineSyncConfirm.css" layer(features);
+@import "./features/pwa/reloadPrompt.css" layer(features);
+@import "./features/accounts/accountSurfaces.css" layer(features);
+@import "./features/browsing/browseHeader/browseHeader.css" layer(features);
+@import "./features/preview/shell/previewShell.css" layer(features);
+@import "./features/preview/image/imagePreview.css" layer(features);
+@import "./features/preview/pdf/pdfPreview.css" layer(features);
+@import "./features/preview/media/mediaPreview.css" layer(features);
+@import "./features/preview/folderAudio/folderAudio.css" layer(features);
+@import "./features/operations/selection/selectionDetails.css" layer(features);
+@import "./features/operations/destination/destinationPicker.css" layer(features);
+@import "./features/operations/actionDialog/actionDialog.css" layer(features);
+@import "./features/settings/settingsDialog/settingsDialog.css" layer(features);
+@import "./features/transfers/tray/transferTray.css" layer(features);
+@import "./features/browsing/fileList/fileList.css" layer(features);
+@import "./features/browsing/favourites/favourites.css" layer(features);
+@import "./features/browsing/appBar/appBar.css" layer(features);
+@import "./features/browsing/navDrawer/navDrawer.css" layer(features);
+@import "./css/utilities.css" layer(utilities);
+@import "./css/overrides.css" layer(overrides);

@@ -1,0 +1,230 @@
+/* Shared, semantic primitives retained from the legacy global sheet. */
+.panel,
+.panel-subtle {
+  border: var(--border-width) solid var(--color-border-subtle);
+  backdrop-filter: blur(16px);
+  border-radius: var(--radius-lg);
+}
+
+.dialog-actions,
+.context-actions,
+.empty-actions,
+.toast-actions,
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.eyebrow {
+  margin: 0 0 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--color-accent-strong);
+  font-size: 0.72rem;
+}
+
+.badge,
+.operation-pill {
+  padding: 0.42rem 0.75rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.banner-state {
+  margin: 0 0 0.9rem;
+  padding: 0.8rem 0.95rem;
+  border-radius: 0.85rem;
+  border: var(--border-width) solid var(--color-border-subtle);
+}
+
+.panel,
+.dialog-card {
+  min-height: 0;
+}
+
+.dialog-card {
+  padding: 1rem;
+  width: min(34rem, 100%);
+}
+
+.dialog-form {
+  display: grid;
+  gap: 0.85rem;
+  max-width: 28rem;
+}
+
+.toolbar-search {
+  gap: 0.85rem;
+}
+
+.dialog-header,
+.dialog-header-actions {
+  display: flex;
+  align-items: center;
+}
+
+.dialog-header {
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.dialog-header h2 {
+  margin: 0;
+  min-width: 0;
+}
+
+.dialog-header-actions {
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+
+.dialog-target {
+  margin: 0;
+  padding: 0.75rem;
+  border: var(--border-width) solid color-mix(in srgb, var(--color-danger) 42%, transparent);
+  border-radius: var(--radius-lg);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.breadcrumbs button > svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.dialog-scroll-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding-right: 0.2rem;
+}
+
+.dialog-scroll-body > * {
+  margin-block: 0;
+}
+
+.dialog-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.breadcrumb-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+button,
+.breadcrumbs button,
+.panel-header button,
+.preview-header button,
+.toast button,
+.quiet-button {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 0.55rem 0.8rem;
+}
+
+.quiet-button {
+  padding: 0.38rem 0.65rem;
+}
+
+button:hover,
+summary:hover {
+  outline: none;
+  border-color: var(--color-border-strong);
+}
+
+input,
+textarea {
+  width: min(24rem, 100%);
+  border-radius: var(--radius-lg);
+  border: var(--border-width) solid var(--color-border-subtle);
+  background: var(--color-surface-raised);
+  padding: 0.78rem 0.9rem;
+}
+
+.action-group-label,
+.summary-label {
+  display: inline-block;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.stacked-field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.stacked-field select {
+  min-width: 0;
+  border-radius: var(--radius-lg);
+  border: var(--border-width) solid var(--color-border-subtle);
+  padding: 0.72rem 0.8rem;
+}
+
+.panel-subtle {
+  border-color: var(--color-border-subtle);
+  backdrop-filter: blur(12px);
+}
+
+.empty-state {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+.modal-scrim {
+  position: fixed;
+  inset: 0;
+  backdrop-filter: blur(10px);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 20;
+}
+
+pre,
+.markdown-preview details {
+  margin: 0;
+  padding: 1rem;
+  border-radius: 0.85rem;
+  background: rgba(2, 6, 23, 0.92);
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.markdown-preview .rendered-markdown {
+  margin: 0;
+  padding: 1.15rem 1.2rem;
+  border-radius: 0.95rem;
+  background: rgba(2, 6, 23, 0.76);
+}
+
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3 {
+  margin-top: 0;
+}

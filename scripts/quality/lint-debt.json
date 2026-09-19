@@ -1,0 +1,1549 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "ruleId": "@typescript-eslint/no-floating-promises",
+      "path": "apps/web/src/features/offline/wakeLock/useScreenWakeLock.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "floatingVoid",
+      "source": "act(() => document.dispatchEvent(new Event(\"visibilitychange\")));",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-misused-promises",
+      "path": "apps/worker/src/node-server.ts",
+      "nodeType": "unknown",
+      "messageId": "voidReturnArgument",
+      "source": "async (req, res) => { if (req.method === \"POST\" && req.url === \"/__davora/stop-worker\") { res.writeHead(204); res.end(); setImmediate(() => process.exit(0)); return; } const body = await readBody(req); const url = `http://127.0.0.1:${port}${req.url ?? \"/\"}`; const request = new Request(url, { method: req.method, headers: req.headers as HeadersInit, body: body && ![\"GET\", \"HEAD\"].includes(req.method ?? \"GET\") ? body : undefined, duplex: \"half\" } as RequestInit & { duplex: \"half\" }); const response = await handleRequest(request, process.env); res.writeHead(response.status, Object.fromEntries(response.headers.entries())); if (response.body) { const arrayBuffer = await response.arrayBuffer(); res.end(Buffer.from(arrayBuffer)); } else { res.end(); } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
+      "path": "apps/web/src/api-contract.test.ts",
+      "nodeType": "unknown",
+      "messageId": "contextuallyUnnecessary",
+      "source": "fetchMock.mock.calls[0]?.[1]?.headers as HeadersInit",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
+      "path": "apps/web/src/api-contract.test.ts",
+      "nodeType": "unknown",
+      "messageId": "contextuallyUnnecessary",
+      "source": "fetchMock.mock.calls[1]?.[1]?.headers as HeadersInit",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
+      "path": "apps/web/src/api-contract.test.ts",
+      "nodeType": "unknown",
+      "messageId": "contextuallyUnnecessary",
+      "source": "fetchMock.mock.calls[2]?.[1]?.headers as HeadersInit",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/workspace/AppBarAppIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unnecessaryAssertion",
+      "source": "lastConnectedAccount!",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
+      "path": "apps/web/src/features/operations/download/workspace/AppDownloadIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unnecessaryAssertion",
+      "source": "(await listFiles(path, token, signal)).items as FileEntry[]",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
+      "path": "apps/web/src/features/operations/download/workspace/AppDownloadIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unnecessaryAssertion",
+      "source": "screen.getAllByRole(\"button\", { name: /^Download selected$/i })[0]!",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
+      "path": "apps/web/src/features/operations/mutation/workspace/AppMutationWorkflowIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unnecessaryAssertion",
+      "source": "screen.getAllByRole(\"button\", { name: /^Copy or move selected$/i })[0]!",
+      "count": 6
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
+      "path": "apps/web/src/features/operations/mutation/workspace/AppMutationWorkflowIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unnecessaryAssertion",
+      "source": "screen.getAllByRole(\"button\", { name: /^Delete selected$/i })[0]!",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
+      "path": "apps/web/src/features/operations/upload/AppUploadIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unnecessaryAssertion",
+      "source": "within(toolbar).getByLabelText(/^Upload files$/i) as HTMLInputElement",
+      "count": 3
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
+      "path": "apps/web/src/features/operations/upload/AppUploadIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unnecessaryAssertion",
+      "source": "within(toolbar).getByLabelText(/^Upload folder$/i) as HTMLInputElement",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
+      "path": "apps/web/src/features/preview/video/AppVideoPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unnecessaryAssertion",
+      "source": "within(previewDialog).getByLabelText(/Video preview clip.mp4/i) as HTMLVideoElement",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
+      "path": "apps/web/src/features/transfers/tray/AppTransferTrayIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unnecessaryAssertion",
+      "source": "(await listFiles(path, token, signal)).items as FileEntry[]",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
+      "path": "apps/web/src/features/transfers/tray/AppTransferTrayIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unnecessaryAssertion",
+      "source": "screen.getAllByRole(\"button\", { name: /^Download selected$/i })[0]!",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
+      "path": "apps/worker/src/mock/data.ts",
+      "nodeType": "unknown",
+      "messageId": "unnecessaryAssertion",
+      "source": "entries[index]!",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
+      "path": "apps/worker/src/nextcloud/client.ts",
+      "nodeType": "unknown",
+      "messageId": "unnecessaryAssertion",
+      "source": "items[0]!",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
+      "path": "apps/worker/tests/nextcloud.test.ts",
+      "nodeType": "unknown",
+      "messageId": "contextuallyUnnecessary",
+      "source": "(async (input: RequestInfo | URL, init?: RequestInit) => { const url = typeof input === \"string\" ? input : input.toString(); const method = init?.method ?? \"GET\"; fetchCalls.push({ url, method }); if (method === \"PROPFIND\") { return new Response( `<?xml version=\"1.0\"?> <d:multistatus xmlns:d=\"DAV:\"> <d:response> <d:href>/remote.php/dav/files/alice/.davora-agent-test/Photos/</d:href> <d:propstat><d:status>HTTP/1.1 200 OK</d:status><d:prop><d:displayname>Photos</d:displayname><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat> </d:response> <d:response> <d:href>/remote.php/dav/files/alice/.davora-agent-test/Photos/100%25%20complete.txt</d:href> <d:propstat><d:status>HTTP/1.1 200 OK</d:status><d:prop><d:displayname>100% complete.txt</d:displayname><d:getcontenttype>text/plain</d:getcontenttype><d:getcontentlength>4</d:getcontentlength><d:resourcetype/></d:prop></d:propstat> </d:response> </d:multistatus>`, { status: 207 } ); } return new Response(\"done\", { status: 200, headers: { \"content-type\": \"text/plain\" } }); }) as typeof fetch",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
+      "path": "apps/worker/tests/nextcloud.test.ts",
+      "nodeType": "unknown",
+      "messageId": "contextuallyUnnecessary",
+      "source": "(async function fetchWithRequiredThis(this: typeof globalThis, input: RequestInfo | URL) { if (this !== globalThis) { throw new TypeError(\"Illegal invocation: function called with incorrect `this` reference.\"); } fetchCalls.push(typeof input === \"string\" ? input : input.toString()); return new Response(`<?xml version=\"1.0\"?><d:multistatus xmlns:d=\"DAV:\"><d:response><d:href>/remote.php/dav/files/alice/.davora-agent-test</d:href><d:propstat><d:status>HTTP/1.1 200 OK</d:status><d:prop><d:displayname>.davora-agent-test</d:displayname><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat></d:response></d:multistatus>`, { status: 207 }); }) as typeof fetch",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
+      "path": "scripts/deploy.ts",
+      "nodeType": "unknown",
+      "messageId": "unnecessaryAssertion",
+      "source": "extraArgs[index]!",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/offline/wakeLock/AppWakeLockIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "account",
+      "count": 9
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/operations/download/workspace/AppDownloadIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "account",
+      "count": 9
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/operations/upload/AppUploadIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "account",
+      "count": 9
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/operations/upload/AppUploadIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "accountId",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/audio/AppAudioPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "{ ...input.file, path, normalCacheOwnership: \"owned\", readable: Boolean(input.file.readable) || Boolean(input.blob), blobSize: input.blob?.size ?? input.file.blobSize }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/audio/AppAudioPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "{ ...root, id: `${root.kind}:${root.rootPath}` }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/audio/AppAudioPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "account.cacheNamespace",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/audio/AppAudioPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "account",
+      "count": 13
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/audio/AppAudioPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "input.blob",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/audio/AppAudioPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "input.file.path",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/audio/AppAudioPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "path",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/audio/useAudioPreviewInteraction.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "callback",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "{ ...input.file, path, normalCacheOwnership: \"owned\", readable: Boolean(input.file.readable) || Boolean(input.blob), blobSize: input.blob?.size ?? input.file.blobSize }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "{ ...root, id: `${root.kind}:${root.rootPath}` }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "account.cacheNamespace",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "account",
+      "count": 13
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "input.blob",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "input.file.path",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "path",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/session/controller.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "resource.id",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/video/AppVideoPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "{ ...input.file, path, normalCacheOwnership: \"owned\", readable: Boolean(input.file.readable) || Boolean(input.blob), blobSize: input.blob?.size ?? input.file.blobSize }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/video/AppVideoPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "{ ...root, id: `${root.kind}:${root.rootPath}` }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/video/AppVideoPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "account.cacheNamespace",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/video/AppVideoPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "account",
+      "count": 13
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/video/AppVideoPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "input.blob",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/video/AppVideoPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "input.file.path",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/preview/video/AppVideoPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "path",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/features/transfers/tray/AppTransferTrayIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "account",
+      "count": 9
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/web/src/lib/api.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "import.meta.env.VITE_API_BASE_URL",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "apps/worker/src/node-server.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "Buffer.from(chunk)",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "scripts/validate-real.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "Buffer.from(chunk)",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "path": "scripts/validate-real.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeArgument",
+      "source": "chunk",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/offline/mode/AppExplicitOfflineModeIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "items: await calls.search(path, query, token, signal)",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/offline/mode/AppExplicitOfflineModeIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "result = await calls.listFolder(path, token, signal)",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/operations/mutation/workspace/AppMutationWorkflowIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "snapshot: ReturnType<AppServices[\"accountRegistry\"][\"getSnapshot\"]> = rawState ? JSON.parse(rawState) : { accounts: [] }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/operations/upload/AppUploadIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "response = await api.listFiles(path, token, signal)",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/operations/upload/AppUploadIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "uploadSignal = signal",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/preview/audio/AppAudioPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "blobSize: input.blob?.size ?? input.file.blobSize",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/preview/audio/AppAudioPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "storeFor(account).limitBytes = limitBytes",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "blobSize: input.blob?.size ?? input.file.blobSize",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "storeFor(account).limitBytes = limitBytes",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/preview/session/controller.test.ts",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "kind: material.kind",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/preview/session/controller.test.ts",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "snapshot: expect.objectContaining({ fingerprint: \"stream\" })",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/preview/session/retentionPreviewCacheAdapter.test.ts",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "blob: expect.any(Blob)",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/preview/session/retentionPreviewCacheAdapter.test.ts",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "file: expect.objectContaining({ name: \"gallery.txt\", normalCacheOwnership: \"owned\" })",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/preview/session/retentionPreviewCacheAdapter.test.ts",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "file: expect.objectContaining({ path: \"Archive/photo.heic\", mimeType: \"image/jpeg\", name: \"photo.heic.jpg\", blobSize: decoded.size })",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/preview/session/retentionPreviewCacheAdapter.test.ts",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "file: expect.objectContaining({ path: \"Photos/image.png\", blobSize: 0, readable: false, normalCacheOwnership: \"owned\" })",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/preview/session/retentionPreviewCacheAdapter.test.ts",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "file: expect.objectContaining({ path: \"Photos/image.png\", name: \"image.png\", mimeType: \"image/png\", size: 5, blobSize: 5, readable: true, normalCacheOwnership: \"owned\" })",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/preview/session/retentionPreviewCacheAdapter.test.ts",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "file: expect.objectContaining({ path: \"Photos/image.png\", name: \"image.txt\", mimeType: \"text/plain\", blobSize: 0, readable: false, normalCacheOwnership: \"owned\" })",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/preview/session/retentionPreviewCacheAdapter.test.ts",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "fingerprint: input.preview.content",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/preview/session/retentionPreviewCacheAdapter.test.ts",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "preview: input.preview",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/preview/video/AppVideoPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "blobSize: input.blob?.size ?? input.file.blobSize",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/preview/video/AppVideoPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "storeFor(account).limitBytes = limitBytes",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/web/src/features/pwa/AppPwaIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "snapshot = stored ? JSON.parse(stored) : { accounts: [] }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "path": "apps/worker/tests/nextcloud.test.ts",
+      "nodeType": "unknown",
+      "messageId": "anyAssignment",
+      "source": "metadata: expect.objectContaining({ path: \"Photos/100% complete.txt\", name: \"100% complete.txt\" })",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-call",
+      "path": "apps/web/src/features/operations/upload/AppUploadIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeCall",
+      "source": "signal?.addEventListener",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/browsing/appBar/workspace/AppBarAppIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "surface",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/operations/upload/AppUploadIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "addEventListener",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/operations/upload/AppUploadIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "items",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/operations/upload/AppUploadIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "path",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/operations/upload/AppUploadIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "result",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/preview/audio/AppAudioPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "blob",
+      "count": 4
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/preview/audio/AppAudioPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "cacheNamespace",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/preview/audio/AppAudioPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "file",
+      "count": 4
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/preview/audio/AppAudioPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "kind",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/preview/audio/AppAudioPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "rootPath",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "blob",
+      "count": 4
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "cacheNamespace",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "file",
+      "count": 7
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "kind",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "rootPath",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/preview/session/controller.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "id",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/preview/session/controller.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "kind",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/preview/session/retentionPreviewCacheAdapter.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "blob",
+      "count": 3
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/preview/session/retentionPreviewCacheAdapter.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "preview",
+      "count": 3
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/preview/video/AppVideoPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "blob",
+      "count": 4
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/preview/video/AppVideoPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "cacheNamespace",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/preview/video/AppVideoPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "file",
+      "count": 4
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/preview/video/AppVideoPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "kind",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/features/preview/video/AppVideoPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "rootPath",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "path": "apps/web/src/lib/api.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeMemberExpression",
+      "source": "data",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/api-contract.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "createObjectUrl as unknown as { mockRestore(): void }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/api-contract.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "fetchMock.mock.calls[0]?.[1]?.headers as HeadersInit",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/api-contract.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "fetchMock.mock.calls[1]?.[1]?.headers as HeadersInit",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/api-contract.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "fetchMock.mock.calls[2]?.[1]?.headers as HeadersInit",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/api-contract.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "revokeObjectUrl as unknown as { mockRestore(): void }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/appBarWorkspace.characterization.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "props.transferTray.props as Record<string, unknown>",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/appBarWorkspace.characterization.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "failedSyncItem as HTMLElement",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/appBarWorkspace.characterization.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "props.transferTray.props as Record<string, unknown>",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/appBarWorkspace.characterization.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "trayProps.onClearFinished as () => void",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/appBarWorkspace.characterization.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "trayProps.onRetryFailedSync as (task: TransferTask) => void",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/appBarWorkspace.characterization.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "trayProps.onToggleOpen as () => void",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/workspace/AppBarAppIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "beforeClearTaskCount.props as Record<string, unknown>",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/workspace/AppBarAppIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "current.common.appBar.transferTray.props as { tasks: readonly TransferTask[] }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/workspace/AppBarAppIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "transferTray.props as Record<string, unknown>",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/workspace/AppBarAppIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "[...appShellCapture.history].reverse().find((entry) => entry.kind === \"workspace\") as Extract<AppShellProps, { kind: \"workspace\" }>",
+      "count": 3
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/workspace/AppBarAppIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "{ closed: false } as Window",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/workspace/AppBarAppIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "currentTrayProps.onClearFinished as () => void",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/workspace/AppBarAppIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "key as keyof typeof workspace.common.appBar.install",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/workspace/AppBarAppIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "key as keyof typeof workspace.common.appBar.sortPanel",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/workspace/AppBarAppIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "key as keyof typeof workspace.common.appBar",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/workspace/AppBarAppIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "new Event(\"beforeinstallprompt\") as Event & { prompt: typeof prompt; userChoice: typeof userChoice; preventDefault: () => void; }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/workspace/AppBarAppIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "state as Parameters<typeof services.history.pushState>[0]",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/workspace/AppBarAppIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "trayProps.onRetryFailedSync as (task: TransferTask) => void",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/workspace/AppBarAppIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "trayProps.onToggleOpen as () => void",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/workspace/AppBarAppIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "trayProps.tasks as readonly TransferTask[]",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/browsing/appBar/workspace/AppBarAppIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "ui as ReactElement<{ readonly services?: AppServices }>",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/offline/mode/AppExplicitOfflineModeIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "JSON.parse(raw.value) as Record<string, boolean>",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/offline/mode/AppExplicitOfflineModeIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "result as { path: string; items: FileEntry[] }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/offline/wakeLock/AppWakeLockIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "player.querySelector(\"audio\") as HTMLAudioElement",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/operations/mutation/workspace/AppMutationCurrentnessIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "JSON.parse(rawState) as ReturnType<AppServices[\"accountRegistry\"][\"getSnapshot\"]>",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/operations/mutation/workspace/AppMutationCurrentnessIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "Object.assign({ loadPdfJs: async () => { throw new Error(\"PDF preview is not part of this workflow.\"); }, requestAnimationFrame: (callback: FrameRequestCallback) => requestAnimationFrame(callback), getDevicePixelRatio: () => 1, createResizeObserver: () => undefined }, { [\"f\" + \"etch\"]: async () => new Response() }) as unknown as AppServices[\"previewRuntime\"][\"modal\"][\"pdf\"]",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/operations/mutation/workspace/AppMutationCurrentnessIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "vi.spyOn(console, \"log\").mockImplementation(() => undefined) as ConsoleSpy",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/operations/upload/AppUploadIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "(await api.createFolder({ path: parentPath, name }, token)).result as MutationResult",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/operations/upload/AppUploadIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "(await api.uploadFileWithProgress(input, token, onProgress, signal)).result as MutationResult",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/operations/upload/AppUploadIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "response.items as FileEntry[]",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/operations/upload/AppUploadIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "document.querySelector(\".file-list-panel\") as HTMLElement",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/operations/upload/AppUploadIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "document.querySelector(\".folder-actions-inline\") as HTMLElement",
+      "count": 4
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/preview/audio/AppAudioPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "previewDialog.querySelector(\"audio\") as HTMLAudioElement",
+      "count": 7
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/preview/audio/AppAudioPreviewIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "reopenedPreview.querySelector(\"audio\") as HTMLAudioElement",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/preview/pdf/usePdfPreviewInteraction.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "{ clearRect: vi.fn() } as unknown as CanvasRenderingContext2D",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/preview/pdf/usePdfPreviewInteraction.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "getByLabelText(\"PDF preview sample.pdf\").querySelector(\".pdf-canvas-scroll\") as HTMLDivElement",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/preview/session/AppPreviewSessionIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "JSON.parse(localStorage.getItem(\"davora-account-state\") ?? \"{}\") as { accounts?: Array<{ account: { id: string }; session?: { token: string } }> }",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/preview/session/retentionPreviewCacheAdapter.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "abort as RetentionPreviewRuntimeAbort",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/pwa/AppPwaIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "new Event(\"beforeinstallprompt\") as Event & { prompt: typeof prompt; userChoice: typeof firstChoice; preventDefault: () => void; }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/pwa/AppPwaIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "new Event(\"beforeinstallprompt\") as Event & { prompt: typeof prompt; userChoice: typeof secondChoice; preventDefault: () => void; }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/pwa/AppPwaIntegration.test.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "new Event(\"beforeinstallprompt\") as Event & { prompt: typeof prompt; userChoice: typeof userChoice; preventDefault: () => void; }",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/features/settings/settingsDialog/CachePanel.tsx",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "event.target.value as PreviewFreshnessUnit",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/lib/api.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "(await response.json()).data as T",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/lib/api.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeToUnconstrainedTypeAssertion",
+      "source": "undefined as T",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/lib/api.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "data.code as ApiError[\"code\"]",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/web/src/lib/api.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "raw.data as Record<string, unknown>",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/src/node-server.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "{ method: req.method, headers: req.headers as HeadersInit, body: body && ![\"GET\", \"HEAD\"].includes(req.method ?? \"GET\") ? body : undefined, duplex: \"half\" } as RequestInit & { duplex: \"half\" }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/src/node-server.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "req.headers as HeadersInit",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/src/security/token.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "JSON.parse(Buffer.from(fromBase64Url(encodedPayload)).toString(\"utf8\")) as SessionPayload | StreamTokenPayload",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/tests/account-session-ssrf-remediation.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "await created.json() as { data: { account: { id: string } } }",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/tests/account-session-ssrf-remediation.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "await session.json() as { data: { session: { token: string } } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/tests/accounts/account-application.integration.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "(await accountResponse.json()) as { data: { account: { id: string } } }",
+      "count": 3
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/tests/accounts/account-application.integration.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "(await response.json()) as { data: { code: string; message: string } }",
+      "count": 3
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/tests/accounts/account-application.integration.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "(await response.json()) as { data: { session: { rootPath: string; account: { rootPath: string } } } }",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/tests/accounts/account-application.integration.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "(await second.json()) as { data: { account: { id: string } } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/tests/accounts/account-application.integration.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "(await secondList.json()) as { data: { items: Array<{ path: string }> } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/tests/accounts/account-application.integration.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "(await secondSession.json()) as { data: { session: { token: string } } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/tests/accounts/account-application.integration.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "(await sessionResponse.json()) as { data: { session: { account: { id: string } } } }",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/tests/accounts/account-application.integration.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "await accountResponse.json() as { data?: { code?: string; message?: string } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/tests/app.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "(await response.json()) as { data: { items: Array<{ path: string }> } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/tests/file-error-taxonomy.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "\"not-a-code\" as ApiErrorCode",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/tests/files/file-application.integration.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "(await markdownResponse.json()) as { data: { file: { viewer: string; mimeType?: string } } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/tests/files/file-application.integration.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "(await mediaResponse.json()) as { data: { file: { viewer: string; requiresOriginalBlob: boolean } } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/tests/files/file-application.integration.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "(await pdfResponse.json()) as { data: { file: { viewer: string; requiresOriginalBlob: boolean; unsupportedReason?: string } } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/tests/files/file-application.integration.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "(await textResponse.json()) as { data: { file: { content: string; viewer: string } } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/tests/files/file-application.integration.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "(await tokenResponse.json()) as { data: { token: string; path: string; expiresAt: string } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "apps/worker/tests/support/durableAccountStoreHarness.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "storage.get(key) as T | undefined",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "packages/shared/tests/exhaustiveness.test.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "\"unexpected\" as never",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "scripts/deploy.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "JSON.parse(output || \"null\") as T",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "scripts/deploy.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "targetArg as DeployTarget | undefined",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "scripts/quality/check-architecture.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "JSON.parse(readFileSync(baselinePath, \"utf8\")) as DebtBaseline",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "scripts/quality/lint.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "JSON.parse( await fs.readFile(baselinePath, \"utf8\") ) as DebtBaseline",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "scripts/quality/lint.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "error as NodeJS.ErrnoException",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "scripts/quality/prune-architecture-baseline.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "JSON.parse(readFileSync(baselinePath, \"utf8\")) as DebtBaseline",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "scripts/validate-real.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeOfAnyTypeAssertion",
+      "source": "(await response.json().catch(() => undefined)) as Record<string, unknown> | undefined",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "scripts/validate-real.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "await expectOk(\"/api/accounts\", { method: \"POST\", headers: { ...accountBootstrapHeaders(), \"content-type\": \"application/json\" }, body: JSON.stringify({ type: \"nextcloud\", baseUrl, username, appPassword: password, rootPath, label: \"Real validation\" }) }) as { data: { account: { id: string } } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "scripts/validate-real.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "await expectOk(\"/api/file?path=docs/renamed.txt\", { headers: requestHeaders(token) }) as { data: { file: { content: string; unsupportedReason?: string } } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "scripts/validate-real.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "await expectOk(\"/api/file?path=docs/stream-check.mp3\", { headers: requestHeaders(token) }) as { data: { file: { viewer: string; requiresOriginalBlob?: boolean } } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "scripts/validate-real.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "await expectOk(\"/api/file?path=docs/worker-folder/worker-upload.txt\", { headers: requestHeaders(token) }) as { data: { file: { content: string } } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "scripts/validate-real.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "await expectOk(\"/api/files?path=docs\", { headers: requestHeaders(token) }) as { data: { items: Array<{ path: string }> } }",
+      "count": 2
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "scripts/validate-real.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "await expectOk(\"/api/search?path=&q=renamed\", { headers: requestHeaders(token) }) as { data: { items: Array<{ path: string }> } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "scripts/validate-real.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "await expectOk(\"/api/search?path=docs&q=worker\", { headers: requestHeaders(token) }) as { data: { items: Array<{ path: string }> } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "scripts/validate-real.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "await expectOk(\"/api/session\", { method: \"POST\", headers: { ...accountBootstrapHeaders(), \"content-type\": \"application/json\" }, body: JSON.stringify({ accountId, ...(unlockCode ? { unlockCode } : {}) }) }) as { data: { session: { token: string } } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "scripts/validate-real.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "await expectOk(`/api/file?path=${encodeURIComponent(percentFilePath)}`, { headers: requestHeaders(token) }) as { data: { file: { content: string } } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "scripts/validate-real.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "await expectOk(`/api/file/stream-token?path=${encodeURIComponent(\"docs/stream-check.mp3\")}`, { method: \"POST\", headers: requestHeaders(token) }) as { data: { token: string } }",
+      "count": 1
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "path": "scripts/validate-real.ts",
+      "nodeType": "unknown",
+      "messageId": "unsafeTypeAssertion",
+      "source": "await expectOk(`/api/files?path=${encodeURIComponent(percentFolderPath)}`, { headers: requestHeaders(token) }) as { data: { items: Array<{ path: string }> } }",
+      "count": 1
+    },
+    {
+      "ruleId": "react-hooks/exhaustive-deps",
+      "path": "apps/web/src/features/offline/wakeLock/useScreenWakeLock.ts",
+      "nodeType": "unknown",
+      "messageId": "React Hook useMemo has a missing dependency: 'options.reasons'. Either include it or remove the dependency array.",
+      "source": "[reasonsKey]",
+      "count": 1
+    }
+  ]
+}
