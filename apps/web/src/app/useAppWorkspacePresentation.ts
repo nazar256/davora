@@ -65,7 +65,6 @@ export interface AppWorkspacePresentationInput {
   readonly services: Pick<AppServices, "favourites" | "favouritesPointerEnvironment" | "favouriteResolveRuntime">;
   readonly ports: {
     readonly appBuildLabel: string;
-    readonly buildStaleInfo: Parameters<typeof projectBrowsingSurfaceBindings>[0]["ports"]["buildStaleInfo"];
     readonly directoryUploadInputRef: Parameters<typeof projectBrowsingSurfaceBindings>[0]["ports"]["directoryUploadInputRef"];
     readonly folderAudioBrowsePanelClassName: (hasPlayer: boolean) => string;
     readonly toDisplayPath: (path: string) => string;
@@ -200,8 +199,7 @@ export function useAppWorkspacePresentation(input: AppWorkspacePresentationInput
       directoryUploadInputRef: ports.directoryUploadInputRef,
       loadFolder: folderLoadCoordination.loadFolder,
       openFile: (entry) => { void preview.bridge.openFile(entry, { preferFolderAudioPlayer: true }); },
-      openOfflineSync: (entries, archiveInput, capture) => { void offlineSyncWorkspace.commands.open(entries, archiveInput, capture); },
-      buildStaleInfo: ports.buildStaleInfo
+      openOfflineSync: (entries, archiveInput, capture) => { void offlineSyncWorkspace.commands.open(entries, archiveInput, capture); }
     }
   });
   const appBarWorkspace = useAppBarWorkspace({

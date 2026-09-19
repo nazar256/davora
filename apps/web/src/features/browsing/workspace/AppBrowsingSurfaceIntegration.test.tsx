@@ -500,7 +500,7 @@ describe("AppBrowsingSurfaceIntegration", () => {
       "onClearSearch", "onClearSelection", "onCopyMoveSelection", "onCreateFolder", "onDeleteSelection",
       "onDownloadSelection", "onFileSizeDisplayModeChange", "onKeepOfflineSelection", "onNavigateToPath",
       "onSearchQueryChange", "onSortModeChange", "onUploadFiles", "refreshingFolder", "searchActive", "searchQuery",
-      "selectionSummaryLabel", "showBreadcrumbs", "sortMode", "sortReset", "staleFolder", "staleInfo", "status"
+      "selectionSummaryLabel", "showBreadcrumbs", "sortMode", "sortReset", "staleFolder", "status"
     ].sort());
     expect(Object.keys(fileList.props).sort()).toEqual([
       "batchModeActive", "canMarkForBatchDownload", "clearRowOpenSuppression", "emptyStatus", "emptyTitle", "fileSizeDisplayMode",

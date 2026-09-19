@@ -55,7 +55,7 @@ function buildInput(): BrowsingSurfaceInput {
       pullToRefresh: { fileListRef: vi.fn() }
     },
     ports: {
-      directoryUploadInputRef: vi.fn(), loadFolder: vi.fn(), openFile, openOfflineSync: vi.fn(), buildStaleInfo: () => undefined
+      directoryUploadInputRef: vi.fn(), loadFolder: vi.fn(), openFile, openOfflineSync: vi.fn()
     }
   };
 }

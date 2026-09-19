@@ -1,11 +1,64 @@
-import { expect, test } from "@playwright/test";
-import { connectAccount } from "./support/workspace";
+import { expect, test, type Page } from "@playwright/test";
+import { connectAccount, createGate } from "./support/workspace";
 
 test.beforeEach(async ({ request, baseURL }) => {
   await request.post(`${baseURL?.replace("4174", "8789")}/api/mock/reset`, {
     headers: { "x-davora-reset-token": "playwright-dev-secret" }
   });
 });
+
+async function measureNoticeGeometry(page: Page) {
+  return page.evaluate(() => {
+    const notice = document.querySelector<HTMLElement>(".state-banner-slot .banner-state");
+    const panel = document.querySelector<HTMLElement>(".file-list-panel");
+    if (!notice || !panel) {
+      return null;
+    }
+    const bounds = notice.getBoundingClientRect();
+    const panelBounds = panel.getBoundingClientRect();
+    const probe = (x: number, y: number) => {
+      const hit = document.elementFromPoint(x, y);
+      if (!hit) {
+        return { insideNotice: false, surface: "none" };
+      }
+      return {
+        insideNotice: hit === notice || notice.contains(hit),
+        surface: `${hit.tagName.toLowerCase()}.${Array.from(hit.classList).join(".")}`
+      };
+    };
+    const centerX = bounds.left + bounds.width / 2;
+    const centerY = bounds.top + bounds.height / 2;
+    return {
+      notice: { top: bounds.top, right: bounds.right, bottom: bounds.bottom, left: bounds.left },
+      panel: { top: panelBounds.top, right: panelBounds.right, bottom: panelBounds.bottom, left: panelBounds.left },
+      probes: [
+        probe(centerX, centerY),
+        probe(bounds.left + 3, centerY),
+        probe(bounds.right - 3, centerY),
+        probe(centerX, bounds.top + 2),
+        probe(centerX, bounds.bottom - 2)
+      ],
+      viewport: { width: window.innerWidth, height: window.innerHeight }
+    };
+  });
+}
+
+async function expectNoticeReadable(page: Page, context: string) {
+  const geometry = await measureNoticeGeometry(page);
+  expect(geometry, `${context}: cached notice must render`).not.toBeNull();
+  if (!geometry) {
+    return;
+  }
+  const { notice, panel, probes, viewport } = geometry;
+  expect(notice.top, `${context}: notice top inside viewport`).toBeGreaterThanOrEqual(0);
+  expect(notice.bottom, `${context}: notice bottom inside viewport`).toBeLessThanOrEqual(viewport.height + 1);
+  expect(notice.left, `${context}: notice left inside viewport`).toBeGreaterThanOrEqual(-1);
+  expect(notice.right, `${context}: notice right inside viewport`).toBeLessThanOrEqual(viewport.width + 1);
+  expect(notice.bottom, `${context}: notice must not intersect the file list`).toBeLessThanOrEqual(panel.top + 1);
+  for (const probe of probes) {
+    expect(probe.insideNotice, `${context}: notice must not be painted under ${probe.surface}`).toBe(true);
+  }
+}
 
 test("PER-74 responsive visual QA keeps core browser controls within representative viewports", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chrome", "One browser project exercises the explicit viewport matrix.");
@@ -214,4 +267,120 @@ test("mobile file list scroll keeps the compact toolbar visible", async ({ page 
   await workspace.dispatchEvent("touchmove", { touches: [{ identifier: 2, clientX: 180, clientY: 130 }] });
   await expect(page.locator(".pull-to-refresh-indicator")).toBeVisible();
   await workspace.dispatchEvent("touchend", { changedTouches: [{ identifier: 2, clientX: 180, clientY: 130 }] });
+});
+
+test("PER-5 cached offline notice stays readable above the file list", async ({ page, context }, testInfo) => {
+  const reportNames = Array.from({ length: 40 }, (_, index) => `Report ${String(index + 1).padStart(2, "0")}.txt`);
+  const rootFolders = ["Documents", ...Array.from({ length: 14 }, (_, index) => `Folder ${String(index + 1).padStart(2, "0")}`)];
+  await page.route("**/api/files?path=", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          path: "",
+          items: rootFolders.map((name, index) => ({
+            path: name,
+            name,
+            isFolder: true,
+            lastModified: new Date(Date.UTC(2026, 4, 1 + index, 8, 15, 0)).toISOString()
+          }))
+        }
+      })
+    });
+  });
+  await page.route("**/api/files?path=Documents", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          path: "Documents",
+          items: reportNames.map((name, index) => ({
+            path: `Documents/${name}`,
+            name,
+            isFolder: false,
+            size: 100 + index,
+            lastModified: new Date(Date.UTC(2026, 4, 1 + index, 8, 15, 0)).toISOString()
+          }))
+        }
+      })
+    });
+  });
+
+  await connectAccount(page, "PER-5 cached notice", { waitForWorkspace: false });
+  await expect(page.getByRole("button", { name: /Open folder Documents/i })).toBeVisible();
+  await page.getByRole("button", { name: /Open folder Documents/i }).click();
+  await expect(page.getByRole("button", { name: /Open file Report 40\.txt/i })).toBeVisible();
+
+  await context.setOffline(true);
+  await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
+
+  await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).click();
+  const notice = page.locator(".state-banner-slot .banner-state");
+  await expect(notice).toContainText(/cached data while offline/i);
+  await expectNoticeReadable(page, "root folder offline notice");
+
+  await page.getByRole("button", { name: /Open folder Documents/i }).click();
+  await expect(notice).toContainText(/cached data while offline/i);
+  await expect(page.getByRole("button", { name: /Open file Report 40\.txt/i })).toBeVisible();
+  await expectNoticeReadable(page, "nested folder offline notice");
+
+  await page.locator(".file-list-panel").evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    element.dispatchEvent(new Event("scroll", { bubbles: true }));
+  });
+  await expectNoticeReadable(page, "offline notice after scrolling the list");
+
+  if (testInfo.project.name === "mobile-chrome") {
+    await page.locator(".file-list-panel").evaluate((element) => {
+      element.scrollTop = 0;
+      element.dispatchEvent(new Event("scroll", { bubbles: true }));
+    });
+    const workspace = page.locator(".workspace-layout");
+    await workspace.dispatchEvent("touchstart", { touches: [{ identifier: 3, clientX: 180, clientY: 0 }] });
+    await workspace.dispatchEvent("touchmove", { touches: [{ identifier: 3, clientX: 180, clientY: 130 }] });
+    await workspace.dispatchEvent("touchend", { changedTouches: [{ identifier: 3, clientX: 180, clientY: 130 }] });
+    await expect(page.locator(".pull-to-refresh-indicator")).toHaveCount(0);
+    await expectNoticeReadable(page, "offline notice while pull-to-refresh is suppressed");
+  }
+});
+
+test("PER-5 routine cached refresh uses header status and never moves file rows", async ({ page }, testInfo) => {
+  let holdRefresh = false;
+  const gate = createGate();
+  await page.route("**/api/files?path=Projects", async (route) => {
+    if (holdRefresh) {
+      await gate.promise;
+    }
+    await route.continue();
+  });
+
+  await connectAccount(page, "PER-5 routine refresh");
+  await page.getByRole("button", { name: /Open folder Projects/i }).click();
+  await expect(page.getByRole("button", { name: /Open file roadmap.txt/i })).toBeVisible();
+  await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).click();
+  await expect(page.getByRole("button", { name: /Open folder Projects/i })).toBeVisible();
+
+  holdRefresh = true;
+  await page.getByRole("button", { name: /Open folder Projects/i }).click();
+
+  await expect(page.getByRole("button", { name: /Open file roadmap.txt/i })).toBeVisible();
+  await expect(page.locator(".state-banner-slot .banner-state")).toHaveCount(0);
+  if (testInfo.project.name === "mobile-chrome") {
+    await expect(page.getByRole("status", { name: /Refreshing cached folder/i })).toBeVisible();
+  } else {
+    await expect(page.locator(".browser-status")).toContainText(/Refreshing/i);
+  }
+
+  const rowTopWhileRefreshing = await page.locator(".item-row").first().evaluate((element) => element.getBoundingClientRect().top);
+  gate.release();
+  await expect(page.locator(".state-banner-slot .banner-state")).toHaveCount(0);
+  if (testInfo.project.name === "mobile-chrome") {
+    await expect(page.getByRole("status", { name: /Refreshing cached folder/i })).toHaveCount(0);
+  } else {
+    await expect(page.locator(".browser-status")).toContainText(/Ready/i);
+  }
+  const rowTopAfterRefresh = await page.locator(".item-row").first().evaluate((element) => element.getBoundingClientRect().top);
+  expect(Math.abs(rowTopAfterRefresh - rowTopWhileRefreshing)).toBeLessThanOrEqual(1);
 });

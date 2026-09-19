@@ -46,6 +46,21 @@ test("captures explicit offline mode with a pruned local-only tree", async ({ pa
   await saveScreenshot(page, "davora-mobile-explicit-offline-mode.png");
 });
 
+test("captures the cached-data notice above the mobile file list", async ({ page, context }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chrome", "Mobile evidence only.");
+  await connectAccount(page, "Cached notice workspace");
+  await page.getByRole("button", { name: /Open folder Projects/i }).click();
+  await expect(page.getByRole("button", { name: /Open file roadmap.txt/i })).toBeVisible();
+  await context.setOffline(true);
+  await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
+  await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).click();
+  await page.getByRole("button", { name: /Open folder Projects/i }).click();
+  const notice = page.locator(".state-banner-slot .banner-state");
+  await expect(notice).toContainText(/cached data while offline/i);
+  await expect(page.getByRole("button", { name: /Open file roadmap.txt/i })).toBeVisible();
+  await saveScreenshot(page, "davora-mobile-cached-notice.png");
+});
+
 test("captures background offline sync progress", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chrome", "Desktop evidence only.");
   await page.addInitScript(() => {

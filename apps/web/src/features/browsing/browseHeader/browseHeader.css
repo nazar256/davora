@@ -167,10 +167,6 @@
     font-size: 0.88rem;
   }
 
-  .browse-context-row .stale-info {
-    display: none;
-  }
-
   .browse-header-controls {
     display: flex;
     flex-wrap: wrap;
@@ -238,7 +234,6 @@
 .browse-title-row .eyebrow,
 .browse-header .breadcrumbs,
 .browse-context-row,
-.browse-context-row .stale-info,
 .browse-status-note,
 .drop-upload-note,
 .folder-actions-inline {

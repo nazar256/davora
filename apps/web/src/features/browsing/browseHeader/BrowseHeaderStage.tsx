@@ -25,7 +25,6 @@ export interface BrowseHeaderStageProps {
   readonly currentPath: string;
   readonly breadcrumbs: readonly BreadcrumbItem[];
   readonly showBreadcrumbs: boolean;
-  readonly staleInfo?: string;
   readonly searchActive: boolean;
   readonly searchQuery: string;
   readonly selectionSummaryLabel?: string;
@@ -123,10 +122,9 @@ export function BrowseHeaderStage(props: BrowseHeaderStageProps) {
           </nav>
         ) : null}
 
-        {props.staleInfo || props.searchActive ? (
+        {props.searchActive ? (
           <div className="browse-context-row">
-            {props.staleInfo ? <span className="status stale-info">{props.staleInfo}</span> : null}
-            {props.searchActive ? <button className="quiet-button" onClick={props.onClearSearch} type="button">Clear search</button> : null}
+            <button className="quiet-button" onClick={props.onClearSearch} type="button">Clear search</button>
           </div>
         ) : null}
 

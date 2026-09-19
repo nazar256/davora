@@ -165,19 +165,19 @@ describe("BrowseHeaderStage", () => {
 
   it("shows a clear-search affordance when search is active", () => {
     const onClearSearch = vi.fn();
-    const { rerender } = render(
+    const { container, rerender } = render(
       <BrowseHeaderStage {...buildProps({ searchActive: false, onClearSearch })} />
     );
     expect(screen.queryByRole("button", { name: /Clear search/i })).not.toBeInTheDocument();
+    expect(container.querySelector(".browse-context-row")).toBeNull();
 
     rerender(
       <BrowseHeaderStage
-        {...buildProps({ searchActive: true, staleInfo: "Cached 5 minutes ago", onClearSearch })}
+        {...buildProps({ searchActive: true, onClearSearch })}
       />
     );
     fireEvent.click(screen.getByRole("button", { name: /Clear search/i }));
     expect(onClearSearch).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("Cached 5 minutes ago")).toBeInTheDocument();
   });
 
   it.each([
