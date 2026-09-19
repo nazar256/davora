@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { createFakeDiagnosticsRuntimePorts } from "../../diagnostics/testing/fakes";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppSession, ConnectedAccount, FileEntry, MutationResult } from "@davora/shared";
@@ -200,7 +201,7 @@ function createUploadFixture() {
     offlineSyncRuntime: { createAbortHandle: () => { const controller = new AbortController(); return { signal: controller.signal, abort: () => controller.abort() }; }, createTransferId: () => "sync-transfer", listFiles: async (path: string) => ({ path, items: [] }), fetchDownloadBlob: vi.fn(), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback },
     retentionRepository,
     previewRuntime: createPreviewComposition({ retentionRepository }),
-    accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }
+    accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
   } satisfies AppServices;
   return { api, services };
 }

@@ -25,6 +25,7 @@ const featureSheets = [
   "features/operations/destination/destinationPicker.css",
   "features/operations/actionDialog/actionDialog.css",
   "features/settings/settingsDialog/settingsDialog.css",
+  "features/diagnostics/report/reportBug.css",
   "features/transfers/tray/transferTray.css",
   "features/browsing/fileList/fileList.css",
   "features/browsing/favourites/favourites.css",

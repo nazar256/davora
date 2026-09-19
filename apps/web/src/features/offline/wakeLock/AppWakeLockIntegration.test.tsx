@@ -8,6 +8,7 @@ import App from "../../../App";
 import type { AppServices } from "../../../app/AppServices";
 import { createPreviewComposition } from "../../../app/createPreviewComposition";
 import { createAccountRegistryService } from "../../accounts/registry";
+import { createFakeDiagnosticsRuntimePorts } from "../../diagnostics/testing/fakes";
 import type { AccountTransport } from "../../accounts";
 import type { BrowsingCacheRepository, FolderPorts, SearchPorts } from "../../browsing";
 import { createMemoryFolderSortService } from "../../browsing/folderSort/testing/fakeStorage";
@@ -308,7 +309,8 @@ function createWakeLockFixture(): AppServices {
     offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "wake-lock-sync", listFiles: async (path) => ({ path, items: [] }), fetchDownloadBlob: mockedApi.fetchDownloadBlob, readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
     retentionRepository,
     previewRuntime: createPreviewComposition({ retentionRepository, previewTransport, folderAudioRuntime }),
-    accountRemovalRuntime
+    accountRemovalRuntime,
+    diagnostics: createFakeDiagnosticsRuntimePorts()
   } satisfies AppServices;
 }
 

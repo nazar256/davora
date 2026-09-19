@@ -32,10 +32,10 @@ const characterizedSourceHashes = {
   "apps/web/src/platform/theme/browserThemePorts.ts": "65665f70178efe9fea71a91a5fdea42bd3601150bbd2f118d97aa263be468730",
   "apps/web/src/features/settings/theme/model.test.ts": "723d262e5dc8b3649f4401ef1955f73109bdb6d9c1001d4e9804ed6a73886999",
   "apps/web/src/features/settings/theme/useThemePreference.test.tsx": "e7b46aa8d05258e45d9dd8c1c72ccc308c236385a27b3351ad5c5643ea0ba03c",
-  "apps/web/src/features/settings/workspace/AppSettingsIntegration.test.tsx": "2356a0a1edbae67be2b22cd6ed6c938f16517e70d384573a19de49dd2a173ff5",
-  "apps/web/src/features/settings/model.ts": "e1ff4bb8c45b82659c2349e5080ff5ad65dae26e6d4837a15f58d4275118b1c8",
-  "apps/web/src/features/settings/service.test.ts": "762ae7f922e6f9752c71cb1413ec3940ae3a4b82c3a79fa61ce3fcd4e3bcc6db",
-  "apps/web/src/features/settings/workspace/useSettingsPreferencesWorkspace.ts": "67d3ba1512517bf62d9981635eb66cd08c7b8751e8eb4838793a848b80eed0c2",
+  "apps/web/src/features/settings/workspace/AppSettingsIntegration.test.tsx": "e4f5469c0e4a5347cc9d15ec1d124670b412aa83692dffccc6a43f83d518129e",
+  "apps/web/src/features/settings/model.ts": "97087207c48674e78f86fe7311296a483abf2847774a506da0f3bbf2ea821ad3",
+  "apps/web/src/features/settings/service.test.ts": "8d5702b2d31e3d54f3b6f77336f70ed28d3a6a982f598e5cb233250f30f00ae0",
+  "apps/web/src/features/settings/workspace/useSettingsPreferencesWorkspace.ts": "ec065bef119946f4cbc798d81a5a7a757c9d869d3227ce494113b752a78986a4",
   "apps/web/src/features/settings/workspace/useSettingsPreferencesWorkspace.test.tsx": "8cc1195686ff0371474eb6078019474be0f3a68f730a2dff18a3d3399c92d9ca"
 } as const;
 

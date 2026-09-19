@@ -117,6 +117,8 @@ function settingsInput(overrides: Partial<SettingsDialogStageProjectionInput> = 
     handleShowHiddenFilesChange: vi.fn(),
     handleExperimentalHeicPreviewEnabledChange: vi.fn(),
     handleExperimentalFolderAppShortcutsEnabledChange: vi.fn(),
+    handleDiagnosticsEnabledChange: vi.fn(),
+
     handleSortModeChange: vi.fn()
   };
   const preferences: UiSettings = { ...DEFAULT_UI_SETTINGS, themeMode: "dark", showHiddenFiles: true };
@@ -141,6 +143,10 @@ function settingsInput(overrides: Partial<SettingsDialogStageProjectionInput> = 
       onClearCache: vi.fn(),
       onRemoveOfflineItem: vi.fn(),
       onOpenedFileCacheLimitChange: vi.fn()
+    },
+    diagnostics: {
+      onOpenReport: vi.fn(),
+      onClearData: vi.fn()
     },
     runtime: { appBuildLabel: "build-test", offline: false, backendActionsDisabled: false, keepAwakeState: "active" },
     ...overrides

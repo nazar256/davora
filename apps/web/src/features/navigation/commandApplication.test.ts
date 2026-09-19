@@ -17,6 +17,7 @@ const createPorts = (): NavigationCommandApplicationPorts => ({
     account: vi.fn(),
     removeAccount: vi.fn(),
     folderShortcut: vi.fn(),
+    reportBug: vi.fn(),
     chrome: vi.fn()
   },
   navigate: {
@@ -35,6 +36,7 @@ const createSource = (): NavigationCommandApplicationSource => ({
   setShowAccountDialog: vi.fn(),
   setRemoveAccountTarget: vi.fn(),
   dismissFolderShortcut: vi.fn(),
+  closeReportBug: vi.fn(),
   dismissChrome: vi.fn(),
   clearSelectedEntry: vi.fn(),
   clearBatchSelection: vi.fn(),
@@ -54,6 +56,7 @@ describe("navigation command application", () => {
       vi.mocked(ports.dismiss.account).mockClear();
       vi.mocked(ports.dismiss.removeAccount).mockClear();
       vi.mocked(ports.dismiss.folderShortcut).mockClear();
+      vi.mocked(ports.dismiss.reportBug).mockClear();
       vi.mocked(ports.dismiss.chrome).mockClear();
 
       applyNavigationDismiss(ports, surface);
@@ -76,6 +79,9 @@ describe("navigation command application", () => {
           break;
         case "folder-shortcut":
           expect(ports.dismiss.folderShortcut).toHaveBeenCalledTimes(1);
+          break;
+        case "report-bug":
+          expect(ports.dismiss.reportBug).toHaveBeenCalledTimes(1);
           break;
         case "settings":
         case "search":
@@ -153,6 +159,7 @@ describe("navigation command application", () => {
     expect(ports.dismiss.destination).not.toHaveBeenCalled();
     expect(ports.dismiss.account).not.toHaveBeenCalled();
     expect(ports.dismiss.removeAccount).not.toHaveBeenCalled();
+    expect(ports.dismiss.reportBug).not.toHaveBeenCalled();
     expect(ports.dismiss.chrome).not.toHaveBeenCalled();
   });
 

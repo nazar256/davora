@@ -33,6 +33,7 @@ const expectedImports = [
   ["./features/operations/destination/destinationPicker.css", "features"],
   ["./features/operations/actionDialog/actionDialog.css", "features"],
   ["./features/settings/settingsDialog/settingsDialog.css", "features"],
+  ["./features/diagnostics/report/reportBug.css", "features"],
   ["./features/transfers/tray/transferTray.css", "features"],
   ["./features/browsing/fileList/fileList.css", "features"],
   ["./features/browsing/favourites/favourites.css", "features"],

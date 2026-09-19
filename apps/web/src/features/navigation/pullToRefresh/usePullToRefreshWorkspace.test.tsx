@@ -11,6 +11,7 @@ const closedSurfaces = (): OpenSurfacesSnapshot => ({
   account: false,
   removeAccount: false,
   folderShortcut: false,
+  reportBug: false,
   settings: false,
   search: false,
   navigation: false,

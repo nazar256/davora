@@ -12,6 +12,7 @@ export interface WorkflowSurfacePorts {
   readonly account: WorkflowSurfacePort;
   readonly removeAccount: WorkflowSurfacePort;
   readonly folderShortcut: WorkflowSurfacePort;
+  readonly reportBug: WorkflowSurfacePort;
 }
 
 export interface WorkspaceSurfaceCoordinatorNavigation {
@@ -32,7 +33,8 @@ const workflowSnapshot = (ports: WorkflowSurfacePorts) => ({
   destination: ports.destination.isOpen(),
   account: ports.account.isOpen(),
   removeAccount: ports.removeAccount.isOpen(),
-  folderShortcut: ports.folderShortcut.isOpen()
+  folderShortcut: ports.folderShortcut.isOpen(),
+  reportBug: ports.reportBug.isOpen()
 });
 
 const isChromeSurface = (surface: DismissSurfaceKind): surface is ChromeSurfaceKind =>
@@ -62,6 +64,9 @@ const dismissWorkflowSurface = (ports: WorkflowSurfacePorts, surface: DismissSur
       return true;
     case "folder-shortcut":
       ports.folderShortcut.dismiss();
+      return true;
+    case "report-bug":
+      ports.reportBug.dismiss();
       return true;
     case "settings":
     case "search":

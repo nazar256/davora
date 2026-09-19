@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { createFakeDiagnosticsRuntimePorts } from "../../../diagnostics/testing/fakes";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "../../../../App";
@@ -171,9 +172,9 @@ function createMutationServices(): AppServices {
     folderSorts: createMemoryFolderSortService(),
     history: { pushState: (state, url) => { window.history.pushState(state, "", url); }, replaceState: (state, url) => { window.history.replaceState(state, "", url); }, getState: () => window.history.state as unknown, getLocation: () => ({ href: window.location.href, search: window.location.search }), subscribe: (listener) => { const handler = () => listener(window.history.state); window.addEventListener("popstate", handler); return () => window.removeEventListener("popstate", handler); } },
     pullToRefreshEnvironment: { getWindowScrollY: () => window.scrollY }, responsiveViewport: { getSnapshot: () => WIDE_VIEWPORT, subscribe: () => () => undefined }, search,
-    settings: { load: () => ({ themeMode: "system", showHiddenFiles: false, sortMode: "name-asc", keepAwakeEnabled: true, previewFreshnessIntervalSeconds: 300, maxCacheableFileSizeBytes: 24 * 1024 * 1024, fileSizeDisplayMode: "human", imagePreviewFitMode: "fill", experimentalHeicPreviewEnabled: false, experimentalFolderAppShortcutsEnabled: false }), save: (settings) => settings },
+    settings: { load: () => ({ themeMode: "system", showHiddenFiles: false, sortMode: "name-asc", keepAwakeEnabled: true, previewFreshnessIntervalSeconds: 300, maxCacheableFileSizeBytes: 24 * 1024 * 1024, fileSizeDisplayMode: "human", imagePreviewFitMode: "fill", experimentalHeicPreviewEnabled: false, experimentalFolderAppShortcutsEnabled: false, diagnosticsEnabled: false }), save: (settings) => settings },
     operationRuntime, offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "mutation-sync", listFiles: async (path) => ({ path, items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "download.bin" }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
-    retentionRepository, previewRuntime, accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }
+    retentionRepository, previewRuntime, accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
   };
   return services;
 }

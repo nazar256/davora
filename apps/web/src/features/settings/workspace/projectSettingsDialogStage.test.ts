@@ -23,6 +23,7 @@ function createInput(): SettingsDialogStageProjectionInput {
       handleShowHiddenFilesChange: command,
       handleExperimentalHeicPreviewEnabledChange: command,
       handleExperimentalFolderAppShortcutsEnabledChange: command,
+      handleDiagnosticsEnabledChange: command,
       handleSortModeChange: command
     },
     surface: {
@@ -49,6 +50,10 @@ function createInput(): SettingsDialogStageProjectionInput {
       onClearCache: command,
       onRemoveOfflineItem: command,
       onOpenedFileCacheLimitChange: command
+    },
+    diagnostics: {
+      onOpenReport: command,
+      onClearData: command
     },
     runtime: {
       appBuildLabel: "test-build",

@@ -70,6 +70,7 @@ const createPorts = (overrides: Partial<Record<keyof WorkflowSurfacePorts, boole
     account: overrides.account ?? false,
     removeAccount: overrides.removeAccount ?? false,
     folderShortcut: overrides.folderShortcut ?? false
+    reportBug: overrides.reportBug ?? false
   };
   const dismiss = {
     preview: vi.fn(() => { state.preview = false; }),
@@ -77,7 +78,8 @@ const createPorts = (overrides: Partial<Record<keyof WorkflowSurfacePorts, boole
     destination: vi.fn(() => { state.destination = false; }),
     account: vi.fn(() => { state.account = false; }),
     removeAccount: vi.fn(() => { state.removeAccount = false; }),
-    folderShortcut: vi.fn(() => { state.folderShortcut = false; })
+    folderShortcut: vi.fn(() => { state.folderShortcut = false; }),
+    reportBug: vi.fn(() => { state.reportBug = false; })
   };
   const workflow: WorkflowSurfacePorts = {
     preview: { isOpen: () => state.preview, dismiss: dismiss.preview },
@@ -85,7 +87,8 @@ const createPorts = (overrides: Partial<Record<keyof WorkflowSurfacePorts, boole
     destination: { isOpen: () => state.destination, dismiss: dismiss.destination },
     account: { isOpen: () => state.account, dismiss: dismiss.account },
     removeAccount: { isOpen: () => state.removeAccount, dismiss: dismiss.removeAccount },
-    folderShortcut: { isOpen: () => state.folderShortcut, dismiss: dismiss.folderShortcut }
+    folderShortcut: { isOpen: () => state.folderShortcut, dismiss: dismiss.folderShortcut },
+    reportBug: { isOpen: () => state.reportBug, dismiss: dismiss.reportBug }
   };
   return { workflow, state, dismiss };
 };
@@ -227,7 +230,7 @@ describe("useWorkspaceSurfaceCoordinator", () => {
 
   it("combines all eleven surfaces for pull-to-refresh reads", () => {
     const port = createHistory();
-    const { workflow } = createPorts({ preview: true, action: true, destination: true, account: true, removeAccount: true, folderShortcut: true });
+    const { workflow } = createPorts({ preview: true, action: true, destination: true, account: true, removeAccount: true, folderShortcut: true, reportBug: true });
     const { input } = createInput(port, workflow, { navigation: true, search: true, mobileDetails: true, settings: true, transfers: true, quickActions: true });
     const { result } = renderHook(() => useWorkspaceSurfaceCoordinator(input));
     expect(result.current.getOpenSurfaces()).toEqual({
@@ -237,6 +240,7 @@ describe("useWorkspaceSurfaceCoordinator", () => {
       account: true,
       removeAccount: true,
       folderShortcut: true,
+      reportBug: true,
       navigation: true,
       search: true,
       mobileDetails: true,

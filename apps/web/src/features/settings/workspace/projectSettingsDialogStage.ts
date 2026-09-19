@@ -42,6 +42,13 @@ export function projectSettingsDialogStage(
     onExperimentalHeicPreviewEnabledChange: input.commands.handleExperimentalHeicPreviewEnabledChange,
     experimentalFolderAppShortcutsEnabled: input.preferences.experimentalFolderAppShortcutsEnabled,
     onExperimentalFolderAppShortcutsEnabledChange: input.commands.handleExperimentalFolderAppShortcutsEnabledChange,
+    diagnosticsEnabled: input.preferences.diagnosticsEnabled,
+    onDiagnosticsEnabledChange: input.commands.handleDiagnosticsEnabledChange,
+    diagnostics: {
+      storageSummary: input.diagnostics.storageSummary,
+      onOpenReport: input.diagnostics.onOpenReport,
+      onClearData: input.diagnostics.onClearData
+    },
     onDismissFromScrim: input.surface.onDismissFromScrim
   };
 }

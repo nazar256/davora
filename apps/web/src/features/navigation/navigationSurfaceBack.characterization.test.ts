@@ -25,8 +25,8 @@ const sourcePaths = {
 
 const sourceDigest = (path: string): string => createHash("sha256").update(readFileSync(path, "utf8")).digest("hex");
 const lockedSourceDigests = {
-  model: "af956e1beb930c44eb11d14586ebc6936d0b21403816b9e3d11c5528f7b1104b",
-  controller: "634edfa026797e3ea27f0efd7a5a93f94cca8150c1b16f5c74b36ac580ad45d6",
+  model: "e7d9c29d94223230e4ff0c7df104316cbb19b07176fc41c93fed1dc71505cf7e",
+  controller: "2599b3060e4369541af8ed96658e2ec237be870e92b332ec4287da685bf5ca27",
   coordinator: "3ba508e1ccddf50e80f404b8a3f8541c0337f79c043b1cad84fd7420da3d4280"
 } as const;
 
@@ -37,6 +37,7 @@ const surfaceKeys: Record<string, keyof OpenSurfacesSnapshot> = {
   account: "account",
   "remove-account": "removeAccount",
   "folder-shortcut": "folderShortcut",
+  "report-bug": "reportBug",
   settings: "settings",
   search: "search",
   navigation: "navigation",
@@ -52,6 +53,7 @@ const closedSurfaces = (): OpenSurfacesSnapshot => ({
   account: false,
   removeAccount: false,
   folderShortcut: false,
+  reportBug: false,
   settings: false,
   search: false,
   navigation: false,
@@ -100,7 +102,8 @@ const createWorkflow = (open: readonly string[] = [], events: string[] = []) => 
     destination: open.includes("destination"),
     account: open.includes("account"),
     removeAccount: open.includes("remove-account"),
-    folderShortcut: open.includes("folder-shortcut")
+    folderShortcut: open.includes("folder-shortcut"),
+    reportBug: open.includes("report-bug")
   };
   const dismiss = {
     preview: vi.fn(() => { state.preview = false; events.push("dismiss:preview"); }),
@@ -108,7 +111,8 @@ const createWorkflow = (open: readonly string[] = [], events: string[] = []) => 
     destination: vi.fn(() => { state.destination = false; events.push("dismiss:destination"); }),
     account: vi.fn(() => { state.account = false; events.push("dismiss:account"); }),
     removeAccount: vi.fn(() => { state.removeAccount = false; events.push("dismiss:remove-account"); }),
-    folderShortcut: vi.fn(() => { state.folderShortcut = false; events.push("dismiss:folder-shortcut"); })
+    folderShortcut: vi.fn(() => { state.folderShortcut = false; events.push("dismiss:folder-shortcut"); }),
+    reportBug: vi.fn(() => { state.reportBug = false; events.push("dismiss:report-bug"); })
   };
   const workflow: WorkflowSurfacePorts = {
     preview: { isOpen: () => state.preview, dismiss: dismiss.preview },
@@ -116,7 +120,7 @@ const createWorkflow = (open: readonly string[] = [], events: string[] = []) => 
     destination: { isOpen: () => state.destination, dismiss: dismiss.destination },
     account: { isOpen: () => state.account, dismiss: dismiss.account },
     removeAccount: { isOpen: () => state.removeAccount, dismiss: dismiss.removeAccount },
-    folderShortcut: { isOpen: () => state.folderShortcut, dismiss: dismiss.folderShortcut }
+      "preview", "action", "destination", "folder-shortcut", "account", "remove-account", "report-bug"
   };
   return { state, dismiss, workflow };
 };
@@ -187,6 +191,7 @@ describe("navigation surface and Back characterization", () => {
     ]);
     expect(eventLog).toEqual(expectedEvents);
     expect(eventLog.filter((event) => event.startsWith("dismiss:"))).toHaveLength(DISMISS_SURFACE_ORDER.length);
+    expect(eventLog.filter((event) => event.startsWith("dismiss:"))).toHaveLength(11);
     expect(new Set(eventLog.filter((event) => event.startsWith("dismiss:")))).toEqual(
       new Set(DISMISS_SURFACE_ORDER.map((surface) => `dismiss:${surface}`))
     );
@@ -231,7 +236,7 @@ describe("navigation surface and Back characterization", () => {
       lockedSourceDigests
     );
     expect(DISMISS_SURFACE_ORDER).toEqual([
-      "quick-actions", "preview", "action", "destination", "folder-shortcut", "account", "remove-account",
+      "quick-actions", "preview", "action", "destination", "folder-shortcut", "account", "remove-account", "report-bug",
       "settings", "search", "navigation", "mobile-details", "transfers"
     ]);
   });

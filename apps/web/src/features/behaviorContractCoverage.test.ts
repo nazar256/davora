@@ -84,6 +84,7 @@ const coverage: Record<ContractId, OwnerCitation> = {
   "NAV-04": owner("unit", "src/features/navigation/pullToRefresh/usePullToRefresh.test.tsx", "refreshes and clears after a full pull release"),
   "NAV-05": owner("unit", "src/features/navigation/useWorkspaceSurfaceCoordinator.test.ts", "combines all eleven surfaces for pull-to-refresh reads"),
   "NAV-06": owner("integration", "src/features/folderShortcut/AppFolderShortcutIntegration.test.tsx", "suppresses the folder path and warns when the linked account is unavailable"),
+
   "BRW-01": owner("unit", "src/features/browsing/workspace/AppBrowsingDisplayIntegration.test.tsx", "groups folders above files and sorts within each group by the active sort mode"),
   "BRW-02": owner("integration", "src/features/browsing/workspace/AppBrowsingDisplayIntegration.test.tsx", "uses breadcrumb home navigation without redundant all-files or up-level buttons"),
   "BRW-03": owner("unit", "src/features/browsing/favourites/useFavouriteActions.test.tsx", "exposes toggle, remove, reorder, and open through the favourites controller"),

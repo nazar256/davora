@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render as renderTestingLibrary, screen, waitFor, within } from "@testing-library/react";
+import { createFakeDiagnosticsRuntimePorts } from "../../diagnostics/testing/fakes";
 import { cloneElement, type ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -236,7 +237,7 @@ function createAccountFixture(): AppServices {
     },
     retentionRepository,
     previewRuntime: createPreviewComposition({ retentionRepository }),
-    accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }
+    accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
   } satisfies AppServices;
 }
 

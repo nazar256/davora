@@ -23,6 +23,7 @@ export interface SettingsPreferencesWorkspaceCommands {
   readonly handleShowHiddenFilesChange: (show: boolean) => void;
   readonly handleExperimentalHeicPreviewEnabledChange: (enabled: boolean) => void;
   readonly handleExperimentalFolderAppShortcutsEnabledChange: (enabled: boolean) => void;
+  readonly handleDiagnosticsEnabledChange: (enabled: boolean) => void;
   readonly handleSortModeChange: (mode: UiSettings["sortMode"]) => void;
 }
 
@@ -62,5 +63,10 @@ export interface SettingsDialogStageProjectionInput {
     readonly offline: boolean;
     readonly backendActionsDisabled?: boolean;
     readonly keepAwakeState: ScreenWakeLockState;
+  };
+  readonly diagnostics: {
+    readonly storageSummary?: string;
+    readonly onOpenReport: () => void;
+    readonly onClearData: () => void;
   };
 }

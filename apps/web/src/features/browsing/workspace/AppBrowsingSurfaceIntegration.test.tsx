@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { createFakeDiagnosticsRuntimePorts } from "../../diagnostics/testing/fakes";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -140,7 +141,7 @@ const defaultSettings: UiSettings = {
   previewFreshnessIntervalSeconds: 60,
   keepAwakeEnabled: true,
   showHiddenFiles: false,
-  experimentalHeicPreviewEnabled: false, experimentalFolderAppShortcutsEnabled: false,
+  experimentalHeicPreviewEnabled: false, experimentalFolderAppShortcutsEnabled: false, diagnosticsEnabled: false,
   sortMode: "name-asc" as const
 };
 let settings: UiSettings = { ...defaultSettings };
@@ -377,7 +378,7 @@ function createBrowsingFixture(): AppServices {
     operationRuntime: { request: { createAbortHandle: abortHandle, createTransferId: () => "browsing-transfer" }, mutation: { createFolder: async () => ({ action: "createFolder", parentPath: "", path: "" }), deleteFile: async (path, confirmName, token) => (await mockedApi.deleteFile({ path, confirmName }, token)).result, uploadFile: async (input, token) => (await mockedApi.uploadFileWithProgress(input, token)).result, copyOrMove: async () => ({ action: "copy", parentPath: "", path: "" }), listDestination: async () => ({ items: [] }) }, download: { prepareDownloadFile: async () => ({ blob: new Blob(), filename: "" }), fetchDownloadBlob: async () => ({ blob: new Blob() }), listFiles: async (path) => mockedApi.listFiles(path), triggerBrowserDownload: () => undefined, saveDownload: () => undefined }, batch: { downloadSelectionAsZip: async () => { throw new Error("Batch download is not used by the browsing integration fixture."); } }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) }, isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
     offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "browsing-sync", listFiles: async () => ({ path: "", items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob() }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
     retentionRepository, previewRuntime,
-    accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }
+    accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
   };
 }
 let services!: AppServices;

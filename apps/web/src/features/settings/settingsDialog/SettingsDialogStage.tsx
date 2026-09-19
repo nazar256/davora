@@ -60,6 +60,13 @@ export interface SettingsDialogStageProps {
   onExperimentalHeicPreviewEnabledChange: (enabled: boolean) => void;
   experimentalFolderAppShortcutsEnabled: boolean;
   onExperimentalFolderAppShortcutsEnabledChange: (enabled: boolean) => void;
+  diagnosticsEnabled: boolean;
+  onDiagnosticsEnabledChange: (enabled: boolean) => void;
+  diagnostics: {
+    readonly storageSummary?: string;
+    readonly onOpenReport: () => void;
+    readonly onClearData: () => void;
+  };
   onDismissFromScrim?: () => void;
 }
 
@@ -240,6 +247,40 @@ export function SettingsDialogStage(props: SettingsDialogStageProps) {
                 <span className="status">Reveal dot-prefixed items such as .DS_Store and .directory in file lists.</span>
               </div>
             </label>
+          </section>
+
+          <section className="settings-section diagnostics-settings-section">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow section-eyebrow">Support</p>
+                <h3>Diagnostics</h3>
+              </div>
+            </div>
+            <label className="stacked-field">
+              <span className="summary-label">Diagnostic logging</span>
+              <div className="cache-limit-manual-row">
+                <input
+                  aria-label="Diagnostic logging"
+                  checked={props.diagnosticsEnabled}
+                  onChange={(event) => props.onDiagnosticsEnabledChange(event.target.checked)}
+                  type="checkbox"
+                />
+                <span className="status">
+                  Collect local diagnostic events so you can create a bug report with useful
+                  technical context. Data stays on this device until you explicitly export or
+                  share a report.
+                </span>
+              </div>
+            </label>
+            {props.diagnostics.storageSummary ? (
+              <p className="status" data-testid="diagnostics-storage-summary">{props.diagnostics.storageSummary}</p>
+            ) : null}
+            <div className="context-actions">
+              {props.diagnosticsEnabled ? (
+                <button onClick={props.diagnostics.onOpenReport} type="button">Create bug report</button>
+              ) : null}
+              <button onClick={props.diagnostics.onClearData} type="button">Delete stored diagnostics</button>
+            </div>
           </section>
 
           <section className="settings-section">

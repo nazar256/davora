@@ -123,6 +123,7 @@ export const useWorkspaceNavigation = (input: WorkspaceNavigationInput) => {
         account: () => undefined,
         removeAccount: () => undefined,
         folderShortcut: () => undefined,
+        reportBug: () => undefined,
         chrome: () => undefined
       },
       navigate: {

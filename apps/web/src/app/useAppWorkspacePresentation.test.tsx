@@ -127,6 +127,10 @@ describe("useAppWorkspacePresentation", () => {
         stage: { marker: "preview" }
       },
       settings: { preferences: { fileSizeDisplayMode: "binary" }, commands: { marker: "settings-commands" } },
+      diagnostics: {
+        settingsSection: { marker: "diagnostics-settings" },
+        reportStage: { marker: "report-stage" }
+      },
       runtime: {
         connectivity: { offline: false },
         pwa: { reloadPrompt: { marker: "reload" } },

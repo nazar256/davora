@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { createFakeDiagnosticsRuntimePorts } from "../../../diagnostics/testing/fakes";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppSession, ConnectedAccount, FileEntry, MutationResult, SearchResult } from "@davora/shared";
@@ -213,7 +214,7 @@ function createDownloadFixture(): AppServices {
     offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "download-sync", listFiles: async (path: string) => ({ path, items: [] }), fetchDownloadBlob: mockedApi.fetchDownloadBlob, readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback },
     retentionRepository,
     previewRuntime: createPreviewComposition({ retentionRepository }),
-    accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined },
+    accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts(),
     downloadAbortController, downloadTransferState
   } as AppServices;
 }

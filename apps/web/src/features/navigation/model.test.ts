@@ -24,6 +24,7 @@ const closedSurfaces = (): OpenSurfacesSnapshot => ({
   account: false,
   removeAccount: false,
   folderShortcut: false,
+  reportBug: false,
   settings: false,
   search: false,
   navigation: false,
@@ -44,6 +45,7 @@ const surfaceKeyMap: Readonly<Record<DismissSurfaceKind, keyof OpenSurfacesSnaps
   navigation: "navigation",
   "mobile-details": "mobileDetails",
   transfers: "transfers",
+  "report-bug": "reportBug",
   "quick-actions": "quickActions"
 };
 
@@ -101,6 +103,7 @@ describe("navigation model", () => {
         account: true,
         removeAccount: true,
         folderShortcut: true,
+        reportBug: true,
         settings: true,
         search: true,
         navigation: true,
@@ -158,6 +161,7 @@ describe("navigation model", () => {
       "folder-shortcut",
       "account",
       "remove-account",
+      "report-bug",
       "settings",
       "search",
       "navigation",
@@ -172,6 +176,7 @@ describe("navigation model", () => {
       account: true,
       removeAccount: true,
       folderShortcut: true,
+      reportBug: true,
       settings: true,
       search: true,
       navigation: true,
@@ -290,7 +295,8 @@ describe("navigation model", () => {
           account: false,
           removeAccount: false,
           folderShortcut: false
-        }
+          reportBug: false
+        },
       )).toEqual({
         preview: true,
         action: false,
@@ -298,6 +304,7 @@ describe("navigation model", () => {
         account: false,
         removeAccount: false,
         folderShortcut: false,
+        reportBug: false,
         settings: true,
         search: false,
         navigation: true,

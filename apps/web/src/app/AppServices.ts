@@ -15,6 +15,7 @@ import type { RetentionRepository } from "../features/offline/retention";
 import type { PreviewRuntimePort } from "../features/preview/workspace";
 import type { AccountRemovalRuntimePort } from "./createAccountRemovalRuntime";
 import type { FavouriteResolveRuntimePort } from "../features/browsing/navDrawer/workspace";
+import type { DiagnosticsRuntimePorts } from "../features/diagnostics";
 
 export interface AppServices {
   readonly accountRegistry: AccountRegistryService;
@@ -39,4 +40,5 @@ export interface AppServices {
   readonly retentionRepository: RetentionRepository;
   readonly previewRuntime: PreviewRuntimePort;
   readonly accountRemovalRuntime: AccountRemovalRuntimePort;
+  readonly diagnostics: DiagnosticsRuntimePorts;
 }
