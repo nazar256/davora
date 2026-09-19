@@ -1,27 +1,41 @@
-interface EncryptedAccountState {
-  version: 1;
-  algorithm: "AES-GCM";
-  iv: string;
-  ciphertext: string;
-}
+import { parseEncryptedAccountState, type EncryptedAccountState } from "./persistedAccountStateCodec";
 
 interface AccountStoreState {
   storage: {
-    get<T>(key: string): Promise<T | undefined>;
+    get(key: string): Promise<unknown>;
     put(key: string, value: unknown): Promise<void>;
   };
 }
 
-interface AccountStoreRequest {
+interface AccountStoreResponse {
+  stored: boolean;
+  revision: number;
   encrypted?: EncryptedAccountState;
 }
 
-interface AccountStoreResponse {
-  stored: boolean;
-  encrypted?: EncryptedAccountState;
+interface RevisionedAccountStoreValue {
+  revision: number;
+  encrypted: EncryptedAccountState;
 }
 
 const ACCOUNTS_KEY = "accounts";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function parseStoredValue(value: unknown): RevisionedAccountStoreValue | undefined {
+  const legacy = parseEncryptedAccountState(value);
+  if (legacy) return { revision: 0, encrypted: legacy };
+  if (!isRecord(value)) return undefined;
+  const candidate = value;
+  if (Object.keys(candidate).length !== 2
+    || typeof candidate.revision !== "number"
+    || !Number.isSafeInteger(candidate.revision)
+    || candidate.revision < 0) return undefined;
+  const encrypted = parseEncryptedAccountState(candidate.encrypted);
+  return encrypted ? { revision: candidate.revision, encrypted } : undefined;
+}
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -31,15 +45,6 @@ function json(data: unknown, status = 200): Response {
       "cache-control": "no-store"
     }
   });
-}
-
-function isEncryptedAccountState(value: unknown): value is EncryptedAccountState {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const payload = value as EncryptedAccountState;
-  return payload.version === 1 && payload.algorithm === "AES-GCM" && typeof payload.iv === "string" && typeof payload.ciphertext === "string";
 }
 
 export class AccountStoreDurableObject {
@@ -53,20 +58,34 @@ export class AccountStoreDurableObject {
     }
 
     if (request.method === "GET") {
-      const encrypted = await this.state.storage.get<EncryptedAccountState>(ACCOUNTS_KEY);
-      const payload: AccountStoreResponse = isEncryptedAccountState(encrypted)
-        ? { stored: true, encrypted }
-        : { stored: false };
+      const stored = await this.state.storage.get(ACCOUNTS_KEY);
+      if (stored === undefined) return json({ stored: false, revision: 0 });
+      const parsed = parseStoredValue(stored);
+      if (!parsed) return json({ message: "Stored account state is invalid." }, 500);
+      const payload: AccountStoreResponse = { stored: true, revision: parsed.revision, encrypted: parsed.encrypted };
       return json(payload);
     }
 
     if (request.method === "PUT") {
-      const body = (await request.json().catch(() => ({}))) as AccountStoreRequest;
-      if (!isEncryptedAccountState(body.encrypted)) {
+      const parsedBody: unknown = await request.json().catch(() => undefined);
+      const body = isRecord(parsedBody) ? parsedBody : {};
+      const encrypted = parseEncryptedAccountState(body.encrypted);
+      if (!encrypted) {
         return json({ message: "Encrypted state is required." }, 400);
       }
-      await this.state.storage.put(ACCOUNTS_KEY, body.encrypted);
-      return new Response(null, { status: 204 });
+      const expectedRevision = body.expectedRevision;
+      if (typeof expectedRevision !== "number" || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+        return json({ message: "Expected revision is invalid." }, 400);
+      }
+      const existing = await this.state.storage.get(ACCOUNTS_KEY);
+      const current = existing === undefined ? { revision: 0 } : parseStoredValue(existing);
+      if (!current) return json({ message: "Stored account state is invalid." }, 500);
+      if (current.revision !== expectedRevision) {
+        return json({ applied: false, revision: current.revision });
+      }
+      const next = { revision: current.revision + 1, encrypted };
+      await this.state.storage.put(ACCOUNTS_KEY, next);
+      return json({ applied: true, revision: next.revision });
     }
 
     return json({ message: "Method not allowed." }, 405);

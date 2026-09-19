@@ -1,4 +1,4 @@
-import type { ApiEnvelope, ApiError } from "@davora/shared";
+import { apiErrorEnvelopeSchema, type ApiEnvelope, type ApiError, type ApiErrorCode } from "@davora/shared";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 
@@ -40,14 +40,14 @@ export function json<T>(payload: ApiEnvelope<T>, status = 200, headers: HeadersI
   });
 }
 
-export function errorResponse(status: number, code: string, message: string, details?: string): Response {
-  const payload: ApiEnvelope<ApiError> = {
+export function errorResponse(status: number, code: ApiErrorCode, message: string, details?: string): Response {
+  const payload: ApiEnvelope<ApiError> = apiErrorEnvelopeSchema.parse({
     data: {
       code,
       message,
       ...(details ? { details } : {})
     }
-  };
+  });
 
   return json(payload, status);
 }
@@ -56,7 +56,7 @@ export function corsHeaders(origin: string | null, allowedOrigins: string[]): He
   const allowOrigin = origin && originMatchesAllowedOrigin(origin, allowedOrigins) ? origin : allowedOrigins[0] ?? "*";
   return {
     "access-control-allow-origin": allowOrigin,
-    "access-control-allow-methods": "GET,POST,OPTIONS",
+    "access-control-allow-methods": "GET,POST,DELETE,OPTIONS",
     "access-control-allow-headers": "content-type,authorization,x-davora-browser-id,x-davora-browser-secret,x-davora-reset-token",
     vary: "origin"
   };

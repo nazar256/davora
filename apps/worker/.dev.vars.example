@@ -1,12 +1,17 @@
 # The repo ships a safe mock-only `.dev.vars` so `cd apps/worker && wrangler dev`
 # works out of the box. Use this example when you need a different local env file
 # and pass it explicitly via `wrangler dev --env-file path/to/file`.
+# Development fixture only; production requires at least 32 raw bytes.
 SESSION_SECRET=replace-with-a-local-session-secret
+ACCOUNT_STATE_SECRET=
+SESSION_TOKEN_SECRET=
 MOCK_BACKEND=true
+RUNTIME_MODE=development
+ALLOW_LOCAL_NEXTCLOUD=false
 SESSION_TTL_SECONDS=3600
 ALLOWED_ORIGINS=http://127.0.0.1:4173,http://127.0.0.1:4174,http://127.0.0.1:4175
 
-# Optional: require an unlock code before the web app can create a session.
+# Development-only unlock flow. Production rejects any non-empty APP_UNLOCK_CODE.
 APP_UNLOCK_CODE=
 
 # Real-backend settings used only when MOCK_BACKEND=false.
@@ -14,5 +19,5 @@ NEXTCLOUD_BASE_URL=https://nextcloud.example.invalid
 NEXTCLOUD_USERNAME=demo-user
 NEXTCLOUD_APP_PASSWORD=
 NEXTCLOUD_ROOT_PATH=.davora-agent-test
-# Leave empty to allow any valid Nextcloud host; set a comma-separated list only if you want an explicit restriction.
-NEXTCLOUD_ALLOWED_HOSTS=
+# Production real mode requires exact normalized hostnames, for example:
+NEXTCLOUD_ALLOWED_HOSTS=nextcloud.example.invalid

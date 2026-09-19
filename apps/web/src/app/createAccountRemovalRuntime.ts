@@ -1,0 +1,56 @@
+import type { ConnectedAccount } from "@davora/shared";
+
+import type { AccountTransport } from "../features/accounts/transport";
+import type { BrowsingCacheRepository } from "../features/browsing/cache";
+import type { FavouritesService } from "../features/browsing/favourites";
+import type { RetentionAccount, RetentionRepository } from "../features/offline/retention";
+
+export interface AccountRemovalRuntimePort {
+  revokeRemoteAccount(account: ConnectedAccount): Promise<void>;
+  purgeLocalAccountData(
+    target: ConnectedAccount,
+    knownAccounts: readonly RetentionAccount[]
+  ): Promise<void>;
+}
+
+export interface AccountRemovalRuntimeDependencies {
+  readonly accountTransport: Pick<AccountTransport, "deleteConnectedAccount">;
+  readonly retentionRepository: Pick<RetentionRepository, "purgeAccountNamespace">;
+  readonly browsingCache: Pick<BrowsingCacheRepository, "clearNamespaceOrThrow">;
+  readonly favourites: Pick<FavouritesService, "clear">;
+}
+
+const REMOTE_REVOKE_FAILURE = "Unable to revoke remote account access.";
+const LOCAL_PURGE_FAILURE = "Account browser data cleanup failed.";
+
+export function createAccountRemovalRuntime(
+  dependencies: AccountRemovalRuntimeDependencies
+): AccountRemovalRuntimePort {
+  return {
+    async revokeRemoteAccount(account) {
+      try {
+        await dependencies.accountTransport.deleteConnectedAccount(account.id);
+      } catch {
+        throw new Error(REMOTE_REVOKE_FAILURE);
+      }
+    },
+
+    async purgeLocalAccountData(target, knownAccounts) {
+      try {
+        const retained = await dependencies.retentionRepository.purgeAccountNamespace(
+          { accountId: target.id, cacheNamespace: target.cacheNamespace },
+          knownAccounts
+        );
+        if (retained.kind === "failure") {
+          throw new Error(LOCAL_PURGE_FAILURE);
+        }
+        dependencies.browsingCache.clearNamespaceOrThrow(target.cacheNamespace);
+        if (dependencies.favourites.clear(target.id).kind === "clear-failed") {
+          throw new Error(LOCAL_PURGE_FAILURE);
+        }
+      } catch {
+        throw new Error(LOCAL_PURGE_FAILURE);
+      }
+    }
+  };
+}

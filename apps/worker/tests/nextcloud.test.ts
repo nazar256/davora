@@ -1,6 +1,9 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { NextcloudClient } from "../src/nextcloud/client";
+import { createNextcloudDestinationPolicy } from "../src/security/nextcloudDestinationPolicy";
+
+const testNextcloudPolicy = createNextcloudDestinationPolicy({ runtimeMode: "production", allowLocalNextcloud: false, allowedHosts: ["nextcloud.example.invalid"] });
 
 const originalFetch = globalThis.fetch;
 
@@ -9,6 +12,21 @@ afterEach(() => {
 });
 
 describe("nextcloud client", () => {
+  it("rejects an invalid list path before issuing a Nextcloud request", async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    const client = new NextcloudClient({
+      baseUrl: "https://nextcloud.example.invalid",
+      username: "alice",
+      appPassword: "app-pass",
+      rootPath: ".davora-agent-test",
+      maxFileBytes: 1024 * 1024,
+      maxTextFileBytes: 64 * 1024
+    }, fetchMock, testNextcloudPolicy);
+
+    await expect(client.listFolder("../private")).rejects.toThrow(/traversal/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("binds the default global fetch before calling real Nextcloud validation", async () => {
     const fetchCalls: string[] = [];
     globalThis.fetch = (async function fetchWithRequiredThis(this: typeof globalThis, input: RequestInfo | URL) {
@@ -27,7 +45,7 @@ describe("nextcloud client", () => {
       rootPath: ".davora-agent-test",
       maxFileBytes: 1024 * 1024,
       maxTextFileBytes: 64 * 1024
-    });
+    }, undefined, testNextcloudPolicy);
 
     await expect(client.validateRoot()).resolves.toMatchObject({ path: "", name: ".davora-agent-test", isFolder: true });
     expect(fetchCalls).toEqual(["https://nextcloud.example.invalid/remote.php/dav/files/alice/.davora-agent-test"]);
@@ -72,7 +90,7 @@ describe("nextcloud client", () => {
       rootPath: ".davora-agent-test",
       maxFileBytes: 1024 * 1024,
       maxTextFileBytes: 64 * 1024
-    });
+    }, undefined, testNextcloudPolicy);
 
     await expect(client.listFolder("Photos")).resolves.toEqual([
       expect.objectContaining({

@@ -5,6 +5,8 @@ import { join, resolve } from "node:path";
 
 import { chromium, expect, test, type BrowserContext, type Page } from "@playwright/test";
 
+import { expectNoSeriousAccessibilityViolations } from "./support/accessibility";
+
 const chromeExecutable = process.env.PLAYWRIGHT_CHROME_EXECUTABLE ?? "/usr/bin/google-chrome";
 const useSystemChrome = Boolean(chromeExecutable && existsSync(chromeExecutable));
 const workerPort = 8787;
@@ -96,6 +98,8 @@ test("manifest metadata and Chrome installability checks pass outside incognito 
     start_url: string;
     icons: Array<{ src: string; sizes: string; purpose?: string }>;
     screenshots?: Array<{ src: string; sizes: string; form_factor?: string }>;
+    theme_color?: string;
+    background_color?: string;
   };
 
   expect(manifest).toMatchObject({
@@ -109,6 +113,8 @@ test("manifest metadata and Chrome installability checks pass outside incognito 
     scope: "/",
     start_url: "/"
   });
+  expect(manifest.theme_color).toBe("#07101f");
+  expect(manifest.background_color).toBe("#07101f");
   expect(manifest.icons).toEqual(expect.arrayContaining([
     expect.objectContaining({ src: "/pwa-192.png", sizes: "192x192" }),
     expect.objectContaining({ src: "/pwa-512.png", sizes: "512x512" }),
@@ -146,6 +152,13 @@ test("manifest metadata and Chrome installability checks pass outside incognito 
     displayModeStandalone: false,
     manifestHref: "/manifest.webmanifest"
   });
+
+  const htmlResponse = await request.get("/");
+  const html = await htmlResponse.text();
+  const bootstrapIndex = html.indexOf("davora-ui-settings");
+  const moduleScriptIndex = html.search(/<script[^>]+type=["']module["']/i);
+  expect(bootstrapIndex).toBeGreaterThan(0);
+  expect(moduleScriptIndex).toBeGreaterThan(bootstrapIndex);
 });
 
 test("install affordance stays contextual and does not obstruct zero-state onboarding", async ({ page }) => {
@@ -194,6 +207,7 @@ test("update prompt reload applies changed build content", async ({ page, contex
   await connectAccount(page, "Update workspace");
   await waitForServiceWorkerControl(page);
   await expect(await fetchBuildLabel(page)).toBe("pwa-initial");
+  await expectNoSeriousAccessibilityViolations(page, "built PWA before update");
 
   execSync(
     "VITE_APP_BUILD_LABEL=pwa-updated VITE_DEV_API_PROXY_TARGET=http://127.0.0.1:8787 npm run build",
@@ -207,6 +221,7 @@ test("update prompt reload applies changed build content", async ({ page, contex
   await page.waitForLoadState("networkidle");
 
   await expect(await fetchBuildLabel(page)).toBe("pwa-updated");
+  await expectNoSeriousAccessibilityViolations(page, "built PWA after update reload");
   const client = await context.newCDPSession(page);
   await client.send("Page.enable");
   const manifest = await client.send("Page.getAppManifest") as { manifest: { id?: string } };
@@ -222,12 +237,12 @@ test("offline preview build without primed account data falls back to zero-state
   await expect(page.locator(".badge.offline")).toBeVisible();
   await expect(page.getByRole("heading", { name: /No connected accounts yet/i })).toBeVisible();
   await expect(page.getByRole("button", { name: /Connect account/i })).toBeVisible();
-  await expect(page.getByText(/Connect a Nextcloud account inside Davora/i)).toBeVisible();
+  await expect(page.getByText(/Connect a Nextcloud account inside Davora to start browsing files/i)).toBeVisible();
   await expect(page.getByText(/Showing cached data while offline/i)).toHaveCount(0);
   await expect(page.getByText(/cached reads are available, mutations stay disabled/i)).toHaveCount(0);
 });
 
-test("installed PWA opens with cached shell when the worker is stopped but browser stays online", async ({ page, context }) => {
+test("installed PWA opens with cached shell when the worker is stopped but browser stays online", async () => {
   test.skip(!useSystemChrome, "Installed-PWA CDP coverage requires a system Chrome binary with the PWA protocol domain.");
   const tempRoot = resolve(process.cwd(), "../../.tmp/pwa-installed-profiles");
   await mkdir(tempRoot, { recursive: true });
@@ -248,6 +263,7 @@ test("installed PWA opens with cached shell when the worker is stopped but brows
     await expect(persistentPage.getByRole("button", { name: /Open file roadmap.txt/i })).toBeVisible();
 
     const { pageSession, manifestId } = await installCurrentPageAsPwa(persistentPage, persistentContext);
+    await pageSession.send("PWA.changeAppUserSettings", { manifestId, displayMode: "standalone" });
     await stopWorkerServer();
     const existingPages = persistentContext.pages().length;
     const launched = await pageSession.send("PWA.launch", { manifestId }) as { targetId: string };
@@ -262,6 +278,26 @@ test("installed PWA opens with cached shell when the worker is stopped but brows
     await expect(appPage.getByRole("button", { name: /Retry restore/i })).toHaveCount(0);
     await expect.poll(async () => appPage.evaluate(() => navigator.onLine)).toBe(true);
     await expect.poll(async () => appPage.evaluate(() => Boolean(navigator.serviceWorker?.controller))).toBe(true);
+    await expect.poll(async () => appPage.evaluate(() => window.matchMedia("(display-mode: standalone)").matches)).toBe(true);
+
+    const settingsDialog = appPage.getByRole("dialog", { name: /Profile and settings/i });
+    await appPage.getByRole("button", { name: /Profile & settings/i }).click();
+    await expect(settingsDialog).toBeVisible();
+    await appPage.evaluate(() => history.back());
+    await expect(settingsDialog).toBeHidden();
+    await expect(appPage).toHaveURL(/^http:\/\/127\.0\.0\.1:4175\/(?:\?.*)?$/);
+    await expect.poll(async () => appPage.evaluate(() => Boolean(navigator.serviceWorker?.controller))).toBe(true);
+
+    await appPage.getByRole("button", { name: /Open folder Projects/i }).click();
+    await expect(appPage).toHaveURL(/\bpath=Projects\b/);
+    await expect(appPage.getByRole("button", { name: /Open file roadmap.txt/i })).toBeVisible();
+    await appPage.evaluate(() => history.back());
+    await expect(appPage.getByRole("button", { name: /Open folder Projects/i })).toBeVisible();
+    await expect(appPage).toHaveURL(/^http:\/\/127\.0\.0\.1:4175\/(?:\?.*)?$/);
+    await expect.poll(async () => appPage.evaluate(() => ({
+      controlled: Boolean(navigator.serviceWorker?.controller),
+      inScope: location.origin === "http://127.0.0.1:4175"
+    }))).toEqual({ controlled: true, inScope: true });
     await appPage.screenshot({ path: evidencePath, fullPage: true });
     expect(launched.targetId).toBeTruthy();
     expect(persistentContext.pages().length).toBeGreaterThan(existingPages);

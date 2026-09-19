@@ -1,6 +1,22 @@
 const CONTROL_CHARS = /[\u0000-\u001F\u007F]/;
 const ENCODED_SEPARATORS = /%2f|%5c/i;
 
+declare const normalizedPathBrand: unique symbol;
+declare const sandboxedPathBrand: unique symbol;
+
+export type NormalizedPath = string & { readonly [normalizedPathBrand]: true };
+export type SandboxedPath = NormalizedPath & { readonly [sandboxedPathBrand]: true };
+
+function brandNormalizedPath(path: string): NormalizedPath {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- the brand is created only after segment validation
+  return path as NormalizedPath;
+}
+
+function brandSandboxedPath(path: string): SandboxedPath {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- the brand is created only from two validated normalized paths
+  return path as SandboxedPath;
+}
+
 function rejectInvalidCharacters(path: string): void {
   if (CONTROL_CHARS.test(path) || path.includes("\\")) {
     throw new Error("Path contains forbidden characters.");
@@ -31,15 +47,11 @@ function joinSegments(segments: string[]): string {
   return segments.join("/");
 }
 
-export function normalizeRootPath(rootPath: string | undefined): string {
-  return joinSegments(normalizeSegments(rootPath));
+export function parseNormalizedPath(rawPath: string | undefined): NormalizedPath {
+  return brandNormalizedPath(joinSegments(normalizeSegments(rawPath)));
 }
 
-export function resolveSandboxPath(rootPath: string | undefined, requestedPath?: string): string {
-  return joinSegments([...normalizeSegments(rootPath), ...normalizeSegments(requestedPath)]);
-}
-
-export function stripSandboxRoot(rootPath: string | undefined, fullPath: string): string {
+function relativeNormalizedPath(rootPath: NormalizedPath, fullPath: NormalizedPath): NormalizedPath {
   const rootSegments = normalizeSegments(rootPath);
   const fullSegments = normalizeSegments(fullPath);
 
@@ -53,7 +65,27 @@ export function stripSandboxRoot(rootPath: string | undefined, fullPath: string)
     }
   }
 
-  return joinSegments(fullSegments.slice(rootSegments.length));
+  return brandNormalizedPath(joinSegments(fullSegments.slice(rootSegments.length)));
+}
+
+export function resolveWithinSandbox(rootPath: NormalizedPath, requestedPath: NormalizedPath): SandboxedPath {
+  return brandSandboxedPath(joinSegments([...normalizeSegments(rootPath), ...normalizeSegments(requestedPath)]));
+}
+
+export function relativeToSandbox(rootPath: NormalizedPath, fullPath: SandboxedPath): NormalizedPath {
+  return relativeNormalizedPath(rootPath, fullPath);
+}
+
+export function normalizeRootPath(rootPath: string | undefined): string {
+  return parseNormalizedPath(rootPath);
+}
+
+export function resolveSandboxPath(rootPath: string | undefined, requestedPath?: string): string {
+  return resolveWithinSandbox(parseNormalizedPath(rootPath), parseNormalizedPath(requestedPath));
+}
+
+export function stripSandboxRoot(rootPath: string | undefined, fullPath: string): string {
+  return relativeNormalizedPath(parseNormalizedPath(rootPath), parseNormalizedPath(fullPath));
 }
 
 export function toDisplayPath(path: string): string {

@@ -1,3 +1,9 @@
+import type { FileEntry } from "./api/files";
+import type { ApiErrorCode } from "./api/endpoint";
+
+export type { FileEntry, FilesResponse } from "./api/files";
+export type { SearchResponse, SearchResult } from "./api/search";
+
 export type BackendKind = "mock" | "nextcloud";
 export type AccountType = "nextcloud";
 export type AccountConnectionMode = "in_app";
@@ -46,19 +52,9 @@ export interface AppSession {
 }
 
 export interface ApiError {
-  code: string;
+  code: ApiErrorCode;
   message: string;
   details?: string;
-}
-
-export interface FileEntry {
-  path: string;
-  name: string;
-  isFolder: boolean;
-  size?: number;
-  mimeType?: string;
-  lastModified?: string;
-  etag?: string;
 }
 
 export interface FileMetadata extends FileEntry {
@@ -76,10 +72,6 @@ export interface FilePreview extends FileMetadata {
   requiresOriginalBlob?: boolean;
 }
 
-export interface SearchResult extends FileEntry {
-  score: number;
-}
-
 export interface MutationResult {
   action: MutationAction;
   parentPath: string;
@@ -88,47 +80,12 @@ export interface MutationResult {
   item?: FileMetadata;
 }
 
-export interface HealthResponse {
-  app: "davora";
-  configLoaded: boolean;
-  backend: BackendKind;
-  rootPath: string;
-  unlockRequired: boolean;
-  connectionMode: AccountConnectionMode;
-  supportedAccountTypes: AccountType[];
-  missing?: string[];
-}
+export type { ConnectAccountRequest, ConnectAccountResponse } from "./api/accounts";
+export type { SessionRequest, SessionResponse } from "./api/session";
 
-export interface ConnectNextcloudAccountRequest {
-  accountId?: string;
-  cacheNamespace?: string;
-  type: "nextcloud";
-  baseUrl: string;
-  username: string;
-  appPassword: string;
-  rootPath?: string;
-  label?: string;
-}
-
-export type ConnectAccountRequest = ConnectNextcloudAccountRequest;
-
-export interface ConnectAccountResponse {
-  account: ConnectedAccount;
-}
-
-export interface SessionRequest {
-  accountId: string;
-  unlockCode?: string;
-}
-
-export interface SessionResponse {
-  session: AppSession;
-}
-
-export interface FilesResponse {
-  path: string;
-  items: FileEntry[];
-}
+export type ConnectAccountTransportSuccess =
+  | { readonly kind: "http-success"; readonly data: unknown }
+  | { readonly kind: "invalid-http-success" };
 
 export interface MetadataResponse {
   metadata: FileMetadata;
@@ -136,12 +93,6 @@ export interface MetadataResponse {
 
 export interface FileResponse {
   file: FilePreview;
-}
-
-export interface SearchResponse {
-  query: string;
-  path: string;
-  items: SearchResult[];
 }
 
 export interface StreamTokenResponse {

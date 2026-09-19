@@ -1,0 +1,24 @@
+.state-banner-slot {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  min-height: 0;
+}
+
+.state-banner-slot .banner-state {
+  flex: 1 1 22rem;
+  margin-bottom: 0;
+}
+
+.offline-mode-toggle {
+  flex: 0 0 auto;
+  margin-right: 1rem;
+}
+
+@media (max-width: 900px) {
+  .state-banner-slot {
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+}

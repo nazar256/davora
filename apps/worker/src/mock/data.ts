@@ -26,10 +26,6 @@ function textBytes(value: string): Uint8Array {
   return new TextEncoder().encode(value);
 }
 
-function base64Bytes(value: string): Uint8Array {
-  return Uint8Array.from(Buffer.from(value, "base64"));
-}
-
 function createPdfBytes(pages: string[][]): Uint8Array {
   const fontObjectNumber = 3 + pages.length * 2;
   const pageObjects = pages.map((_, index) => {

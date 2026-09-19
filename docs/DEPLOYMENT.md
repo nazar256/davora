@@ -22,7 +22,7 @@ npm run deploy
 - `npm run deploy:worker` runs `wrangler deploy` inside `apps/worker`.
 - `npm run deploy` runs the worker deploy first and the web deploy second so a new web build is not exposed before the target API/runtime is ready.
 - `npm run deploy:worker:dry-run` is the required preflight for bundle/runtime validation.
-- `npm run deploy:worker` and `npm run deploy` now fail fast before publish when required Worker secrets such as `SESSION_SECRET` are missing from the target runtime (`wrangler secret list` preflight).
+- `npm run deploy:worker` and `npm run deploy` now fail fast before publish when any required Worker key role (`SESSION_SECRET`, `ACCOUNT_STATE_SECRET`, or `SESSION_TOKEN_SECRET`) is missing from the target runtime (`wrangler secret list` preflight).
 - `npm run deploy:web` and `npm run deploy` default `VITE_API_BASE_URL` to `https://api.example.invalid` and default `CLOUDFLARE_PAGES_PROJECT_NAME` to `davora` when those env vars are unset, so the bare root command path matches the documented operator flow.
 
 ## Required environment for web → Pages
@@ -67,10 +67,27 @@ npm run deploy:web
 
 ## Worker runtime release posture
 
-- `SESSION_SECRET` is mandatory for any deployed Worker runtime. Provision it with `cd apps/worker && wrangler secret put SESSION_SECRET` before the first release in a target environment.
-- The deploy script now checks `wrangler secret list --format json` inside `apps/worker` and aborts before publish when `SESSION_SECRET` is absent.
-- `NEXTCLOUD_ALLOWED_HOSTS` is optional by default. Leaving it empty allows any valid Nextcloud host while preserving the existing URL-safety checks (`https` except localhost dev, no embedded credentials, no DAV resource URLs, no raw IP hosts outside localhost).
-- Worker observability is enabled in `apps/worker/wrangler.toml` as the standard release posture.
+- `SESSION_SECRET` is mandatory for any deployed Worker runtime, and production rejects values shorter than 32 UTF-8 bytes. Generate and pipe fresh randomness directly to Wrangler without placing it in a file, shell variable, log, or repository:
+  ```bash
+  (cd apps/worker && head -c 32 /dev/urandom | base64 | tr -d '\n' | wrangler secret put SESSION_SECRET)
+  ```
+  Rotating it invalidates all sessions and short-lived stream tokens. It also changes the key used for encrypted Worker account state, so the rotation procedure must intentionally reset/re-provision the old encrypted account-state envelope before reconnecting accounts; a decrypt failure must never be treated as an empty state.
+- For a session-only rotation, leave `SESSION_SECRET` unchanged and provision a separate `SESSION_TOKEN_SECRET` from fresh randomness:
+  ```bash
+  (cd apps/worker && head -c 32 /dev/urandom | base64 | tr -d '\n' | wrangler secret put SESSION_TOKEN_SECRET)
+  ```
+  The Worker falls back to `SESSION_SECRET` only until this optional secret is provisioned. Once present, it signs and verifies account-session and stream tokens while account-state encryption continues using `SESSION_SECRET`; all existing sessions are invalidated without requiring account reconnect.
+  This token-only path requires the existing production `SESSION_SECRET` to already satisfy the 32-byte state-key policy. If it is a short legacy key, use the two-key migration below instead.
+- To migrate a legacy state key while preserving accounts, provision both fresh keys before deploying the migration code:
+  ```bash
+  (cd apps/worker && head -c 32 /dev/urandom | base64 | tr -d '\n' | wrangler secret put ACCOUNT_STATE_SECRET)
+  (cd apps/worker && head -c 32 /dev/urandom | base64 | tr -d '\n' | wrangler secret put SESSION_TOKEN_SECRET)
+  ```
+  The Worker decrypts the existing envelope with the legacy `SESSION_SECRET`, writes it encrypted under `ACCOUNT_STATE_SECRET`, and signs new sessions with `SESSION_TOKEN_SECRET`. Only after successful migration should the legacy key be retired through a separately verified rollout.
+- `APP_UNLOCK_CODE` is development-only. Production rejects any non-empty value; do not use it as a production rate-control or authentication mechanism.
+- The deploy script now checks `wrangler secret list --format json` inside `apps/worker` and aborts before publish when any of the three production key roles is absent. This prevents deploying the strict policy between the legacy state-key and migrated-key steps.
+- `NEXTCLOUD_ALLOWED_HOSTS` is optional in real production mode. When it is empty, users may connect to any public HTTPS Nextcloud hostname; when set, it is an exact normalized hostname allowlist (for example `nextcloud.example.invalid`). `RUNTIME_MODE` defaults to `production`; `ALLOW_LOCAL_NEXTCLOUD=true` is valid only with `RUNTIME_MODE=development` and permits only explicit localhost/loopback destinations. Production always rejects HTTP, IP literals, special-use/private/link-local/metadata destinations, credentials, query/fragment syntax, wildcard/suffix matches, and invalid ports. Cloudflare's Worker egress restrictions remain an additional platform boundary.
+- Worker observability keeps application logs and errors available, while request invocation logs and traces are disabled in `apps/worker/wrangler.toml` so short-lived stream tokens in media URLs are not retained.
 - Operator live-log path: `cd apps/worker && wrangler tail davora --format pretty`.
 
 ## Worker local runtime smoke path
@@ -101,7 +118,7 @@ npm run deploy:worker -- --dry-run
 - The dry-run output should complete without unresolved runtime-compat warnings.
 
 Publish guardrail:
-- `npm run deploy:worker` will now stop before release if `SESSION_SECRET` is not provisioned in the target Worker runtime.
+- `npm run deploy:worker` will now stop before release if `SESSION_SECRET`, `ACCOUNT_STATE_SECRET`, or `SESSION_TOKEN_SECRET` is not provisioned in the target Worker runtime.
 
 ## Pages deploy validation
 

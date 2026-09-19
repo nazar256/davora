@@ -1,0 +1,119 @@
+.folder-audio-player {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.7fr) minmax(16rem, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-surface-raised) 94%, transparent);
+  box-shadow: var(--shadow-raised);
+}
+
+.folder-audio-player audio {
+  display: none;
+}
+
+.folder-audio-header,
+.folder-audio-title,
+.folder-audio-progress,
+.folder-audio-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.folder-audio-header {
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.folder-audio-title {
+  min-width: 0;
+}
+
+.folder-audio-title > span {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+}
+
+.folder-audio-title svg,
+.folder-audio-controls svg {
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+}
+
+.folder-audio-track {
+  margin: 0;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-audio-progress {
+  display: grid;
+  grid-template-columns: auto minmax(8rem, 1fr) auto;
+}
+
+.folder-audio-progress input {
+  width: 100%;
+}
+
+.folder-audio-controls {
+  display: grid;
+  grid-template-columns: repeat(5, var(--touch-target));
+  justify-content: end;
+  gap: var(--space-1);
+}
+
+.folder-audio-controls button {
+  position: relative;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  min-height: var(--touch-target);
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+}
+
+.folder-audio-controls button > span {
+  position: absolute;
+  font-size: 0.55rem;
+  font-weight: 800;
+}
+
+.folder-audio-play-toggle {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+@media (max-width: 900px) {
+
+  .file-browser-panel.has-folder-audio-player {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .folder-audio-player {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0.7rem;
+  }
+
+  .folder-audio-controls {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  .folder-audio-controls button {
+    min-width: 0;
+    padding-inline: 0.45rem;
+  }
+}

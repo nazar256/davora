@@ -1,10 +1,20 @@
 import { normalizeRootPath } from "@davora/shared";
 
 import type { WorkerEnv } from "./types";
+import type { AccountStateStorage } from "./accounts/storage";
+import { createNextcloudDestinationPolicy, normalizeNextcloudAllowedHosts } from "./security/nextcloudDestinationPolicy";
 
-const IPV4_PATTERN = /^(?:\d{1,3}\.){3}\d{1,3}$/;
-const IPV6_PATTERN = /^[0-9a-f:]+$/i;
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1"]);
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+export const MIN_PRODUCTION_SESSION_SECRET_BYTES = 32;
+
+export class WorkerConfigurationError extends Error {
+  constructor(readonly safeMessage: string) {
+    super(safeMessage);
+    this.name = "WorkerConfigurationError";
+  }
+}
+
+type RuntimeMode = "production" | "development";
 
 function readString(env: Record<string, unknown>, key: string): string | undefined {
   const value = env[key];
@@ -19,6 +29,17 @@ function isDurableObjectNamespace(value: unknown): value is NonNullable<WorkerEn
       && typeof (value as { idFromName?: unknown }).idFromName === "function"
       && "get" in value
       && typeof (value as { get?: unknown }).get === "function"
+  );
+}
+
+function isAccountStateStorage(value: unknown): value is AccountStateStorage {
+  return Boolean(
+    value
+      && typeof value === "object"
+      && "read" in value
+      && typeof value.read === "function"
+      && "compareAndSet" in value
+      && typeof value.compareAndSet === "function"
   );
 }
 
@@ -42,20 +63,45 @@ function parseList(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
-function matchesHostPattern(hostname: string, pattern: string): boolean {
-  if (pattern.startsWith("*.")) {
-    const suffix = pattern.slice(2);
-    return hostname === suffix || hostname.endsWith(`.${suffix}`);
+function runtimeModeFromEnv(env: Record<string, unknown>): RuntimeMode {
+  return readString(env, "RUNTIME_MODE")?.trim().toLowerCase() === "development" ? "development" : "production";
+}
+
+function validateSecret(rawValue: string | undefined, runtimeMode: RuntimeMode, name: string, enforceProductionMinimum = true): string {
+  const value = rawValue?.trim();
+  if (!value) {
+    throw new WorkerConfigurationError(`${name} is required. Provision it in the Worker runtime before release.`);
   }
-
-  return hostname === pattern;
+  if (runtimeMode === "production" && enforceProductionMinimum && new TextEncoder().encode(value).byteLength < MIN_PRODUCTION_SESSION_SECRET_BYTES) {
+    throw new WorkerConfigurationError(`${name} must contain at least 32 bytes in production.`);
+  }
+  return value;
 }
 
-function isIpHostname(hostname: string): boolean {
-  return IPV4_PATTERN.test(hostname) || hostname.includes(":") || IPV6_PATTERN.test(hostname.replace(/\[|\]/g, ""));
+export function validateSessionSecret(rawValue: string | undefined, runtimeMode: RuntimeMode): string {
+  return validateSecret(rawValue, runtimeMode, "SESSION_SECRET");
 }
 
-export function normalizeNextcloudBaseUrl(rawValue: string, allowedHosts: string[], requireAllowlist = true): string {
+export function validateSessionTokenSecret(rawValue: string | undefined, fallback: string, runtimeMode: RuntimeMode): string {
+  return validateSecret(rawValue ?? fallback, runtimeMode, "SESSION_TOKEN_SECRET");
+}
+
+export function validateAppUnlockCode(rawValue: string | undefined, runtimeMode: RuntimeMode): string | undefined {
+  const value = rawValue?.trim() || undefined;
+  if (runtimeMode === "production" && value) {
+    throw new WorkerConfigurationError("APP_UNLOCK_CODE is disabled in production; leave it unset.");
+  }
+  return value;
+}
+
+export function normalizeNextcloudBaseUrl(
+  rawValue: string,
+  allowedHosts: string[],
+  requireAllowlist = true,
+  runtimeMode: "production" | "development" = "production",
+  allowLocalNextcloud = false,
+  allowAnyHost = false
+): string {
   let url: URL;
   try {
     url = new URL(rawValue.trim());
@@ -73,22 +119,13 @@ export function normalizeNextcloudBaseUrl(rawValue: string, allowedHosts: string
 
   const hostname = url.hostname.toLowerCase();
   const isLocal = LOCAL_HOSTS.has(hostname);
-
-  if (url.protocol === "http:") {
-    if (!isLocal) {
-      throw new Error("NEXTCLOUD_BASE_URL must use HTTPS unless connecting to localhost for development.");
-    }
-  } else if (url.protocol !== "https:") {
-    throw new Error("NEXTCLOUD_BASE_URL must use HTTP or HTTPS.");
+  if (!allowAnyHost && requireAllowlist && allowedHosts.length === 0 && !(runtimeMode === "development" && allowLocalNextcloud && isLocal)) {
+    throw new Error("NEXTCLOUD_ALLOWED_HOSTS must contain at least one exact hostname.");
   }
-
-  if (!isLocal && isIpHostname(hostname)) {
-    throw new Error("NEXTCLOUD_BASE_URL must use an allowlisted hostname.");
+  if (!allowAnyHost && !requireAllowlist && runtimeMode === "production" && allowedHosts.length === 0) {
+    throw new Error("NEXTCLOUD_ALLOWED_HOSTS must contain at least one exact hostname.");
   }
-
-  if (requireAllowlist && allowedHosts.length > 0 && !isLocal && !allowedHosts.some((pattern) => matchesHostPattern(hostname, pattern.toLowerCase()))) {
-    throw new Error("NEXTCLOUD_BASE_URL hostname is not allowlisted.");
-  }
+  createNextcloudDestinationPolicy({ runtimeMode, allowLocalNextcloud, allowedHosts, allowAnyHost }).assertAllowed(url);
 
   const strippedDavPath = url.pathname.replace(/\/+$/, "").replace(/\/remote\.php\/dav$/i, "");
   if (/\/remote\.php\/dav\//i.test(strippedDavPath)) {
@@ -123,41 +160,90 @@ export function normalizeAccountLabel(rawValue: string | undefined): string | un
   return value ? value.slice(0, 120) : undefined;
 }
 
-export function loadConfig(env: Record<string, unknown>): WorkerEnv {
+function loadValidatedConfig(env: Record<string, unknown>): WorkerEnv {
   const mockBackend = parseBoolean(readString(env, "MOCK_BACKEND"));
   const allowedOrigins = parseList(readString(env, "ALLOWED_ORIGINS"));
-  const allowedHosts = parseList(readString(env, "NEXTCLOUD_ALLOWED_HOSTS"));
-  const rootPath = normalizeRootPath(readString(env, "NEXTCLOUD_ROOT_PATH") || ".davora-agent-test");
-  const sessionSecret = readString(env, "SESSION_SECRET")?.trim();
-
-  if (!sessionSecret) {
-    throw new Error("SESSION_SECRET is required. Provision it in the Worker runtime before release.");
+  const allowedHosts = normalizeNextcloudAllowedHosts(parseList(readString(env, "NEXTCLOUD_ALLOWED_HOSTS")));
+  const runtimeMode = runtimeModeFromEnv(env);
+  const allowLocalNextcloud = parseBoolean(readString(env, "ALLOW_LOCAL_NEXTCLOUD"));
+  const allowAnyHost = !mockBackend && runtimeMode === "production" && allowedHosts.length === 0;
+  const rootPath = normalizeRootPath(readString(env, "NEXTCLOUD_ROOT_PATH"));
+  const rawSessionSecret = readString(env, "SESSION_SECRET");
+  const rawSessionTokenSecret = readString(env, "SESSION_TOKEN_SECRET");
+  const rawAccountStateSecret = readString(env, "ACCOUNT_STATE_SECRET");
+  const migrationKeysPresent = Boolean(rawAccountStateSecret?.trim() && rawSessionTokenSecret?.trim());
+  const sessionSecret = validateSecret(rawSessionSecret, runtimeMode, "SESSION_SECRET", !migrationKeysPresent);
+  const accountStateSecret = validateSecret(rawAccountStateSecret ?? sessionSecret, runtimeMode, "ACCOUNT_STATE_SECRET");
+  const sessionTokenSecret = validateSessionTokenSecret(rawSessionTokenSecret, sessionSecret, runtimeMode);
+  const appUnlockCode = validateAppUnlockCode(readString(env, "APP_UNLOCK_CODE"), runtimeMode);
+  if (runtimeMode === "production" && allowLocalNextcloud) {
+    throw new WorkerConfigurationError("ALLOW_LOCAL_NEXTCLOUD is only valid in development mode.");
+  }
+  if (!mockBackend && !allowAnyHost && allowedHosts.length === 0 && !(runtimeMode === "development" && allowLocalNextcloud)) {
+    throw new WorkerConfigurationError("NEXTCLOUD_ALLOWED_HOSTS must contain at least one exact hostname for the real backend.");
   }
 
   return {
     SESSION_SECRET: sessionSecret,
+    ACCOUNT_STATE_SECRET: accountStateSecret,
+    SESSION_TOKEN_SECRET: sessionTokenSecret,
     SESSION_TTL_SECONDS: parseNumber(readString(env, "SESSION_TTL_SECONDS"), 3600),
     ALLOWED_ORIGINS: allowedOrigins,
-    APP_UNLOCK_CODE: readString(env, "APP_UNLOCK_CODE")?.trim() || undefined,
+    APP_UNLOCK_CODE: appUnlockCode,
     NEXTCLOUD_ROOT_PATH: rootPath,
     NEXTCLOUD_ALLOWED_HOSTS: allowedHosts,
+    RUNTIME_MODE: runtimeMode,
+    ALLOW_LOCAL_NEXTCLOUD: allowLocalNextcloud,
     NEXTCLOUD_MAX_FILE_BYTES: parseNumber(readString(env, "NEXTCLOUD_MAX_FILE_BYTES"), 64 * 1024),
     NEXTCLOUD_MAX_TEXT_FILE_BYTES: parseNumber(readString(env, "NEXTCLOUD_MAX_TEXT_FILE_BYTES"), 16 * 1024),
     MOCK_BACKEND: mockBackend,
     LOCAL_DEV_STATE_PATH: readString(env, "LOCAL_DEV_STATE_PATH")?.trim() || undefined,
-    DAVORA_ACCOUNT_STORE: isDurableObjectNamespace(env.DAVORA_ACCOUNT_STORE) ? env.DAVORA_ACCOUNT_STORE : undefined
+    DAVORA_ACCOUNT_STORE: isDurableObjectNamespace(env.DAVORA_ACCOUNT_STORE) ? env.DAVORA_ACCOUNT_STORE : undefined,
+    ACCOUNT_STATE_STORAGE: isAccountStateStorage(env.ACCOUNT_STATE_STORAGE) ? env.ACCOUNT_STATE_STORAGE : undefined
   };
+}
+
+export function loadConfig(env: Record<string, unknown>): WorkerEnv {
+  try {
+    return loadValidatedConfig(env);
+  } catch (error) {
+    if (error instanceof WorkerConfigurationError) throw error;
+    throw new WorkerConfigurationError("Worker configuration is invalid.");
+  }
 }
 
 export function configHealth(env: Record<string, unknown>) {
   const required = ["SESSION_SECRET"];
 
+  const rawSessionSecret = readString(env, "SESSION_SECRET");
+  const rawAccountStateSecret = readString(env, "ACCOUNT_STATE_SECRET");
+  const rawSessionTokenSecret = readString(env, "SESSION_TOKEN_SECRET");
+  const rawAppUnlockCode = readString(env, "APP_UNLOCK_CODE");
+  const runtimeMode = runtimeModeFromEnv(env);
+  const allowAnyHost = !parseBoolean(readString(env, "MOCK_BACKEND")) && runtimeMode === "production" && parseList(readString(env, "NEXTCLOUD_ALLOWED_HOSTS")).length === 0;
   const missing = required.filter((key) => !readString(env, key)?.trim());
+  let policyError: string | undefined;
+  try {
+    const allowedHosts = normalizeNextcloudAllowedHosts(parseList(readString(env, "NEXTCLOUD_ALLOWED_HOSTS")));
+    const allowLocalNextcloud = parseBoolean(readString(env, "ALLOW_LOCAL_NEXTCLOUD"));
+    const migrationKeysPresent = Boolean(rawAccountStateSecret?.trim() && rawSessionTokenSecret?.trim());
+    validateSecret(rawSessionSecret, runtimeMode, "SESSION_SECRET", !migrationKeysPresent);
+    validateSecret(rawAccountStateSecret ?? rawSessionSecret, runtimeMode, "ACCOUNT_STATE_SECRET");
+    validateSessionTokenSecret(rawSessionTokenSecret, rawSessionSecret?.trim() ?? "", runtimeMode);
+    validateAppUnlockCode(rawAppUnlockCode, runtimeMode);
+    if (runtimeMode === "production" && allowLocalNextcloud) throw new Error("ALLOW_LOCAL_NEXTCLOUD is only valid in development mode.");
+    if (!parseBoolean(readString(env, "MOCK_BACKEND")) && !allowAnyHost && allowedHosts.length === 0 && !(runtimeMode === "development" && allowLocalNextcloud)) {
+      throw new Error("NEXTCLOUD_ALLOWED_HOSTS is required for the real backend.");
+    }
+  } catch (error) {
+    policyError = error instanceof Error ? error.message : "Destination policy configuration is invalid.";
+  }
   return {
-    configLoaded: missing.length === 0,
+    configLoaded: missing.length === 0 && !policyError,
     missing,
     backend: parseBoolean(readString(env, "MOCK_BACKEND")) ? "mock" as const : "nextcloud" as const,
-    rootPath: normalizeRootPath(readString(env, "NEXTCLOUD_ROOT_PATH") || ".davora-agent-test"),
-    unlockRequired: Boolean(readString(env, "APP_UNLOCK_CODE")?.trim())
+    rootPath: normalizeRootPath(readString(env, "NEXTCLOUD_ROOT_PATH")),
+    unlockRequired: Boolean(rawAppUnlockCode?.trim()),
+    ...(policyError ? { policyError } : {})
   };
 }

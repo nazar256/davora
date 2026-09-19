@@ -1,0 +1,36 @@
+.preview-video-navigation {
+  display: inline-flex;
+  align-items: stretch;
+  gap: var(--space-1);
+  flex: 0 0 auto;
+}
+
+.preview-video-navigation > button {
+  width: var(--touch-target);
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.media-preview-video {
+  object-fit: contain;
+}
+
+.media-preview-video {
+  width: 100%;
+  height: 100%;
+}
+
+.media-preview-audio {
+  width: min(100%, 52rem);
+}
+
+@media (max-width: 900px) {
+
+  .preview-header-actions-immersive > .preview-video-navigation {
+    flex: 0 0 auto;
+  }
+}

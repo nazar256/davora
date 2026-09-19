@@ -1,0 +1,54 @@
+.action-dialog {
+  max-height: min(90dvh, 42rem);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  overflow: hidden;
+}
+
+.action-dialog .dialog-form {
+  max-width: none;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.action-dialog .dialog-actions {
+  justify-content: flex-end;
+  padding-top: var(--space-3);
+  border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+@media (max-width: 1200px) {
+}
+
+@media (min-width: 901px) {
+}
+
+@media (max-width: 900px) {
+
+  .action-dialog {
+    overflow: hidden;
+  }
+}
+
+@media (max-width: 900px) {
+}
+
+/*
+ * Davora semantic design tokens. Screen styles should consume these names instead
+ * of palette literals so light, dark, focus, motion, and elevation stay coherent.
+ */
+
+/* PER-71 browser surfaces */
+
+@media (max-width: 900px) {
+}
+
+@media (min-width: 901px) {
+}
+
+@media (min-width: 901px) and (max-width: 1200px) {
+}
+
+@media (prefers-reduced-motion: reduce) {
+}

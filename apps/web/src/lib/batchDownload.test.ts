@@ -39,9 +39,8 @@ describe("buildBatchDownloadPlan", () => {
     });
 
     const plan = await buildBatchDownloadPlan({
-      entries: [folder("Archive"), file("notes.txt", 3)],
-      currentPath: "",
-      searchActive: false,
+      roots: [{ entry: folder("Archive"), archiveRoot: "Archive" }, { entry: file("notes.txt", 3), archiveRoot: "notes.txt" }],
+      archiveLabel: "home",
       listFiles
     });
 
@@ -60,9 +59,8 @@ describe("buildBatchDownloadPlan", () => {
     const listFiles = vi.fn(async () => ({ items: [file("Projects/roadmap.txt", 2)] }));
 
     const plan = await buildBatchDownloadPlan({
-      entries: [folder("Projects"), file("Projects/roadmap.txt", 2)],
-      currentPath: "",
-      searchActive: false,
+      roots: [{ entry: folder("Projects"), archiveRoot: "Projects" }, { entry: file("Projects/roadmap.txt", 2), archiveRoot: "Projects/roadmap.txt" }],
+      archiveLabel: "home",
       listFiles
     });
 
@@ -72,14 +70,27 @@ describe("buildBatchDownloadPlan", () => {
 
   it("uses full relative paths for search-result batch downloads", async () => {
     const plan = await buildBatchDownloadPlan({
-      entries: [file("Projects/roadmap.txt", 2)],
-      currentPath: "Archive",
-      searchActive: true,
+      roots: [{ entry: file("Projects/roadmap.txt", 2), archiveRoot: "Projects/roadmap.txt" }],
+      archiveLabel: "search-results",
       listFiles: async () => ({ items: [] })
     });
 
     expect(plan.archiveName).toBe("projects-roadmap.txt.zip");
     expect(plan.files).toEqual([{ sourcePath: "Projects/roadmap.txt", archivePath: "Projects/roadmap.txt", size: 2 }]);
+  });
+
+  it("keeps same-named search results from different folders at distinct archive paths", async () => {
+    const plan = await buildBatchDownloadPlan({
+      roots: [
+        { entry: file("Projects/report.txt", 2), archiveRoot: "Projects/report.txt" },
+        { entry: file("Archive/report.txt", 3), archiveRoot: "Archive/report.txt" }
+      ],
+      archiveLabel: "search-results",
+      listFiles: async () => ({ items: [] })
+    });
+
+    expect(plan.archiveName).toBe("davora-search-results-download.zip");
+    expect(plan.files.map((item) => item.archivePath)).toEqual(["Archive/report.txt", "Projects/report.txt"]);
   });
 });
 
@@ -94,9 +105,8 @@ describe("downloadSelectionAsZip", () => {
     });
 
     const { blob, plan } = await downloadSelectionAsZip({
-      entries: [file("alpha.txt", 1), file("beta.txt", 2)],
-      currentPath: "",
-      searchActive: false,
+      roots: [{ entry: file("alpha.txt", 1), archiveRoot: "alpha.txt" }, { entry: file("beta.txt", 2), archiveRoot: "beta.txt" }],
+      archiveLabel: "home",
       listFiles,
       fetchFile
     });
@@ -125,9 +135,8 @@ describe("downloadSelectionAsZip", () => {
     });
 
     const { blob, plan } = await downloadSelectionAsZip({
-      entries: [folder("Documents")],
-      currentPath: "",
-      searchActive: false,
+      roots: [{ entry: folder("Documents"), archiveRoot: "Documents" }],
+      archiveLabel: "home",
       listFiles,
       fetchFile
     });
@@ -149,9 +158,8 @@ describe("downloadSelectionAsZip", () => {
     });
 
     const { plan } = await downloadSelectionAsZip({
-      entries: [file("a.txt", 1), file("b.txt", 2)],
-      currentPath: "",
-      searchActive: false,
+      roots: [{ entry: file("a.txt", 1), archiveRoot: "a.txt" }, { entry: file("b.txt", 2), archiveRoot: "b.txt" }],
+      archiveLabel: "home",
       listFiles: async () => ({ items: [] }),
       fetchFile
     });
@@ -165,9 +173,8 @@ describe("downloadSelectionAsZip", () => {
     const fetchFile = vi.fn(async () => ({ blob: new Blob(["content"]) }));
 
     const { plan } = await downloadSelectionAsZip({
-      entries: [file("ok.txt", 5)],
-      currentPath: "",
-      searchActive: false,
+      roots: [{ entry: file("ok.txt", 5), archiveRoot: "ok.txt" }],
+      archiveLabel: "home",
       listFiles: async () => ({ items: [] }),
       fetchFile
     });

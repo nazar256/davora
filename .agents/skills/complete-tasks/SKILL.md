@@ -41,6 +41,8 @@ Load and follow these skills when applicable; do not duplicate their content her
 15. Refresh the queue after every ticket and repeat until no eligible tickets remain.
 16. After the queue is empty and all tickets are Done/deployed/proofed, run a final goal-level `$review-refine-loop` with `$critical-http-security-auditor` as a security-focused completion gate. Address any Critical/High findings before calling the goal complete.
 
+An explicit user instruction to stop or pause after the current ticket supersedes the outer loop. Finish and persist the current ticket, then do not refresh the queue, select a ticket, or mutate another ticket until the user directly resumes processing, because the pause boundary must remain observable and reversible.
+
 ## Finish Criteria
 
 Finish only when all of these are true:

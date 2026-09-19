@@ -1,31 +1,34 @@
 import type {
-  ConnectAccountRequest,
-  ConnectAccountResponse,
   CreateFolderRequest,
   FileResponse,
-  FilesResponse,
-  HealthResponse,
   MetadataResponse,
   MoveCopyRequest,
-  MutationResponse,
   SearchResponse,
-  SessionRequest,
-  SessionResponse,
   StreamTokenResponse,
   UploadFileRequest
 } from "@davora/shared";
-
 import {
-  clearAccountSession,
-  loadAccountState,
-  markAccountReconnectRequired,
-  removeStoredAccount,
-  saveAccountSession,
-  saveConnectedAccount,
-  setActiveAccountId,
-  type StoredAccountRecord
-} from "./accountState";
-import { getBrowserIdentity } from "./browserIdentity";
+  assertCreateFolderResponseIdentity,
+  assertMoveCopyResponseIdentity,
+  assertDeleteResponseIdentity,
+  assertUploadResponseIdentity,
+  copyEndpoint,
+  createFolderEndpoint,
+  deleteEndpoint,
+  filesEndpoint,
+  moveEndpoint,
+  searchEndpoint,
+  uploadEndpoint,
+  metadataEndpoint,
+  previewEndpoint,
+  originalEndpoint,
+  streamTokenEndpoint,
+  streamEndpoint,
+  downloadEndpoint,
+  apiErrorEnvelopeSchema,
+  type ApiError
+} from "@davora/shared";
+import { assertBackendNetworkAllowed, backendFetch, registerBackendRequestAbort } from "./networkPolicy";
 
 export function resolveApiBase(rawBaseUrl: string | undefined): string {
   return (rawBaseUrl?.trim() || "") || "";
@@ -33,7 +36,7 @@ export function resolveApiBase(rawBaseUrl: string | undefined): string {
 
 const API_BASE = resolveApiBase(import.meta.env.VITE_API_BASE_URL);
 
-function apiUrl(path: string): string {
+export function backendApiUrl(path: string): string {
   return `${API_BASE}${path}`;
 }
 
@@ -48,16 +51,22 @@ export class ApiRequestError extends Error {
   }
 }
 
-function browserAuthHeaders(): Record<string, string> {
-  const { browserId, browserSecret } = getBrowserIdentity();
-  return {
-    "x-davora-browser-id": browserId,
-    "x-davora-browser-secret": browserSecret
-  };
+interface SuccessEnvelopeParser<T> {
+  parse(value: unknown): { data: T };
 }
 
-async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
-  const response = await fetch(apiUrl(path), {
+export async function throwHttpRequestError(response: Response): Promise<never> {
+  const payload = parseApiErrorPayload(await response.json().catch(() => undefined));
+  throw new ApiRequestError(payload?.message ?? `Request failed with ${response.status}`, response.status, payload?.code, payload?.details);
+}
+
+export async function request<T>(
+  path: string,
+  options: RequestInit = {},
+  token?: string,
+  successSchema?: SuccessEnvelopeParser<T>
+): Promise<T> {
+  const response = await backendFetch(backendApiUrl(path), {
     ...options,
     headers: {
       ...(options.body ? { "content-type": "application/json" } : {}),
@@ -67,98 +76,67 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
   });
 
   if (!response.ok) {
-    const payload = (await response.json().catch(() => undefined)) as { data?: { message?: string; code?: string; details?: string } } | undefined;
-    throw new ApiRequestError(payload?.data?.message ?? `Request failed with ${response.status}`, response.status, payload?.data?.code, payload?.data?.details);
+    return throwHttpRequestError(response);
   }
 
   if (response.status === 204) {
     return undefined as T;
   }
 
+  if (successSchema) {
+    const payload: unknown = await response.json().catch(() => undefined);
+    try {
+      return successSchema.parse(payload).data;
+    } catch {
+      throw new ApiRequestError("The server returned an invalid response.", response.status, "invalid_response");
+    }
+  }
+
   return (await response.json()).data as T;
 }
 
-export function loadStoredAccounts() {
-  return loadAccountState();
-}
-
-export function saveActiveAccount(accountId: string) {
-  return setActiveAccountId(accountId);
-}
-
-export function markStoredAccountReconnectRequired(accountId: string) {
-  return markAccountReconnectRequired(accountId);
-}
-
-export function clearStoredAccountSession(accountId: string) {
-  return clearAccountSession(accountId);
-}
-
-export function removeAccountFromStorage(accountId: string) {
-  return removeStoredAccount(accountId);
-}
-
-export async function getHealth() {
-  return request<HealthResponse>("/api/health");
-}
-
-export async function connectAccount(requestBody: ConnectAccountRequest) {
-  const data = await request<ConnectAccountResponse>("/api/accounts", {
-    method: "POST",
-    headers: browserAuthHeaders(),
-    body: JSON.stringify(requestBody)
-  });
-  saveConnectedAccount(data.account);
-  return data;
-}
-
-export async function createSession(requestBody: SessionRequest) {
-  const data = await request<SessionResponse>("/api/session", {
-    method: "POST",
-    headers: browserAuthHeaders(),
-    body: JSON.stringify(requestBody)
-  });
-  saveAccountSession(requestBody.accountId, data.session);
-  return data.session;
-}
-
-export async function deleteConnectedAccount(accountId: string) {
-  await request<void>(`/api/accounts/${encodeURIComponent(accountId)}`, {
-    method: "DELETE",
-    headers: browserAuthHeaders()
-  });
-  removeStoredAccount(accountId);
-}
-
-export function getStoredAccount(accountId: string): StoredAccountRecord | undefined {
-  return loadAccountState().accounts.find((record) => record.account.id === accountId);
-}
-
-export async function listFiles(path: string, token: string) {
-  return request<FilesResponse>(`/api/files?path=${encodeURIComponent(path)}`, {}, token);
+export async function listFiles(path: string, token: string, signal?: AbortSignal) {
+  const requestInput = filesEndpoint.requestSchema.parse({ path });
+  return request(
+    `${filesEndpoint.path}?path=${encodeURIComponent(requestInput.path)}`,
+    { method: filesEndpoint.method, signal },
+    token,
+    filesEndpoint.successSchema
+  );
 }
 
 export async function getMetadata(path: string, token: string) {
-  return request<MetadataResponse>(`/api/metadata?path=${encodeURIComponent(path)}`, {}, token);
+  const input = metadataEndpoint.requestSchema.parse({ path });
+  return request<MetadataResponse>(`${metadataEndpoint.path}?path=${encodeURIComponent(input.path)}`, { method: metadataEndpoint.method }, token, metadataEndpoint.successSchema);
 }
 
-export async function getFile(path: string, token: string) {
-  return request<FileResponse>(`/api/file?path=${encodeURIComponent(path)}`, {}, token);
+export async function getFile(path: string, token: string, signal?: AbortSignal) {
+  const input = previewEndpoint.requestSchema.parse({ path });
+  return request<FileResponse>(`${previewEndpoint.path}?path=${encodeURIComponent(input.path)}`, { method: previewEndpoint.method, signal }, token, previewEndpoint.successSchema);
 }
 
-export async function searchFiles(path: string, query: string, token: string) {
-  return request<SearchResponse>(`/api/search?path=${encodeURIComponent(path)}&q=${encodeURIComponent(query)}`, {}, token);
+export async function searchFiles(path: string, query: string, token: string, signal?: AbortSignal) {
+  const input = searchEndpoint.requestSchema.parse({ path, query });
+  return request<SearchResponse>(
+    `${searchEndpoint.path}?path=${encodeURIComponent(input.path)}&q=${encodeURIComponent(input.query)}`,
+    { method: searchEndpoint.method, signal },
+    token,
+    searchEndpoint.successSchema
+  );
 }
 
-export async function fetchOriginalFile(path: string, token: string): Promise<{ blob: Blob; mimeType: string; filename: string }> {
-  const response = await fetch(apiUrl(`/api/file/original?path=${encodeURIComponent(path)}`), {
+export async function fetchOriginalFile(path: string, token: string, signal?: AbortSignal): Promise<{ blob: Blob; mimeType: string; filename: string }> {
+  const input = originalEndpoint.requestSchema.parse({ path });
+  const response = await backendFetch(backendApiUrl(`${originalEndpoint.path}?path=${encodeURIComponent(input.path)}`), {
+    method: originalEndpoint.method,
     headers: {
       authorization: `Bearer ${token}`
-    }
+    },
+    signal
   });
 
   if (!response.ok) {
-    throw new ApiRequestError(`Original file request failed with ${response.status}`, response.status);
+    return throwHttpRequestError(response);
   }
 
   const blob = await response.blob();
@@ -170,40 +148,63 @@ export async function fetchOriginalFile(path: string, token: string): Promise<{ 
   };
 }
 
-export async function createStreamingFileUrl(path: string, token: string): Promise<string> {
-  const stream = await request<StreamTokenResponse>(`/api/file/stream-token?path=${encodeURIComponent(path)}`, {
-    method: "POST"
-  }, token);
-  return apiUrl(`/api/file/stream?path=${encodeURIComponent(path)}&streamToken=${encodeURIComponent(stream.token)}`);
+export async function createStreamingFileUrl(path: string, token: string, signal?: AbortSignal): Promise<string> {
+  const input = streamTokenEndpoint.requestSchema.parse({ path });
+  const stream = await request<StreamTokenResponse>(`${streamTokenEndpoint.path}?path=${encodeURIComponent(input.path)}`, {
+    method: streamTokenEndpoint.method,
+    signal
+  }, token, streamTokenEndpoint.successSchema);
+  return backendApiUrl(`${streamEndpoint.path}?path=${encodeURIComponent(input.path)}&streamToken=${encodeURIComponent(stream.token)}`);
 }
 
 export async function createFolder(requestBody: CreateFolderRequest, token: string) {
-  return request<MutationResponse>("/api/folders", {
-    method: "POST",
-    body: JSON.stringify(requestBody)
-  }, token);
+  const input = createFolderEndpoint.requestSchema.parse(requestBody);
+  return request(
+    createFolderEndpoint.path,
+    { method: createFolderEndpoint.method, body: JSON.stringify(input) },
+    token,
+    {
+      parse(value: unknown) {
+        const envelope = createFolderEndpoint.successSchema.parse(value);
+        assertCreateFolderResponseIdentity(input, envelope.data);
+        return envelope;
+      }
+    }
+  );
 }
 
 export async function uploadFile(requestBody: UploadFileRequest, token: string) {
-  return request<MutationResponse>("/api/upload", {
-    method: "POST",
-    body: JSON.stringify(requestBody)
-  }, token);
+  const input = uploadEndpoint.requestSchema.parse(requestBody);
+  return request(
+    uploadEndpoint.path,
+    { method: uploadEndpoint.method, body: JSON.stringify(input) },
+    token,
+    {
+      parse(value: unknown) {
+        const envelope = uploadEndpoint.successSchema.parse(value);
+        assertUploadResponseIdentity(input, envelope.data);
+        return envelope;
+      }
+    }
+  );
 }
 
-function parseApiErrorPayload(raw: unknown): { message?: string; code?: string; details?: string } | undefined {
-  if (!raw || typeof raw !== "object") {
+export function parseApiErrorPayload(raw: unknown): ApiError | undefined {
+  const parsed = apiErrorEnvelopeSchema.safeParse(raw);
+  if (parsed.success) return parsed.data.data;
+  // Preserve the existing client behavior for forward-compatible server error
+  // codes while still requiring the stable envelope/message shape.
+  if (typeof raw !== "object" || raw === null || !("data" in raw) || typeof raw.data !== "object" || raw.data === null) {
     return undefined;
   }
-  const envelope = raw as { data?: unknown };
-  if (!envelope.data || typeof envelope.data !== "object") {
+  const data = raw.data as Record<string, unknown>;
+  if (typeof data.code !== "string" || !data.code || typeof data.message !== "string") {
     return undefined;
   }
-  const data = envelope.data as { message?: unknown; code?: unknown; details?: unknown };
   return {
-    message: typeof data.message === "string" ? data.message : undefined,
-    code: typeof data.code === "string" ? data.code : undefined,
-    details: typeof data.details === "string" ? data.details : undefined
+    code: data.code as ApiError["code"],
+    message: data.message,
+    ...(typeof data.details === "string" ? { details: data.details } : {})
   };
 }
 
@@ -214,11 +215,47 @@ async function xhrJson<T>(
   token: string,
   options: {
     onUploadProgress?: (loaded: number, total: number) => void;
-  } = {}
+    signal?: AbortSignal;
+    successSchema: SuccessEnvelopeParser<T>;
+  }
 ): Promise<T> {
+  assertBackendNetworkAllowed();
   return await new Promise<T>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open(method, apiUrl(path));
+    const unregisterAbort = registerBackendRequestAbort(() => xhr.abort());
+    const abortFromSignal = () => xhr.abort();
+    let settled = false;
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      unregisterAbort();
+      options.signal?.removeEventListener("abort", abortFromSignal);
+      xhr.upload.onprogress = null;
+      xhr.onload = null;
+      xhr.onloadend = null;
+      xhr.onerror = null;
+      xhr.onabort = null;
+    };
+    const resolveOnce = (value: T) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(value);
+    };
+    const rejectOnce = (error: ApiRequestError) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    if (options.signal?.aborted) {
+      cleanup();
+      rejectOnce(new ApiRequestError("Request aborted", 0));
+      return;
+    }
+    options.signal?.addEventListener("abort", abortFromSignal, { once: true });
+    xhr.open(method, backendApiUrl(path));
     xhr.setRequestHeader("content-type", "application/json");
     xhr.setRequestHeader("authorization", `Bearer ${token}`);
     xhr.responseType = "text";
@@ -226,15 +263,18 @@ async function xhrJson<T>(
     if (options.onUploadProgress) {
       const total = body.length;
       xhr.upload.onprogress = (event) => {
+        if (settled) return;
         // Some browsers set lengthComputable=false for string bodies; use our known body size.
         const loaded = typeof event.loaded === "number" ? event.loaded : 0;
         options.onUploadProgress?.(Math.max(0, loaded), total);
       };
     }
 
-    xhr.onerror = () => reject(new ApiRequestError("Request failed", 0));
-    xhr.onabort = () => reject(new ApiRequestError("Request aborted", 0));
+    xhr.onloadend = cleanup;
+    xhr.onerror = () => rejectOnce(new ApiRequestError("Request failed", 0));
+    xhr.onabort = () => rejectOnce(new ApiRequestError("Request aborted", 0));
     xhr.onload = () => {
+      if (settled) return;
       const status = xhr.status;
       const text = xhr.responseText ?? "";
       if (status < 200 || status >= 300) {
@@ -245,15 +285,15 @@ async function xhrJson<T>(
             return undefined;
           }
         })();
-        reject(new ApiRequestError(parsed?.message ?? `Request failed with ${status}`, status, parsed?.code, parsed?.details));
+        rejectOnce(new ApiRequestError(parsed?.message ?? `Request failed with ${status}`, status, parsed?.code, parsed?.details));
         return;
       }
 
       try {
-        const parsed = JSON.parse(text) as { data?: unknown };
-        resolve(parsed.data as T);
+        const parsed: unknown = JSON.parse(text);
+        resolveOnce(options.successSchema.parse(parsed).data);
       } catch {
-        reject(new ApiRequestError("Response was not valid JSON.", status));
+        rejectOnce(new ApiRequestError("The server returned an invalid response.", status, "invalid_response"));
       }
     };
 
@@ -264,30 +304,75 @@ async function xhrJson<T>(
 export async function uploadFileWithProgress(
   requestBody: UploadFileRequest,
   token: string,
-  onUploadProgress?: (loadedBytes: number, totalBytes: number) => void
+  onUploadProgress?: (loadedBytes: number, totalBytes: number) => void,
+  signal?: AbortSignal
 ) {
-  return await xhrJson<MutationResponse>("/api/upload", "POST", JSON.stringify(requestBody), token, { onUploadProgress });
+  const input = uploadEndpoint.requestSchema.parse(requestBody);
+  return await xhrJson(
+    uploadEndpoint.path,
+    uploadEndpoint.method,
+    JSON.stringify(input),
+    token,
+    {
+      onUploadProgress,
+      signal,
+      successSchema: {
+        parse(value: unknown) {
+          const envelope = uploadEndpoint.successSchema.parse(value);
+          assertUploadResponseIdentity(input, envelope.data);
+          return envelope;
+        }
+      }
+    }
+  );
 }
 
 export async function moveFile(requestBody: MoveCopyRequest, token: string) {
-  return request<MutationResponse>("/api/move", {
-    method: "POST",
-    body: JSON.stringify(requestBody)
-  }, token);
+  const input = moveEndpoint.requestSchema.parse(requestBody);
+  return request(
+    moveEndpoint.path,
+    { method: moveEndpoint.method, body: JSON.stringify(input) },
+    token,
+    {
+      parse(value: unknown) {
+        const envelope = moveEndpoint.successSchema.parse(value);
+        assertMoveCopyResponseIdentity("move", input, envelope.data);
+        return envelope;
+      }
+    }
+  );
 }
 
 export async function copyFile(requestBody: MoveCopyRequest, token: string) {
-  return request<MutationResponse>("/api/copy", {
-    method: "POST",
-    body: JSON.stringify(requestBody)
-  }, token);
+  const input = copyEndpoint.requestSchema.parse(requestBody);
+  return request(
+    copyEndpoint.path,
+    { method: copyEndpoint.method, body: JSON.stringify(input) },
+    token,
+    {
+      parse(value: unknown) {
+        const envelope = copyEndpoint.successSchema.parse(value);
+        assertMoveCopyResponseIdentity("copy", input, envelope.data);
+        return envelope;
+      }
+    }
+  );
 }
 
 export async function deleteFile(requestBody: { path: string; confirmName: string }, token: string) {
-  return request<MutationResponse>("/api/delete", {
-    method: "POST",
-    body: JSON.stringify(requestBody)
-  }, token);
+  const input = deleteEndpoint.requestSchema.parse(requestBody);
+  return request(
+    deleteEndpoint.path,
+    { method: deleteEndpoint.method, body: JSON.stringify(input) },
+    token,
+    {
+      parse(value: unknown) {
+        const envelope = deleteEndpoint.successSchema.parse(value);
+        assertDeleteResponseIdentity(input, envelope.data);
+        return envelope;
+      }
+    }
+  );
 }
 
 export async function resetMockBackend(): Promise<void> {
@@ -304,13 +389,26 @@ export async function downloadFile(
   token: string,
   options: {
     onProgress?: (loadedBytes: number, totalBytes?: number) => void;
+    signal?: AbortSignal;
   } = {}
 ): Promise<void> {
-  const metadata = await request<MetadataResponse>(`/api/metadata?path=${encodeURIComponent(path)}`, {}, token);
+  const prepared = await prepareDownloadFile(path, token, options);
+  triggerBrowserDownload(prepared.blob, prepared.filename);
+}
 
+export async function prepareDownloadFile(
+  path: string,
+  token: string,
+  options: {
+    onProgress?: (loadedBytes: number, totalBytes?: number) => void;
+    signal?: AbortSignal;
+  } = {}
+): Promise<{ blob: Blob; filename: string }> {
+  const input = metadataEndpoint.requestSchema.parse({ path });
+  const metadata = await request<MetadataResponse>(`${metadataEndpoint.path}?path=${encodeURIComponent(input.path)}`, { method: metadataEndpoint.method, signal: options.signal }, token, metadataEndpoint.successSchema);
   const { blob, filename } = await fetchDownloadBlob(path, token, options);
   const resolvedFilename = filename ?? metadata.metadata.name ?? path.split("/").pop() ?? "file";
-  triggerBrowserDownload(blob, resolvedFilename);
+  return { blob, filename: resolvedFilename };
 }
 
 export async function fetchDownloadBlob(
@@ -318,16 +416,19 @@ export async function fetchDownloadBlob(
   token: string,
   options: {
     onProgress?: (loadedBytes: number, totalBytes?: number) => void;
+    signal?: AbortSignal;
   } = {}
 ): Promise<{ blob: Blob; filename?: string }> {
-  const response = await fetch(apiUrl(`/api/download?path=${encodeURIComponent(path)}`), {
+  const input = downloadEndpoint.requestSchema.parse({ path });
+  const response = await backendFetch(backendApiUrl(`${downloadEndpoint.path}?path=${encodeURIComponent(input.path)}`), {
+    method: downloadEndpoint.method,
     headers: {
       authorization: `Bearer ${token}`
-    }
+    },
+    signal: options.signal
   });
   if (!response.ok) {
-    const payload = (await response.json().catch(() => undefined)) as { data?: { message?: string; code?: string; details?: string } } | undefined;
-    throw new ApiRequestError(payload?.data?.message ?? `Download request failed with ${response.status}`, response.status, payload?.data?.code, payload?.data?.details);
+    return throwHttpRequestError(response);
   }
 
   const contentType = response.headers.get("content-type") ?? "application/octet-stream";

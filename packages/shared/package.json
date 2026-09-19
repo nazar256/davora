@@ -9,6 +9,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage:pure": "vitest run --config vitest.pure-coverage.config.ts --coverage.enabled"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
   }
 }
