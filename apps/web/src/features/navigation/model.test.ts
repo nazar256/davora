@@ -294,7 +294,7 @@ describe("navigation model", () => {
           destination: false,
           account: false,
           removeAccount: false,
-          folderShortcut: false
+          folderShortcut: false,
           reportBug: false
         },
       )).toEqual({

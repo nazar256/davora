@@ -41,6 +41,8 @@ export function buildExperimentalFolderAppShortcutsEnabledStatusMessage(enabled:
   return enabled
     ? "Experimental Shortcut as app is enabled for this browser."
     : "Experimental Shortcut as app is disabled.";
+}
+
 export function buildDiagnosticsEnabledStatusMessage(enabled: boolean): string {
   return enabled
     ? "Diagnostic logging is on. Data stays on this device until you export a report."

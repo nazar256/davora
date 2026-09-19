@@ -69,7 +69,7 @@ const createPorts = (overrides: Partial<Record<keyof WorkflowSurfacePorts, boole
     destination: overrides.destination ?? false,
     account: overrides.account ?? false,
     removeAccount: overrides.removeAccount ?? false,
-    folderShortcut: overrides.folderShortcut ?? false
+    folderShortcut: overrides.folderShortcut ?? false,
     reportBug: overrides.reportBug ?? false
   };
   const dismiss = {

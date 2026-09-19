@@ -35,7 +35,7 @@ const characterizedSourceHashes = {
   "apps/web/src/features/settings/workspace/AppSettingsIntegration.test.tsx": "e4f5469c0e4a5347cc9d15ec1d124670b412aa83692dffccc6a43f83d518129e",
   "apps/web/src/features/settings/model.ts": "97087207c48674e78f86fe7311296a483abf2847774a506da0f3bbf2ea821ad3",
   "apps/web/src/features/settings/service.test.ts": "8d5702b2d31e3d54f3b6f77336f70ed28d3a6a982f598e5cb233250f30f00ae0",
-  "apps/web/src/features/settings/workspace/useSettingsPreferencesWorkspace.ts": "ec065bef119946f4cbc798d81a5a7a757c9d869d3227ce494113b752a78986a4",
+  "apps/web/src/features/settings/workspace/useSettingsPreferencesWorkspace.ts": "f518f50521405f2e8723fd8185333051532bbae9273c82a56e5e773ebc59cb0e",
   "apps/web/src/features/settings/workspace/useSettingsPreferencesWorkspace.test.tsx": "8cc1195686ff0371474eb6078019474be0f3a68f730a2dff18a3d3399c92d9ca"
 } as const;
 

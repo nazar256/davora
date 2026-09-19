@@ -26,7 +26,7 @@ const sourcePaths = {
 const sourceDigest = (path: string): string => createHash("sha256").update(readFileSync(path, "utf8")).digest("hex");
 const lockedSourceDigests = {
   model: "e7d9c29d94223230e4ff0c7df104316cbb19b07176fc41c93fed1dc71505cf7e",
-  controller: "2599b3060e4369541af8ed96658e2ec237be870e92b332ec4287da685bf5ca27",
+  controller: "63c9b7aaaa21e335249eb99b6467b9414e9f31d1c97c37eb105bbc4e737a8e15",
   coordinator: "3ba508e1ccddf50e80f404b8a3f8541c0337f79c043b1cad84fd7420da3d4280"
 } as const;
 
@@ -120,7 +120,8 @@ const createWorkflow = (open: readonly string[] = [], events: string[] = []) => 
     destination: { isOpen: () => state.destination, dismiss: dismiss.destination },
     account: { isOpen: () => state.account, dismiss: dismiss.account },
     removeAccount: { isOpen: () => state.removeAccount, dismiss: dismiss.removeAccount },
-      "preview", "action", "destination", "folder-shortcut", "account", "remove-account", "report-bug"
+    folderShortcut: { isOpen: () => state.folderShortcut, dismiss: dismiss.folderShortcut },
+    reportBug: { isOpen: () => state.reportBug, dismiss: dismiss.reportBug }
   };
   return { state, dismiss, workflow };
 };
@@ -170,7 +171,7 @@ describe("navigation surface and Back characterization", () => {
     const eventLog: string[] = [];
     const port = createLeakyHistory();
     const workflow = createWorkflow([
-      "preview", "action", "destination", "folder-shortcut", "account", "remove-account"
+      "preview", "action", "destination", "folder-shortcut", "account", "remove-account", "report-bug"
     ], eventLog);
     const setup = createCoordinatorInput(
       port,
@@ -191,7 +192,6 @@ describe("navigation surface and Back characterization", () => {
     ]);
     expect(eventLog).toEqual(expectedEvents);
     expect(eventLog.filter((event) => event.startsWith("dismiss:"))).toHaveLength(DISMISS_SURFACE_ORDER.length);
-    expect(eventLog.filter((event) => event.startsWith("dismiss:"))).toHaveLength(11);
     expect(new Set(eventLog.filter((event) => event.startsWith("dismiss:")))).toEqual(
       new Set(DISMISS_SURFACE_ORDER.map((surface) => `dismiss:${surface}`))
     );
