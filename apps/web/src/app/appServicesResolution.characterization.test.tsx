@@ -61,7 +61,8 @@ const capabilityKeys = [
   "offlineSyncRuntime",
   "retentionRepository",
   "previewRuntime",
-  "accountRemovalRuntime"
+  "accountRemovalRuntime",
+  "diagnostics"
 ] as const;
 
 type Resolver = (

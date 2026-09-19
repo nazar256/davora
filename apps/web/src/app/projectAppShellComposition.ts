@@ -40,6 +40,7 @@ export interface AppShellCompositionInput {
     readonly closeChrome: (surface: "settings") => void;
     readonly accounts: AccountSettingsProjectionInput;
     readonly cache: SettingsDialogStageProjectionInput["cache"];
+    readonly diagnostics: SettingsDialogStageProjectionInput["diagnostics"];
     readonly runtime: {
       readonly appBuildLabel: string;
       readonly offline: boolean;
@@ -47,6 +48,7 @@ export interface AppShellCompositionInput {
       readonly keepAwakeState: SettingsDialogStageProjectionInput["runtime"]["keepAwakeState"];
     };
   };
+  readonly reportBug: AppShellCommonBindings["reportBug"];
   readonly bootstrap: {
     readonly registryNotice?: string;
     readonly accountBootstrapError?: string;
@@ -76,6 +78,7 @@ export function projectAppShellComposition(input: AppShellCompositionInput): App
     },
     accounts: projectAccountSettingsBindings(input.settings.accounts),
     cache: input.settings.cache,
+    diagnostics: input.settings.diagnostics,
     runtime: {
       appBuildLabel: input.settings.runtime.appBuildLabel,
       offline: input.settings.runtime.offline || input.settings.runtime.explicitOfflineMode,
@@ -96,7 +99,8 @@ export function projectAppShellComposition(input: AppShellCompositionInput): App
 
   const commonShellBindings: AppShellCommonBindings = {
     ...input.common,
-    settings: settingsStage
+    settings: settingsStage,
+    reportBug: input.reportBug
   };
 
   return projectAppShell({

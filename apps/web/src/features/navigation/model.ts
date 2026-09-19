@@ -7,7 +7,8 @@ export type SurfaceKind =
   | "search"
   | "navigation"
   | "mobile-details"
-  | "transfers";
+  | "transfers"
+  | "report-bug";
 
 /** Destination picker shares the action history label but dismisses before account dialogs. */
 export type DismissSurfaceKind = SurfaceKind | "destination";
@@ -25,6 +26,7 @@ export interface OpenSurfacesSnapshot {
   readonly destination: boolean;
   readonly account: boolean;
   readonly removeAccount: boolean;
+  readonly reportBug: boolean;
   readonly settings: boolean;
   readonly search: boolean;
   readonly navigation: boolean;
@@ -51,6 +53,7 @@ export interface WorkflowSurfacesSnapshot {
   readonly destination: boolean;
   readonly account: boolean;
   readonly removeAccount: boolean;
+  readonly reportBug: boolean;
 }
 
 export const CHROME_SURFACE_KEYS: Readonly<Record<ChromeSurfaceKind, keyof ChromeSurfacesSnapshot>> = {
@@ -101,6 +104,7 @@ export const applyChromeDismiss = (
     case "destination":
     case "account":
     case "remove-account":
+    case "report-bug":
       return snapshot;
   }
 };
@@ -151,6 +155,7 @@ export const DISMISS_SURFACE_ORDER: readonly DismissSurfaceKind[] = [
   "destination",
   "account",
   "remove-account",
+  "report-bug",
   "settings",
   "search",
   "navigation",
@@ -164,6 +169,7 @@ const DISMISS_SURFACE_KEYS: Readonly<Record<DismissSurfaceKind, keyof OpenSurfac
   destination: "destination",
   account: "account",
   "remove-account": "removeAccount",
+  "report-bug": "reportBug",
   settings: "settings",
   search: "search",
   navigation: "navigation",
@@ -180,7 +186,8 @@ const isSurfaceKind = (value: unknown): value is SurfaceKind =>
   || value === "search"
   || value === "navigation"
   || value === "mobile-details"
-  || value === "transfers";
+  || value === "transfers"
+  || value === "report-bug";
 
 const isHistoryRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);

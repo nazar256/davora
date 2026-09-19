@@ -8,7 +8,9 @@ const FORBIDDEN_PATTERNS = [
   /remote\.php\/dav/i,
   /\bPROPFIND\b/i,
   /\bMKCOL\b/i,
-  /\bREPORT\b/i,
+  // WebDAV method tokens are uppercase by spec; keep REPORT case-sensitive so
+  // the diagnostics "bug report" feature vocabulary does not collide with it.
+  /\bREPORT\b/,
   /Authorization:\s*Basic/i,
   /NEXTCLOUD_APP_PASSWORD/
 ];

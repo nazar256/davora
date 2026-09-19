@@ -67,21 +67,24 @@ const createPorts = (overrides: Partial<Record<keyof WorkflowSurfacePorts, boole
     action: overrides.action ?? false,
     destination: overrides.destination ?? false,
     account: overrides.account ?? false,
-    removeAccount: overrides.removeAccount ?? false
+    removeAccount: overrides.removeAccount ?? false,
+    reportBug: overrides.reportBug ?? false
   };
   const dismiss = {
     preview: vi.fn(() => { state.preview = false; }),
     action: vi.fn(() => { state.action = false; }),
     destination: vi.fn(() => { state.destination = false; }),
     account: vi.fn(() => { state.account = false; }),
-    removeAccount: vi.fn(() => { state.removeAccount = false; })
+    removeAccount: vi.fn(() => { state.removeAccount = false; }),
+    reportBug: vi.fn(() => { state.reportBug = false; })
   };
   const workflow: WorkflowSurfacePorts = {
     preview: { isOpen: () => state.preview, dismiss: dismiss.preview },
     action: { isOpen: () => state.action, dismiss: dismiss.action },
     destination: { isOpen: () => state.destination, dismiss: dismiss.destination },
     account: { isOpen: () => state.account, dismiss: dismiss.account },
-    removeAccount: { isOpen: () => state.removeAccount, dismiss: dismiss.removeAccount }
+    removeAccount: { isOpen: () => state.removeAccount, dismiss: dismiss.removeAccount },
+    reportBug: { isOpen: () => state.reportBug, dismiss: dismiss.reportBug }
   };
   return { workflow, state, dismiss };
 };
@@ -217,9 +220,9 @@ describe("useWorkspaceSurfaceCoordinator", () => {
     expect(port.listenerCount()).toBe(0);
   });
 
-  it("combines all ten surfaces for pull-to-refresh reads", () => {
+  it("combines all eleven surfaces for pull-to-refresh reads", () => {
     const port = createHistory();
-    const { workflow } = createPorts({ preview: true, action: true, destination: true, account: true, removeAccount: true });
+    const { workflow } = createPorts({ preview: true, action: true, destination: true, account: true, removeAccount: true, reportBug: true });
     const { input } = createInput(port, workflow, { navigation: true, search: true, mobileDetails: true, settings: true, transfers: true });
     const { result } = renderHook(() => useWorkspaceSurfaceCoordinator(input));
     expect(result.current.getOpenSurfaces()).toEqual({
@@ -228,6 +231,7 @@ describe("useWorkspaceSurfaceCoordinator", () => {
       destination: true,
       account: true,
       removeAccount: true,
+      reportBug: true,
       navigation: true,
       search: true,
       mobileDetails: true,

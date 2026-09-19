@@ -21,6 +21,7 @@ export const createNavigationCommandApplicationPorts = (
     destination: () => source.closeDestinationPicker(),
     account: () => source.setShowAccountDialog(false),
     removeAccount: () => source.setRemoveAccountTarget(undefined),
+    reportBug: () => source.closeReportBug(),
     chrome: (surface) => source.dismissChrome(surface)
   },
   navigate: {
@@ -62,6 +63,9 @@ export const applyNavigationDismiss = (
       break;
     case "remove-account":
       ports.dismiss.removeAccount();
+      break;
+    case "report-bug":
+      ports.dismiss.reportBug();
       break;
     case "settings":
     case "search":

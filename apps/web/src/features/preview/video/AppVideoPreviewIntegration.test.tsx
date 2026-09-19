@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render as renderTestingLibrary, screen, waitFor, within } from "@testing-library/react";
+import { createFakeDiagnosticsRuntimePorts } from "../../diagnostics/testing/fakes";
 import { cloneElement, type ReactElement } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
@@ -156,7 +157,7 @@ function createAudioFixture(): AppServices {
     history: { pushState: (state: unknown, url?: string) => window.history.pushState(state, "", url), replaceState: (state: unknown, url?: string) => window.history.replaceState(state, "", url), getState: (): unknown => window.history.state, getLocation: () => ({ href: window.location.href, search: window.location.search }), subscribe: (listener: (state: unknown) => void) => { const handler = () => listener(window.history.state); window.addEventListener("popstate", handler); return () => window.removeEventListener("popstate", handler); } },
     pullToRefreshEnvironment: { getWindowScrollY: () => window.scrollY }, responsiveViewport, search, settings, operationRuntime,
     offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "image-sync", listFiles: async (path) => ({ path, items: [] }), fetchDownloadBlob: vi.fn(), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
-    retentionRepository: retentionFixture.repository, previewRuntime: createPreviewComposition({ retentionRepository: retentionFixture.repository, previewTransport }), accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }
+    retentionRepository: retentionFixture.repository, previewRuntime: createPreviewComposition({ retentionRepository: retentionFixture.repository, previewTransport }), accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
   } satisfies AppServices;
 }
 

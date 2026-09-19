@@ -1,0 +1,66 @@
+/* Report bug dialog — feature-owned styles. */
+
+.report-bug-dialog {
+  max-width: min(36rem, 100%);
+  max-height: min(44rem, 92dvh);
+  display: flex;
+  flex-direction: column;
+}
+
+.report-bug-heading-icon {
+  width: 1.1em;
+  height: 1.1em;
+  vertical-align: -0.15em;
+  margin-right: var(--space-2);
+}
+
+.report-bug-body {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block: var(--space-3);
+}
+
+.report-bug-body textarea {
+  resize: vertical;
+  min-height: 2.5rem;
+}
+
+.report-bug-session-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.report-bug-session-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+}
+
+.report-bug-session-label {
+  font-weight: 500;
+}
+
+.report-bug-actions {
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.report-bug-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+}
+
+.report-bug-error {
+  color: var(--color-danger, #b3261e);
+}

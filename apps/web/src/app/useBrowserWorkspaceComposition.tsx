@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { toDisplayPath } from "@davora/shared";
 
@@ -15,6 +15,7 @@ import {
 import { useWorkspaceStatus } from "../features/workspace";
 import { useSettingsPreferencesWorkspace } from "../features/settings";
 import {
+  closedChromeSurfaces,
   useWorkspaceNavigation,
   useNavigationSurfaceWorkspace,
   useResponsiveViewport,
@@ -34,6 +35,15 @@ import {
   useOperationsApplicationWorkspace,
   type SelectionTimerPorts,
 } from "../features/operations";
+import {
+  createDiagnosticsRedactor,
+  useDiagnosticsWorkspace,
+  wrapDiagnosticsFolderPorts,
+  wrapDiagnosticsOperationRuntime,
+  wrapDiagnosticsSearchPorts,
+  type DiagnosticsObservedContext,
+  type DiagnosticsWorkspaceCommands
+} from "../features/diagnostics";
 
 import { APP_BUILD_LABEL } from "../lib/appBuild";
 import { formatFileSize } from "../lib/fileSize";
@@ -46,8 +56,47 @@ import { createBrowserSelectionTimerPorts } from "../platform/time/browserSelect
 
 const browserSelectionTimerPorts = createBrowserSelectionTimerPorts() satisfies SelectionTimerPorts;
 
+const noopDiagnosticsRedactor = createDiagnosticsRedactor();
+const noopDiagnosticsCommands: DiagnosticsWorkspaceCommands = {
+  openReport: () => undefined,
+  closeReport: () => undefined,
+  clearData: () => undefined,
+  exportReport: async () => undefined,
+  recordAction: () => undefined,
+  recordActionResult: () => undefined,
+  record: () => undefined,
+  redactPath: (path, kind) => noopDiagnosticsRedactor.path(path, kind)
+};
+
 export function useBrowserWorkspaceComposition(services: AppServices): AppShellProps {
   const browsingCache = services.browsingCache;
+  const diagnosticsCommandsRef = useRef<DiagnosticsWorkspaceCommands>(noopDiagnosticsCommands);
+  const diagnosticsClock = services.diagnostics.clock;
+  const diagnosticsFolderPorts = useMemo(
+    () => wrapDiagnosticsFolderPorts(services.folder, diagnosticsCommandsRef, diagnosticsClock),
+    [services.folder, diagnosticsClock]
+  );
+  const diagnosticsSearchPorts = useMemo(
+    () => wrapDiagnosticsSearchPorts(services.search, diagnosticsCommandsRef, diagnosticsClock),
+    [services.search, diagnosticsClock]
+  );
+  const diagnosticsOperationRuntime = useMemo(
+    () => wrapDiagnosticsOperationRuntime(services.operationRuntime, diagnosticsCommandsRef, diagnosticsClock),
+    [services.operationRuntime, diagnosticsClock]
+  );
+  const [reportBugOpen, setReportBugOpen] = useState(false);
+  const reportBugOpenRef = useRef(reportBugOpen);
+  reportBugOpenRef.current = reportBugOpen;
+  const diagnosticsContextRef = useRef<DiagnosticsObservedContext>({
+    currentPath: "/",
+    searchActive: false,
+    browserOffline: false,
+    explicitOfflineMode: false,
+    workerUnavailable: false,
+    themeMode: "system",
+    chrome: closedChromeSurfaces(),
+    transferTasks: []
+  });
   const retentionRepository = services.retentionRepository;
   const accountStateWorkspace = useAccountStateWorkspace({
     registry: services.accountRegistry,
@@ -193,8 +242,8 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
     settings: { showHiddenFiles: uiSettings.showHiddenFiles, sortMode: uiSettings.sortMode },
     offlineSource: browsingOfflineSource,
     ports: {
-      folder: services.folder,
-      search: services.search,
+      folder: diagnosticsFolderPorts,
+      search: diagnosticsSearchPorts,
       session: { resetActiveSession: (message, reconnectRequired) => accountActionsBridgeRef.current.resetSession(message, reconnectRequired) },
       availability: { setWorkerUnavailable },
       presentation: { setStatus: workspaceStatus.commands.announce },
@@ -226,7 +275,7 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
       navigation: { closeNavigation: () => chromeSurfaces.closeChrome("navigation"), pushActionSurface: () => navigation.pushSurface("action") },
       presentation: { clearListError: browsingCommands.clearExternalListError, reportListError: browsingCommands.reportExternalListError, setStatus: workspaceStatus.commands.announce, getAccountName: () => activeAccountName, toDisplayPath },
       transfers,
-      runtime: services.operationRuntime
+      runtime: diagnosticsOperationRuntime
     }
   });
   const operationContext = operationsApplication.authority;
@@ -423,6 +472,38 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
     }
   });
   previewWorkspaceBridgeRef.current = previewWorkspace.bridge;
+
+  diagnosticsContextRef.current = {
+    accountId: activeAccount?.id,
+    sessionState: token ? "active" : "none",
+    backendKind: activeAccount?.backend,
+    currentPath,
+    searchActive,
+    searchResultCount: searchActive ? visibleItems.length : undefined,
+    browserOffline: offline,
+    explicitOfflineMode,
+    workerUnavailable,
+    themeMode: uiSettings.themeMode,
+    chrome: workspaceNavigation.getChromeSnapshot(),
+    transferTasks
+  };
+  const diagnosticsWorkspace = useDiagnosticsWorkspace({
+    enabled: uiSettings.diagnosticsEnabled,
+    appBuild: APP_BUILD_LABEL,
+    getContext: () => diagnosticsContextRef.current,
+    ports: services.diagnostics,
+    navigation: {
+      reportBugOpen,
+      openReportBugSurface: () => {
+        navigation.pushSurface("report-bug");
+        setReportBugOpen(true);
+      },
+      closeReportBugSurface: () => setReportBugOpen(false)
+    },
+    announce: workspaceStatus.commands.announce
+  });
+  diagnosticsCommandsRef.current = diagnosticsWorkspace.commands;
+
   const navigationSurfaceWorkspace = useNavigationSurfaceWorkspace({
     surface: {
       port: services.history,
@@ -431,7 +512,8 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
         action: { isOpen: () => mutationWorkspace.bridge.snapshot().action, dismiss: mutationWorkspace.bridge.dismiss },
         destination: { isOpen: () => mutationWorkspace.bridge.snapshot().destination, dismiss: mutationWorkspace.bridge.dismiss },
         account: { isOpen: () => accountActionsBridgeRef.current.snapshot().surface === "connect", dismiss: () => accountActionsBridgeRef.current.dismiss("connect") },
-        removeAccount: { isOpen: () => accountActionsBridgeRef.current.snapshot().surface === "remove", dismiss: () => accountActionsBridgeRef.current.dismiss("remove") }
+        removeAccount: { isOpen: () => accountActionsBridgeRef.current.snapshot().surface === "remove", dismiss: () => accountActionsBridgeRef.current.dismiss("remove") },
+        reportBug: { isOpen: () => reportBugOpenRef.current, dismiss: () => setReportBugOpen(false) }
       },
       navigation: {
         getCurrentPath: workspaceNavigation.getCurrentPath,
@@ -463,6 +545,7 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
     operation: { workspace: operationWorkspace, selection: { focused: focusedSelection, batch: batchSelection }, interaction: selectionInteraction },
     preview: previewWorkspace,
     settings: settingsPreferencesWorkspace,
+    diagnostics: diagnosticsWorkspace,
     runtime: { connectivity: browserConnectivity, pwa: pwaWorkspace, wakeLock, transfers, status: workspaceStatus },
     services: { favourites: services.favourites, favouritesPointerEnvironment: services.favouritesPointerEnvironment, favouriteResolveRuntime: services.favouriteResolveRuntime },
     ports: { appBuildLabel: APP_BUILD_LABEL, buildStaleInfo: buildWorkspaceStaleInfo, directoryUploadInputRef: applyBrowserDirectoryUploadAttributes, folderAudioBrowsePanelClassName, toDisplayPath }

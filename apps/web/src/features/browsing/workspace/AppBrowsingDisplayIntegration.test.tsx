@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { createFakeDiagnosticsRuntimePorts } from "../../diagnostics/testing/fakes";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppSession, ConnectedAccount, FileEntry, SearchResult } from "@davora/shared";
@@ -48,6 +49,7 @@ let settings: UiSettings = {
   keepAwakeEnabled: true,
   showHiddenFiles: false,
   experimentalHeicPreviewEnabled: false,
+  diagnosticsEnabled: false,
   sortMode: "name-asc" as const
 };
 
@@ -221,7 +223,7 @@ function createBrowsingFixture(): AppServices {
     operationRuntime: { request: { createAbortHandle: abortHandle, createTransferId: () => "browsing-transfer" }, mutation: { createFolder: async () => ({ action: "createFolder", parentPath: "", path: "" }), deleteFile: async () => ({ action: "delete", parentPath: "", path: "" }), uploadFile: async () => ({ action: "upload", parentPath: "", path: "" }), copyOrMove: async () => ({ action: "copy", parentPath: "", path: "" }), listDestination: async () => ({ items: [] }) }, download: { prepareDownloadFile: async () => ({ blob: new Blob(), filename: "" }), fetchDownloadBlob: async () => ({ blob: new Blob() }), listFiles: async () => ({ items: [] }), triggerBrowserDownload: () => undefined, saveDownload: () => undefined }, batch: { downloadSelectionAsZip: async () => { throw new Error("Batch download is not used by the browsing integration fixture."); } }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) }, isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
     offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "browsing-sync", listFiles: async () => ({ path: "", items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob() }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
     retentionRepository, previewRuntime,
-    accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }
+    accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
   };
 }
 

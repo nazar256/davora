@@ -7,6 +7,7 @@ import type { ThemeMode } from "../model";
 import { saveUiSettingChange } from "./controller";
 import type { UiSettingsPorts } from "./ports";
 import {
+  buildDiagnosticsEnabledStatusMessage,
   buildExperimentalHeicPreviewEnabledStatusMessage,
   buildFileSizeDisplayModeStatusMessage,
   buildKeepAwakeEnabledStatusMessage,
@@ -84,6 +85,13 @@ export function useUiSettings(input: UseUiSettingsInput) {
     );
   }, [persistSetting]);
 
+  const handleDiagnosticsEnabledChange = useCallback((enabled: boolean) => {
+    persistSetting(
+      { diagnosticsEnabled: enabled },
+      buildDiagnosticsEnabledStatusMessage(enabled)
+    );
+  }, [persistSetting]);
+
   const handleSortModeChange = useCallback((mode: SortMode) => {
     persistSetting({ sortMode: mode }, buildSortModeStatusMessage(mode));
   }, [persistSetting]);
@@ -98,6 +106,7 @@ export function useUiSettings(input: UseUiSettingsInput) {
     handleKeepAwakeEnabledChange,
     handleShowHiddenFilesChange,
     handleExperimentalHeicPreviewEnabledChange,
+    handleDiagnosticsEnabledChange,
     handleSortModeChange
   };
 }

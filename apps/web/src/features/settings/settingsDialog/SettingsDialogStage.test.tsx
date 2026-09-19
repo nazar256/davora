@@ -44,6 +44,12 @@ function buildProps(overrides: Partial<ComponentProps<typeof SettingsDialogStage
     onShowHiddenFilesChange: vi.fn(),
     experimentalHeicPreviewEnabled: false,
     onExperimentalHeicPreviewEnabledChange: vi.fn(),
+    diagnosticsEnabled: false,
+    onDiagnosticsEnabledChange: vi.fn(),
+    diagnostics: {
+      onOpenReport: vi.fn(),
+      onClearData: vi.fn()
+    },
     ...overrides
   };
 }

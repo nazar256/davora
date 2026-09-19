@@ -25,6 +25,7 @@ function settingsCommands(): SettingsPreferencesWorkspaceCommands {
     handleKeepAwakeEnabledChange: vi.fn(),
     handleShowHiddenFilesChange: vi.fn(),
     handleExperimentalHeicPreviewEnabledChange: vi.fn(),
+    handleDiagnosticsEnabledChange: vi.fn(),
     handleSortModeChange: vi.fn()
   };
 }
@@ -77,6 +78,11 @@ function compositionInput(
       onRemoveOfflineItem: vi.fn(),
       onOpenedFileCacheLimitChange: vi.fn()
     },
+    diagnostics: {
+      storageSummary: "2 sessions",
+      onOpenReport: vi.fn(),
+      onClearData: vi.fn()
+    },
     runtime: {
       appBuildLabel: "build-test",
       offline: browserOffline,
@@ -95,6 +101,7 @@ function compositionInput(
       },
       removeAccount: leaf<AppShellCommonBindings["removeAccount"]>("remove-account")
     },
+    reportBug: leaf<AppShellCompositionInput["reportBug"]>("report-bug"),
     workspace: {
       pullToRefresh: leaf("pull-to-refresh"),
       browsePanelClassName: "browse-panel-with-audio",

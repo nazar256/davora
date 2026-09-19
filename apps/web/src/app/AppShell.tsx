@@ -14,6 +14,7 @@ import {
 import {
   SettingsDialogStage
 } from "../features/settings";
+import { ReportBugStage } from "../features/diagnostics";
 import { OfflineSyncConfirmStage } from "../features/offline/sync";
 import {
   MutationWorkflowStage,
@@ -39,6 +40,7 @@ export interface AppShellCommonBindings {
   readonly navigationDrawer?: NavigationDrawerBinding;
   readonly removeAccount: ComponentProps<typeof RemoveAccountStage>;
   readonly settings?: ComponentProps<typeof SettingsDialogStage>;
+  readonly reportBug?: ComponentProps<typeof ReportBugStage>;
 }
 
 type BootstrapBindings = Omit<
@@ -110,6 +112,7 @@ export function AppShell(props: AppShellProps) {
           reloadPrompt={renderReloadPrompt(common)}
         />
         {common.settings ? <SettingsDialogStage {...common.settings} /> : null}
+        {common.reportBug ? <ReportBugStage {...common.reportBug} /> : null}
         <RemoveAccountStage {...common.removeAccount} />
       </>
     );
@@ -141,6 +144,7 @@ export function AppShell(props: AppShellProps) {
       <RemoveAccountStage {...common.removeAccount} />
       <MutationWorkflowStage {...overlays.mutation} />
       <PreviewModalStage {...overlays.preview} />
+      {common.reportBug ? <ReportBugStage {...common.reportBug} /> : null}
     </div>
   );
 }

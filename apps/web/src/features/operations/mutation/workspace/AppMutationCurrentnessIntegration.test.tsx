@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { createFakeDiagnosticsRuntimePorts } from "../../../diagnostics/testing/fakes";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "../../../../App";
@@ -163,9 +164,9 @@ function createMutationCurrentnessFixture(): AppServices {
     favouritesPointerEnvironment: { elementFromPoint: () => null, addWindowListener: () => () => undefined }, folder,
     history: { pushState: (state: unknown, url: string) => window.history.pushState(state, "", url), replaceState: (state: unknown, url: string) => window.history.replaceState(state, "", url), getState: () => window.history.state as unknown, getLocation: () => ({ href: window.location.href, search: window.location.search }), subscribe: (listener: (state: unknown) => void) => { const handler = () => listener(window.history.state); window.addEventListener("popstate", handler); return () => window.removeEventListener("popstate", handler); } },
     pullToRefreshEnvironment: { getWindowScrollY: () => 0 }, responsiveViewport: { getSnapshot: () => wideViewport, subscribe: () => () => undefined }, search,
-    settings: { load: () => ({ themeMode: "system", showHiddenFiles: false, sortMode: "name-asc", keepAwakeEnabled: true, previewFreshnessIntervalSeconds: 300, maxCacheableFileSizeBytes: 1, fileSizeDisplayMode: "human", imagePreviewFitMode: "fill", experimentalHeicPreviewEnabled: false }), save: (settings) => settings },
+    settings: { load: () => ({ themeMode: "system", showHiddenFiles: false, sortMode: "name-asc", keepAwakeEnabled: true, previewFreshnessIntervalSeconds: 300, maxCacheableFileSizeBytes: 1, fileSizeDisplayMode: "human", imagePreviewFitMode: "fill", experimentalHeicPreviewEnabled: false, diagnosticsEnabled: false }), save: (settings) => settings },
     operationRuntime, offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "mutation-sync", listFiles: async () => ({ path: "", items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "fixture" }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (_error: unknown, fallback: string) => fallback },
-    retentionRepository, previewRuntime, accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }
+    retentionRepository, previewRuntime, accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
   } satisfies AppServices;
   return services;
 }

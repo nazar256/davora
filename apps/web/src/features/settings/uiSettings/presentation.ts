@@ -37,6 +37,12 @@ export function buildExperimentalHeicPreviewEnabledStatusMessage(enabled: boolea
     : "Experimental HEIC preview is disabled.";
 }
 
+export function buildDiagnosticsEnabledStatusMessage(enabled: boolean): string {
+  return enabled
+    ? "Diagnostic logging is on. Data stays on this device until you export a report."
+    : "Diagnostic logging is off. New sessions are not recorded.";
+}
+
 export function buildSortModeStatusMessage(mode: SortMode): string {
   return `Sorted by ${getSortModeLabel(mode)}.`;
 }

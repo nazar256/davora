@@ -22,6 +22,7 @@ function createInput(): SettingsDialogStageProjectionInput {
       handleKeepAwakeEnabledChange: command,
       handleShowHiddenFilesChange: command,
       handleExperimentalHeicPreviewEnabledChange: command,
+      handleDiagnosticsEnabledChange: command,
       handleSortModeChange: command
     },
     surface: {
@@ -48,6 +49,10 @@ function createInput(): SettingsDialogStageProjectionInput {
       onClearCache: command,
       onRemoveOfflineItem: command,
       onOpenedFileCacheLimitChange: command
+    },
+    diagnostics: {
+      onOpenReport: command,
+      onClearData: command
     },
     runtime: {
       appBuildLabel: "test-build",
