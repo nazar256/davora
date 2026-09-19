@@ -15,7 +15,8 @@ const closedChrome = (): ChromeSurfacesSnapshot => ({
   search: false,
   mobileDetails: false,
   settings: false,
-  transfers: false
+  transfers: false,
+  quickActions: false
 });
 
 const baseContext = (overrides: Partial<DiagnosticsObservedContext> = {}): DiagnosticsObservedContext => ({
