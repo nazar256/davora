@@ -37,6 +37,7 @@ const expectedImports = [
   ["./features/browsing/favourites/favourites.css", "features"],
   ["./features/browsing/appBar/appBar.css", "features"],
   ["./features/browsing/navDrawer/navDrawer.css", "features"],
+  ["./features/browsing/quickActions/quickActions.css", "features"],
   ["./css/utilities.css", "utilities"],
   ["./css/overrides.css", "overrides"]
 ] as const;
@@ -94,7 +95,7 @@ describe("Phase 5 CSS semantic ownership manifest", () => {
 
   it("maps all imported styles to a single explicit owner and retains feature namespaces", () => {
     const imports = importRecords(readFileSync(entryPath, "utf8"));
-    expect(imports.filter(({ layer }) => layer === "features")).toHaveLength(20);
+    expect(imports.filter(({ layer }) => layer === "features")).toHaveLength(21);
     expect(imports.filter(({ layer }) => layer === "reset")).toEqual([{ path: "./styles.css", layer: "reset" }]);
     expect(imports.filter(({ layer }) => layer === "primitives")).toEqual([
       { path: "./css/primitives.css", layer: "primitives" },

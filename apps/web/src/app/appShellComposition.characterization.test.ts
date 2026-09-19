@@ -101,7 +101,8 @@ function workspaceBindings(showDetailsRail: boolean): AppWorkspaceBindings {
     browseHeader: sentinel("browse-header"),
     folderAudio: sentinel("folder-audio"),
     fileList: sentinel("file-list"),
-    selectionDetails: sentinel("selection-details")
+    selectionDetails: sentinel("selection-details"),
+    quickActions: sentinel("quick-actions")
   };
 }
 
@@ -233,6 +234,7 @@ describe("App shell composition characterization", () => {
           "folderAudio: input.workspace.folderAudio",
           "fileList: input.workspace.fileList",
           "selectionDetails: input.workspace.selectionDetails",
+          "quickActions: input.workspace.quickActions",
           "banner: input.status.banner",
           "browserOffline: input.status.browserOffline",
           "workerUnavailable: input.status.workerUnavailable",
@@ -308,6 +310,7 @@ describe("App shell composition characterization", () => {
     expect(projected.workspace.folderAudio).toBe(input.workspace.folderAudio);
     expect(projected.workspace.fileList).toBe(input.workspace.fileList);
     expect(projected.workspace.selectionDetails).toBe(input.workspace.selectionDetails);
+    expect(projected.workspace.quickActions).toBe(input.workspace.quickActions);
   });
 
   it("preserves shell binding identity and shares settings between common chrome and overlays", () => {
@@ -328,6 +331,7 @@ describe("App shell composition characterization", () => {
     expect(projected.workspace.folderAudio).toBe(input.workspace.folderAudio);
     expect(projected.workspace.fileList).toBe(input.workspace.fileList);
     expect(projected.workspace.selectionDetails).toBe(input.workspace.selectionDetails);
+    expect(projected.workspace.quickActions).toBe(input.workspace.quickActions);
     expect(projected.overlays.offlineSync).toBe(input.overlays.offlineSync);
     expect(projected.overlays.connectAccount).toBe(input.overlays.connectAccount);
     expect(projected.overlays.mutation).toBe(input.overlays.mutation);

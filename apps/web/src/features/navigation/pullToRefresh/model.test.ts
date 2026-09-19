@@ -25,7 +25,8 @@ const closedSurfaces = (): OpenSurfacesSnapshot => ({
   search: false,
   navigation: false,
   mobileDetails: false,
-  transfers: false
+  transfers: false,
+  quickActions: false
 });
 
 const onlyOpen = (surface: keyof OpenSurfacesSnapshot): OpenSurfacesSnapshot => ({
@@ -68,7 +69,7 @@ describe("pull-to-refresh model", () => {
   it("blocks while any open surface is present", () => {
     const surfaces: Array<keyof OpenSurfacesSnapshot> = [
       "preview", "action", "destination", "account", "removeAccount",
-      "settings", "search", "navigation", "mobileDetails", "transfers"
+      "settings", "search", "navigation", "mobileDetails", "transfers", "quickActions"
     ];
     for (const surface of surfaces) {
       expect(isPullToRefreshEligible({ ...eligibleInput(), openSurfaces: onlyOpen(surface) })).toBe(false);

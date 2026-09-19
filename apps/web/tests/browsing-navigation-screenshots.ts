@@ -224,6 +224,33 @@ test("captures mobile favourites quick access in the navigation drawer", async (
   await saveScreenshot(page, "davora-mobile-favourites.png");
 });
 
+test("captures the PER-85 mobile quick-actions menu in both themes", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chrome", "Mobile evidence only.");
+  await connectAccount(page, "PER-85 quick actions workspace");
+
+  const fab = page.getByRole("button", { name: "Quick actions", exact: true });
+  for (const mode of ["light", "dark"] as const) {
+    await page.evaluate((themeMode) => {
+      const current = JSON.parse(localStorage.getItem("davora-ui-settings") ?? "{}");
+      localStorage.setItem("davora-ui-settings", JSON.stringify({ ...current, themeMode }));
+    }, mode);
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", mode);
+    await expect(page.getByRole("button", { name: /Open folder Projects/i })).toBeVisible();
+    await expect(fab).toBeVisible();
+    await page.mouse.move(1, 1);
+    await saveScreenshot(page, `davora-mobile-quick-actions-${mode}.png`);
+
+    await fab.click();
+    const menu = page.getByRole("menu", { name: /Quick actions/i });
+    await expect(menu).toBeVisible();
+    await expect(menu.getByRole("menuitem")).toHaveCount(3);
+    await saveScreenshot(page, `davora-mobile-quick-actions-open-${mode}.png`);
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+  }
+});
+
 test("captures the mobile pull-to-refresh gesture indicator", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chrome", "Mobile evidence only.");
   await connectAccount(page, "Mobile pull refresh workspace");

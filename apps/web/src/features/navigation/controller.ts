@@ -68,6 +68,7 @@ export const applyNavigationDismiss = (
     case "navigation":
     case "mobile-details":
     case "transfers":
+    case "quick-actions":
       ports.dismiss.chrome(surface);
       break;
   }

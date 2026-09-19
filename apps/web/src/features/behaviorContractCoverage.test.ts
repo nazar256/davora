@@ -56,7 +56,7 @@ const contractIds = [
   "MUT-01", "MUT-02", "MUT-03", "MUT-04", "MUT-05", "MUT-06", "MUT-07", "MUT-08", "MUT-09", "MUT-10", "MUT-11", "MUT-12",
   "OFF-01", "OFF-02", "OFF-03", "OFF-04", "OFF-05", "OFF-06", "OFF-07",
   "PRV-01", "PRV-02", "PRV-03", "PRV-04", "PRV-05", "PRV-06",
-  "UI-01", "UI-02", "UI-03", "UI-04", "UI-05", "UI-06", "UI-07", "UI-08", "UI-09",
+  "UI-01", "UI-02", "UI-03", "UI-04", "UI-05", "UI-06", "UI-07", "UI-08", "UI-09", "UI-10",
   "SEC-01", "SEC-02", "SEC-03", "SEC-04", "SEC-05"
 ] as const;
 
@@ -81,7 +81,7 @@ const coverage: Record<ContractId, OwnerCitation> = {
   "NAV-02": owner("integration", "src/features/navigation/AppNavigationIntegration.test.tsx", "keeps browser Back wired to the current workflow after an App rerender"),
   "NAV-03": owner("integration", "src/features/navigation/AppNavigationIntegration.test.tsx", "maps browser back to close settings and mobile search surfaces first"),
   "NAV-04": owner("unit", "src/features/navigation/pullToRefresh/usePullToRefresh.test.tsx", "refreshes and clears after a full pull release"),
-  "NAV-05": owner("unit", "src/features/navigation/useWorkspaceSurfaceCoordinator.test.ts", "combines all ten surfaces for pull-to-refresh reads"),
+  "NAV-05": owner("unit", "src/features/navigation/useWorkspaceSurfaceCoordinator.test.ts", "combines all eleven surfaces for pull-to-refresh reads"),
   "BRW-01": owner("unit", "src/features/browsing/workspace/AppBrowsingDisplayIntegration.test.tsx", "groups folders above files and sorts within each group by the active sort mode"),
   "BRW-02": owner("integration", "src/features/browsing/workspace/AppBrowsingDisplayIntegration.test.tsx", "uses breadcrumb home navigation without redundant all-files or up-level buttons"),
   "BRW-03": owner("unit", "src/features/browsing/favourites/useFavouriteActions.test.tsx", "exposes toggle, remove, reorder, and open through the favourites controller"),
@@ -127,6 +127,7 @@ const coverage: Record<ContractId, OwnerCitation> = {
   "UI-07": owner("unit", "src/features/navigation/viewport/useResponsiveViewport.test.tsx", "publishes transitions while keeping duplicate snapshots referentially stable"),
   "UI-08": owner("unit", "src/features/pwa/workspace/usePwaWorkspace.test.tsx", "projects only install and reload presentation bindings"),
   "UI-09": owner("unit", "src/features/navigation/pullToRefresh/usePullToRefresh.test.tsx", "refreshes and clears after a full pull release"),
+  "UI-10": owner("browser", "tests/quick-actions.spec.ts", "quick actions render only on narrow viewports and expand upward with three items"),
   "SEC-01": owner("unit", "../worker/tests/app.test.ts", "connects an account, creates a bound session, and lists files in mock mode"),
   "SEC-02": owner("unit", "../../packages/shared/tests/paths.test.ts", "rejects traversal and encoded separators"),
   "SEC-03": owner("unit", "../worker/tests/nextcloud-destination-policy.test.ts", "guards every NextcloudClient request immediately before fetch"),

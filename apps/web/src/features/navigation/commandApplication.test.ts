@@ -76,6 +76,7 @@ describe("navigation command application", () => {
         case "navigation":
         case "mobile-details":
         case "transfers":
+        case "quick-actions":
           expect(ports.dismiss.chrome).toHaveBeenCalledWith(surface);
           break;
       }

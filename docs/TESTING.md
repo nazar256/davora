@@ -1310,3 +1310,11 @@ Independent review of this bounded matrix is APPROVED at `.tmp/agent-artifacts/e
 - Focused suite: 18 files / 151 tests in default and no-file modes. Static/build helper: 14/14 checks pass. Browser bracket: four active scenarios per desktop and mobile, empty console/page/request/HTTP diagnostics, no `/api/copy`, `/api/move`, or `/api/delete` requests, and only read-only `/api/files` listing during opening.
 - Integrity: pre/post manifests contain 1,076 present hash rows each (159 tracked + 936 nonignored-untracked candidates; 19 absent tracked paths) and compare byte-identically. Final source-stability check is 28/28 identical rows. Independent rereview is **APPROVED for Gate 1 characterization only** at `.tmp/agent-artifacts/expert/20260831T033156Z-app-batch-selection-mutation-gate1-final-rereview.md`.
 - This is characterization evidence only; it does not prove production extraction, Gate 2, deployment, security/session/account-state changes, release readiness, or whole-goal completion.
+
+### 2026-09-19 — PER-85 floating quick-action button
+
+- Focused Vitest: quickActions slice 30 tests (stage 10, workspace 20) plus touched App/app-shell/css-ownership/navigation files green; `AppShell.test.tsx` 5/5, `projectAppShellComposition.test.ts` 6/6, `useAppWorkspacePresentation.test.tsx` 1/1, `appShellComposition.characterization.test.ts` 18/18, `css-ownership.characterization.test.ts` 7/7, navigation suite 120/120.
+- Characterization updates: `cssSystemDebtInventory` manifest extended with the `quickActions.css` features-layer owner (21 feature imports); NAV-05 owner citation retitled to the eleven-surface coordinator test; new UI-10 contract row cites `tests/quick-actions.spec.ts`.
+- Browser: new `tests/quick-actions.spec.ts` — 7 runnable mobile-chrome scenarios (narrow-only render, expand/focus, Escape/scrim/Back dismissal, file and folder upload through the real pickers, create-folder dialog, competing-surface suppression, explicit-offline absence, last-row reachability) plus the desktop-chrome absence check; all green under system Chromium.
+- Screenshots: `davora-mobile-quick-actions-{light,dark}.png` and `davora-mobile-quick-actions-open-{light,dark}.png` captured via the browsing-navigation screenshot authority and inspected.
+- Web typecheck exit 0. Deploy, commit, push, and tracker changes were not performed.

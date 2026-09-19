@@ -4,7 +4,8 @@ import {
   AppBarStage,
   BrowseHeaderStage,
   FileListStage,
-  NavDrawerStage
+  NavDrawerStage,
+  QuickActionsStage
 } from "../features/browsing";
 import {
   AccountBootstrapShell,
@@ -59,6 +60,7 @@ interface WorkspaceBindings {
     readonly ref?: ComponentPropsWithRef<typeof FileListStage>["ref"];
   };
   readonly selectionDetails: ComponentProps<typeof SelectionDetailsStage>;
+  readonly quickActions?: ComponentProps<typeof QuickActionsStage>;
 }
 
 interface WorkspaceOverlayBindings {
@@ -132,6 +134,7 @@ export function AppShell(props: AppShellProps) {
           <FolderAudioBrowseMount {...workspace.folderAudio} />
           <FileListStage {...workspace.fileList.props} ref={workspace.fileList.ref} />
         </section>
+        {workspace.quickActions ? <QuickActionsStage {...workspace.quickActions} /> : null}
         <SelectionDetailsStage {...workspace.selectionDetails} />
       </main>
 

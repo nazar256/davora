@@ -28,7 +28,8 @@ const featureSheets = [
   "features/browsing/fileList/fileList.css",
   "features/browsing/favourites/favourites.css",
   "features/browsing/appBar/appBar.css",
-  "features/browsing/navDrawer/navDrawer.css"
+  "features/browsing/navDrawer/navDrawer.css",
+  "features/browsing/quickActions/quickActions.css"
 ] as const;
 
 const sharedPrimitiveSelectors = new Set([

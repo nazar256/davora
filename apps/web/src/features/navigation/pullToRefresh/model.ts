@@ -38,7 +38,8 @@ export const hasAnyOpenSurface = (openSurfaces: OpenSurfacesSnapshot): boolean =
   || openSurfaces.search
   || openSurfaces.navigation
   || openSurfaces.mobileDetails
-  || openSurfaces.transfers;
+  || openSurfaces.transfers
+  || openSurfaces.quickActions;
 
 export const isPullToRefreshEligible = (input: PullToRefreshEligibilityInput): boolean =>
   !input.cacheOnlyMode

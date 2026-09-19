@@ -31,6 +31,7 @@ export interface AppShellCompositionInput {
     readonly folderAudio: AppWorkspaceBindings["folderAudio"];
     readonly fileList: AppWorkspaceBindings["fileList"];
     readonly selectionDetails: AppWorkspaceBindings["selectionDetails"];
+    readonly quickActions: AppWorkspaceBindings["quickActions"];
   };
   readonly settings: {
     readonly preferences: SettingsDialogStageProjectionInput["preferences"];
@@ -91,7 +92,8 @@ export function projectAppShellComposition(input: AppShellCompositionInput): App
     browseHeader: input.workspace.browseHeader,
     folderAudio: input.workspace.folderAudio,
     fileList: input.workspace.fileList,
-    selectionDetails: input.workspace.selectionDetails
+    selectionDetails: input.workspace.selectionDetails,
+    quickActions: input.workspace.quickActions
   };
 
   const commonShellBindings: AppShellCommonBindings = {

@@ -11,7 +11,8 @@ const closedChrome = (): ChromeSurfacesSnapshot => ({
   search: false,
   mobileDetails: false,
   settings: false,
-  transfers: false
+  transfers: false,
+  quickActions: false
 });
 
 const createHistory = () => {
@@ -93,7 +94,11 @@ const createInput = (port: HistoryPort, workflow: WorkflowSurfacePorts, chrome =
     getCurrentPath: () => currentPath,
     getChromeSnapshot: () => chromeState,
     dismissChrome: vi.fn((surface: ChromeSurfaceKind) => {
-      const key = surface === "mobile-details" ? "mobileDetails" : surface;
+      const key = surface === "mobile-details"
+        ? "mobileDetails"
+        : surface === "quick-actions"
+          ? "quickActions"
+          : surface;
       chromeState[key] = false;
     }),
     applyHistoryPath: vi.fn((path: string) => { currentPath = path; })
@@ -217,10 +222,10 @@ describe("useWorkspaceSurfaceCoordinator", () => {
     expect(port.listenerCount()).toBe(0);
   });
 
-  it("combines all ten surfaces for pull-to-refresh reads", () => {
+  it("combines all eleven surfaces for pull-to-refresh reads", () => {
     const port = createHistory();
     const { workflow } = createPorts({ preview: true, action: true, destination: true, account: true, removeAccount: true });
-    const { input } = createInput(port, workflow, { navigation: true, search: true, mobileDetails: true, settings: true, transfers: true });
+    const { input } = createInput(port, workflow, { navigation: true, search: true, mobileDetails: true, settings: true, transfers: true, quickActions: true });
     const { result } = renderHook(() => useWorkspaceSurfaceCoordinator(input));
     expect(result.current.getOpenSurfaces()).toEqual({
       preview: true,
@@ -232,7 +237,19 @@ describe("useWorkspaceSurfaceCoordinator", () => {
       search: true,
       mobileDetails: true,
       settings: true,
-      transfers: true
+      transfers: true,
+      quickActions: true
     });
+  });
+
+  it("dismisses quick actions before every other surface", () => {
+    const port = createHistory();
+    const { workflow } = createPorts({ preview: true });
+    const { input, navigation } = createInput(port, workflow, { ...closedChrome(), quickActions: true });
+    renderHook(() => useWorkspaceSurfaceCoordinator(input));
+
+    act(() => port.emit(createHistoryState("alpha", "Projects")));
+
+    expect(navigation.dismissChrome).toHaveBeenCalledWith("quick-actions");
   });
 });

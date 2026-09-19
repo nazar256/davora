@@ -39,7 +39,7 @@ describe("useNavigationSurfaceWorkspace", () => {
         },
         navigation: {
           getCurrentPath: () => "Projects",
-          getChromeSnapshot: () => ({ navigation: false, search: false, mobileDetails: false, settings: false, transfers: false }),
+          getChromeSnapshot: () => ({ navigation: false, search: false, mobileDetails: false, settings: false, transfers: false, quickActions: false }),
           dismissChrome: vi.fn(),
           applyHistoryPath: (path) => { events.push(`navigate:${path}`); }
         }

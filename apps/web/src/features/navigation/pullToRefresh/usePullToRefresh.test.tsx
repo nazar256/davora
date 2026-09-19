@@ -15,7 +15,8 @@ const closedSurfacesSnapshot = (): OpenSurfacesSnapshot => ({
   search: false,
   navigation: false,
   mobileDetails: false,
-  transfers: false
+  transfers: false,
+  quickActions: false
 });
 
 const touchAt = (clientY: number): PullToRefreshTouchEvent => ({
