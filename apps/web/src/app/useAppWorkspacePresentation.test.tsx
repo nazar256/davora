@@ -130,7 +130,6 @@ describe("useAppWorkspacePresentation", () => {
       },
       ports: {
         appBuildLabel: "test-build",
-        buildStaleInfo: vi.fn(),
         directoryUploadInputRef: vi.fn(),
         folderAudioBrowsePanelClassName: () => "browse-panel-with-audio",
         toDisplayPath: (path: string) => path

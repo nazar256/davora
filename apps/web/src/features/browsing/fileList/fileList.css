@@ -4,6 +4,7 @@
   border-radius: 1rem;
   background: rgba(7, 13, 24, 0.86);
   overflow: auto;
+  isolation: isolate;
   max-height: min(72vh, 46rem);
   transition: border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
 }

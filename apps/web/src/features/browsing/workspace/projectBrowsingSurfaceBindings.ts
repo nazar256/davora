@@ -52,7 +52,6 @@ export interface BrowsingSurfaceInput {
     loadFolder(path: string): Promise<unknown> | void;
     openFile(item: FileEntry | SearchResult): void;
     openOfflineSync(entries: readonly FileEntry[], archiveInput: BrowsingSurfaceOwners["selection"]["batch"]["archiveInput"], capture: ReturnType<BrowsingSurfaceOwners["selection"]["batch"]["capture"]>): void;
-    buildStaleInfo(explicitOfflineMode: boolean, folderCachedAt?: string): string | undefined;
   };
 }
 
@@ -65,7 +64,6 @@ export function projectBrowsingSurfaceBindings(input: BrowsingSurfaceInput): Bro
   const { browse, selection, operation, offline, navigation, settings, status, pullToRefresh } = input.owners;
   const { ports } = input;
   const capabilities = operation.capabilities;
-  const staleInfo = ports.buildStaleInfo(offline.explicitOfflineMode, browse.presentation.folderCachedAt);
   return {
     browseHeader: {
       browseStatusLabel: browse.presentation.browseStatusLabel,
@@ -104,7 +102,6 @@ export function projectBrowsingSurfaceBindings(input: BrowsingSurfaceInput): Bro
       showBreadcrumbs: browse.presentation.showBreadcrumbs,
       sortMode: settings.preferences.sortMode,
       staleFolder: browse.folder.stale,
-      staleInfo,
       status: status.message
     },
     fileList: {
