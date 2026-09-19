@@ -186,7 +186,7 @@ describe("navigation surface and Back characterization", () => {
       `navigate:Archive-${index}`
     ]);
     expect(eventLog).toEqual(expectedEvents);
-    expect(eventLog.filter((event) => event.startsWith("dismiss:"))).toHaveLength(11);
+    expect(eventLog.filter((event) => event.startsWith("dismiss:"))).toHaveLength(DISMISS_SURFACE_ORDER.length);
     expect(new Set(eventLog.filter((event) => event.startsWith("dismiss:")))).toEqual(
       new Set(DISMISS_SURFACE_ORDER.map((surface) => `dismiss:${surface}`))
     );
