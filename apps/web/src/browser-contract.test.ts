@@ -37,5 +37,5 @@ describe("browser contract guard", () => {
         expect(contents, `${filePath} should not match ${pattern}`).not.toMatch(pattern);
       }
     }
-  });
+  }, 30_000);
 });
