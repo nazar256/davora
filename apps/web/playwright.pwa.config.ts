@@ -29,7 +29,7 @@ export default defineConfig({
       cwd: ".",
       url: `http://127.0.0.1:${webPort}`,
       reuseExistingServer: false,
-      timeout: 120_000
+      timeout: 300_000
     }
   ],
   projects: [

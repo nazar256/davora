@@ -9,15 +9,16 @@ import {
   type UploadRequestInput
 } from "@davora/shared";
 
-import { workerFailure } from "./failure";
+import { isWorkerFailure, workerFailure, type WorkerFailure } from "./failure";
 
 interface RouteBase<Id extends string, Auth extends "public" | "browser" | "session" | "stream", Input> {
   readonly id: Id;
   readonly auth: Auth;
   readonly input: Input;
+  readonly inputError?: undefined;
 }
 
-export type WorkerRoute =
+export type ParsedWorkerRoute =
   | RouteBase<"health", "public", undefined>
   | RouteBase<"reset", "public", undefined>
   | RouteBase<"connectAccount", "browser", ConnectAccountRequest>
@@ -36,6 +37,22 @@ export type WorkerRoute =
   | RouteBase<"move", "session", MoveCopyRequestInput>
   | RouteBase<"copy", "session", MoveCopyRequestInput>
   | RouteBase<"delete", "session", DeleteRequestInput>;
+
+/**
+ * Route for a request whose endpoint matched but whose input failed validation.
+ * The failure is deferred so authentication runs before the input error is
+ * revealed; `handleWorkerApplication` rethrows `inputError` after the request
+ * context is established, keeping unauthenticated callers on 401/403.
+ */
+export interface InvalidInputRoute {
+  readonly id: ApiEndpointKey;
+  readonly auth: "public" | "browser" | "session" | "stream";
+  readonly input?: undefined;
+  readonly inputError: WorkerFailure;
+  readonly authorityToken?: string;
+}
+
+export type WorkerRoute = ParsedWorkerRoute | InvalidInputRoute;
 
 const MALFORMED_JSON = Symbol("malformed-json");
 type ApiEndpointKey = keyof typeof apiEndpoints;
@@ -77,16 +94,19 @@ async function postDownloadRoute(request: Request): Promise<WorkerRoute> {
   try {
     formData = await request.formData();
   } catch {
-    throw workerFailure("bad_download_request", "form-data");
+    return { id: "download", auth: "session", inputError: workerFailure("bad_download_request", "form-data") };
   }
   const path = formData.get("path");
-  const token = formData.get("token");
-  if (typeof path !== "string" || typeof token !== "string" || !path.trim() || !token.trim()) {
-    throw workerFailure("bad_download_request", "missing-field");
+  const tokenField = formData.get("token");
+  const authorityToken = typeof tokenField === "string" && tokenField.trim() ? tokenField.trim() : undefined;
+  if (typeof path !== "string" || !path.trim() || authorityToken === undefined) {
+    return { id: "download", auth: "session", authorityToken, inputError: workerFailure("bad_download_request", "missing-field") };
   }
   const parsed = apiEndpoints.download.requestSchema.safeParse({ path });
-  if (!parsed.success) throw workerFailure("invalid_file_query", "download-form-path");
-  return { id: "download", auth: "session", input: parsed.data, authorityToken: token.trim() };
+  if (!parsed.success) {
+    return { id: "download", auth: "session", authorityToken, inputError: workerFailure("invalid_file_query", "download-form-path") };
+  }
+  return { id: "download", auth: "session", input: parsed.data, authorityToken };
 }
 
 const catalogRouteParsers = {
@@ -185,7 +205,18 @@ export async function matchWorkerRoute(request: Request): Promise<WorkerRoute> {
     const endpoint = apiEndpoints[endpointKey];
     if (!endpointPathMatches(endpoint, url)) continue;
     if (endpoint.matchPolicy === "method" && request.method !== endpoint.method) continue;
-    return catalogRouteParsers[endpointKey](request, url);
+    try {
+      return await catalogRouteParsers[endpointKey](request, url);
+    } catch (error) {
+      if (isWorkerFailure(error)) {
+        return {
+          id: endpointKey,
+          auth: endpointKey === "stream" && url.searchParams.has("streamToken") ? "stream" : endpoint.auth,
+          inputError: error
+        };
+      }
+      throw error;
+    }
   }
 
   throw workerFailure("not_found", "path");

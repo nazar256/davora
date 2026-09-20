@@ -91,7 +91,7 @@ export async function createWorkerRequestContext(
     const token = new URL(request.url).searchParams.get("streamToken")?.trim();
     if (!token) throw workerFailure("missing_stream_token", "stream-token-query");
     const stream = await dependencies.verifyStreamToken(token);
-    if (route.id !== "stream" || stream.path !== route.input.path) {
+    if (route.inputError === undefined && (route.id !== "stream" || stream.path !== route.input.path)) {
       throw workerFailure("stream_path_mismatch", "stream-path");
     }
     const account = await dependencies.resolveAuthorizedAccount(stream.accountId);

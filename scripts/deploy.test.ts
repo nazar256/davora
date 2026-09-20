@@ -5,6 +5,7 @@ import {
   assertWorkerDestinationPolicy,
   buildWorkerSecretListArgs,
   DEFAULT_DEPLOYED_WORKER_ORIGIN,
+  DEFAULT_PAGES_BRANCH,
   DEFAULT_PAGES_PROJECT_NAME,
   parseCommandJson,
   resolveWebDeployConfig
@@ -18,19 +19,46 @@ describe("resolveWebDeployConfig", () => {
       .toThrow(/wrangler secret list --format json returned invalid JSON: Unexpected token/);
   });
 
-  it("defaults the Pages build API origin when unset", () => {
-    const config = resolveWebDeployConfig({});
+  it("defaults the Pages build API origin and pins the production branch when unset", () => {
+    const config = resolveWebDeployConfig({}, () => ({}));
 
     expect(config.apiBaseUrl).toBe(DEFAULT_DEPLOYED_WORKER_ORIGIN);
     expect(config.projectName).toBe(DEFAULT_PAGES_PROJECT_NAME);
+    expect(config.branch).toBe(DEFAULT_PAGES_BRANCH);
     expect(config.wranglerArgs).toEqual([
       "pages",
       "deploy",
       "apps/web/dist",
       "--project-name",
-      DEFAULT_PAGES_PROJECT_NAME
+      DEFAULT_PAGES_PROJECT_NAME,
+      "--branch",
+      DEFAULT_PAGES_BRANCH
     ]);
     expect(config.usingDefaultProjectName).toBe(true);
+    expect(config.usingDefaultBranch).toBe(true);
+  });
+
+  it("derives deploy provenance from git when env overrides are absent", () => {
+    const config = resolveWebDeployConfig({}, () => ({
+      commitHash: "abc123def",
+      commitMessage: "deploy from test",
+      dirty: true
+    }));
+
+    expect(config.wranglerArgs).toContain("--commit-hash");
+    expect(config.wranglerArgs).toContain("abc123def");
+    expect(config.wranglerArgs).toContain("--commit-message");
+    expect(config.wranglerArgs).toContain("deploy from test");
+    expect(config.wranglerArgs).toContain("--commit-dirty");
+  });
+
+  it("omits provenance flags when git metadata is unavailable and the tree is clean", () => {
+    const config = resolveWebDeployConfig({}, () => ({}));
+    expect(config.wranglerArgs).not.toContain("--commit-hash");
+    expect(config.wranglerArgs).not.toContain("--commit-dirty");
+
+    const clean = resolveWebDeployConfig({}, () => ({ commitHash: "abc123", commitMessage: "msg", dirty: false }));
+    expect(clean.wranglerArgs).not.toContain("--commit-dirty");
   });
 
   it("preserves an explicit override and optional wrangler flags", () => {
@@ -47,6 +75,8 @@ describe("resolveWebDeployConfig", () => {
     });
 
     expect(config.apiBaseUrl).toBe("https://example.com/api");
+    expect(config.branch).toBe("preview");
+    expect(config.usingDefaultBranch).toBe(false);
     expect(config.wranglerArgs).toEqual([
       "pages",
       "deploy",

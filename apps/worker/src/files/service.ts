@@ -21,11 +21,11 @@ import {
 import { Buffer } from "node:buffer";
 
 import { isWorkerFailure, normalizeFileWorkerFailure, workerFailure } from "../http/failure";
-import type { WorkerRoute } from "../http/router";
+import type { ParsedWorkerRoute } from "../http/router";
 import { json } from "../security/http";
 import type { FileBackend } from "./backend";
 
-export type FileApplicationRoute = Exclude<WorkerRoute, { id: "health" | "reset" | "connectAccount" | "deleteAccount" | "session" | "streamToken" }>;
+export type FileApplicationRoute = Exclude<ParsedWorkerRoute, { id: "health" | "reset" | "connectAccount" | "deleteAccount" | "session" | "streamToken" }>;
 
 function inlineHeaders(contentType: string | undefined, filename: string): Headers {
   return new Headers({

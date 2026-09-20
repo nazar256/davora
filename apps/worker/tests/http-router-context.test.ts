@@ -57,11 +57,11 @@ describe("catalog Worker router", () => {
     await expect(matchWorkerRoute(request("/api/download?path=Docs/a.txt&token=query-token"))).resolves.not.toHaveProperty("authorityToken");
   });
 
-  it("rejects wrong methods and malformed data before dispatch", async () => {
+  it("rejects wrong methods and defers malformed input behind authentication", async () => {
     await expect(matchWorkerRoute(request("/api/session"))).rejects.toMatchObject({ kind: "not_found" });
-    await expect(matchWorkerRoute(request("/api/files?path=../escape"))).rejects.toMatchObject({ kind: "invalid_file_query" });
-    await expect(matchWorkerRoute(request("/api/upload", "POST", "not-json"))).rejects.toMatchObject({ kind: "invalid_mutation_body" });
-    await expect(matchWorkerRoute(request("/api/move", "POST", "not-json"))).rejects.toMatchObject({ kind: "invalid_move_copy_json" });
+    await expect(matchWorkerRoute(request("/api/files?path=../escape"))).resolves.toMatchObject({ id: "files", inputError: { kind: "invalid_file_query" } });
+    await expect(matchWorkerRoute(request("/api/upload", "POST", "not-json"))).resolves.toMatchObject({ id: "upload", inputError: { kind: "invalid_mutation_body" } });
+    await expect(matchWorkerRoute(request("/api/move", "POST", "not-json"))).resolves.toMatchObject({ id: "move", inputError: { kind: "invalid_move_copy_json" } });
   });
 });
 

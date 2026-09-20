@@ -6,9 +6,12 @@ const useSystemChrome = Boolean(chromeExecutable && existsSync(chromeExecutable)
 const workerPort = 8789;
 const webPort = 4174;
 
+// Dev-server coverage for the PWA contract (A32): the main suite runs against
+// `vite preview`, while this config keeps `vite dev` behavior under test.
+// Runs after the main suite via `test:playwright`, so shared ports are safe.
 export default defineConfig({
   testDir: "./tests",
-  testIgnore: ["tests/pwa.spec.ts", "tests/pwa-dev.spec.ts", "tests/account-cors.spec.ts"],
+  testMatch: ["**/pwa-dev.spec.ts"],
   timeout: 60_000,
   workers: 1,
   use: {
@@ -18,22 +21,18 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `SESSION_SECRET=playwright-dev-secret RUNTIME_MODE=development MOCK_BACKEND=true LOCAL_DEV_STATE_PATH=../../.tmp/playwright/worker-state-$$.json PORT=${workerPort} node --import ../../node_modules/tsx/dist/loader.mjs src/node-server.ts`,
+      command: `SESSION_SECRET=playwright-dev-secret RUNTIME_MODE=development MOCK_BACKEND=true LOCAL_DEV_STATE_PATH=../../.tmp/playwright-dev/worker-state-$$.json PORT=${workerPort} node --import ../../node_modules/tsx/dist/loader.mjs src/node-server.ts`,
       cwd: "../worker",
       url: `http://127.0.0.1:${workerPort}/api/health`,
       reuseExistingServer: false,
       timeout: 120_000
     },
     {
-      // The built bundle removes Vite's per-module dev transform from every
-      // navigation, which was the dominant cause of load-event timeouts on
-      // contended machines. Dev-server PWA coverage lives in
-      // playwright.dev.config.ts (tests/pwa-dev.spec.ts).
-      command: `VITE_DEV_API_PROXY_TARGET=http://127.0.0.1:${workerPort} npm run build && VITE_DEV_API_PROXY_TARGET=http://127.0.0.1:${workerPort} vite preview --host 127.0.0.1 --port ${webPort}`,
+      command: `VITE_DEV_API_PROXY_TARGET=http://127.0.0.1:${workerPort} vite --host 127.0.0.1 --port ${webPort}`,
       cwd: ".",
       url: `http://127.0.0.1:${webPort}`,
       reuseExistingServer: false,
-      timeout: 300_000
+      timeout: 120_000
     }
   ],
   projects: [

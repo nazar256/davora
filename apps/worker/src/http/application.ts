@@ -17,7 +17,7 @@ import type { FileBackend } from "../files/backend";
 import type { SessionPayload, StreamTokenPayload, WorkerEnv } from "../types";
 import { createWorkerRequestContext, type WorkerRequestContext } from "./context";
 import { normalizeWorkerFailure, workerFailure, workerFailureResponse } from "./failure";
-import type { WorkerRoute } from "./router";
+import type { ParsedWorkerRoute, WorkerRoute } from "./router";
 
 export interface WorkerApplicationDependencies {
   readonly accountService: AccountService;
@@ -72,7 +72,7 @@ function normalizeAccountApplicationFailure(error: unknown, fallback: "account_v
 }
 
 async function executeAccountRoute(
-  route: Extract<WorkerRoute, { id: "connectAccount" | "deleteAccount" | "session" }>,
+  route: Extract<ParsedWorkerRoute, { id: "connectAccount" | "deleteAccount" | "session" }>,
   context: BrowserContext,
   env: WorkerEnv,
   dependencies: WorkerApplicationDependencies
@@ -126,7 +126,7 @@ async function executeAccountRoute(
 }
 
 async function executeStreamTokenRoute(
-  route: Extract<WorkerRoute, { id: "streamToken" }>,
+  route: Extract<ParsedWorkerRoute, { id: "streamToken" }>,
   context: SessionContext,
   dependencies: WorkerApplicationDependencies
 ): Promise<Response> {
@@ -148,7 +148,7 @@ async function executeStreamTokenRoute(
 
 async function executeApplicationRoute(
   request: Request,
-  route: WorkerRoute,
+  route: ParsedWorkerRoute,
   context: WorkerRequestContext,
   env: WorkerEnv,
   dependencies: WorkerApplicationDependencies
@@ -188,6 +188,7 @@ export async function handleWorkerApplication(
       verifyStreamToken: dependencies.verifyStreamToken,
       resolveAuthorizedAccount: dependencies.accountService.resolveAuthorized
     });
+    if (route.inputError !== undefined) throw route.inputError;
     return await executeApplicationRoute(request, route, context, env, dependencies);
   } catch (error) {
     return workerFailureResponse(error);

@@ -35,6 +35,7 @@ function isFileRoute(route: WorkerRoute): route is FileApplicationRoute {
 async function handleFileRequest(input: Request, files: FileBackend): Promise<Response> {
   try {
     const route = await matchWorkerRoute(input);
+    if (route.inputError !== undefined) throw route.inputError;
     if (!isFileRoute(route)) throw workerFailure("not_found", "non-file-route");
     return await executeFileRoute(route, input, files);
   } catch (error) {
@@ -139,8 +140,8 @@ describe("file application service", () => {
     expect((await missing.json())).toEqual({ data: { code: "not_found", message: "File not found." } });
 
     const invalid = await handleFileRequest(request("/api/files?path=../escape"), files);
-    expect(invalid.status).toBe(500);
-    expect((await invalid.json())).toMatchObject({ data: { code: "mutation_failed" } });
+    expect(invalid.status).toBe(400);
+    expect((await invalid.json())).toMatchObject({ data: { code: "invalid_request" } });
 
     const malformed = await handleFileRequest(request("/api/folders", { method: "POST", body: "not-json" }), files);
     expect(malformed.status).toBe(400);

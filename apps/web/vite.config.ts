@@ -112,7 +112,14 @@ const config = {
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
-    exclude: ["tests/**"]
+    exclude: ["tests/**"],
+    poolOptions: {
+      forks: {
+        // Node 24+ exposes a stub `localStorage`/`sessionStorage` global that
+        // shadows the jsdom implementation unless webstorage is disabled.
+        execArgv: ["--no-experimental-webstorage"]
+      }
+    }
   },
   server: {
     host: "127.0.0.1",

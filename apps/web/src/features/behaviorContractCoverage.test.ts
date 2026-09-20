@@ -117,7 +117,7 @@ const coverage: Record<ContractId, OwnerCitation> = {
   "OFF-07": owner("integration", "src/features/offline/workspace/AppOfflineApplicationIntegration.test.tsx", "keeps a batch selection offline and removes offline copies from settings without server delete"),
   "PRV-01": owner("unit", "src/features/preview/media/model.test.ts", "detects streaming versus offline blob sources"),
   "PRV-02": owner("unit", "src/features/preview/image/geometry.test.ts", "calculates fill and fit content rectangles at an object position"),
-  "PRV-03": owner("unit", "../worker/tests/http-router-context.test.ts", "rejects wrong methods and malformed data before dispatch"),
+  "PRV-03": owner("unit", "../worker/tests/http-router-context.test.ts", "rejects wrong methods and defers malformed input behind authentication"),
   "PRV-04": owner("integration", "src/features/preview/workspace/AppPreviewMediaIntegration.test.tsx", "autoplays audio and video previews and pauses the previous media when switching"),
   "PRV-05": owner("unit", "src/features/preview/session/usePreviewSession.test.tsx", "releases blob resources exactly once and keeps stream URLs non-revocable"),
   "PRV-06": owner("integration", "src/features/preview/session/AppPreviewSessionIntegration.test.tsx", "releases an applied preview Blob exactly once when App unmounts"),

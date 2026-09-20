@@ -10,7 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage:pure": "vitest run --config vitest.pure-coverage.config.ts --coverage.enabled",
-    "test:playwright": "playwright test",
+    "test:playwright": "playwright test && playwright test --config=playwright.dev.config.ts",
     "test:e2e": "npm run test:playwright && npm run test:screenshots",
     "test:screenshots": "CAPTURE_SCREENSHOTS=true playwright test tests/screenshots.spec.ts tests/preview-screenshots.spec.ts tests/operations-screenshots.spec.ts",
     "test:pwa": "playwright test --config=playwright.pwa.config.ts"

@@ -179,15 +179,21 @@ describe("authorized-file authority pipeline (public handleRequest characterizat
     expectCors(missing);
     await expect(errorOf(missing)).resolves.toEqual({ code: "bad_request", message: "Download request is missing required fields." });
 
-    for (const [field, value] of [["path", " "], ["token", " "]] as const) {
-      const blank = new FormData();
-      blank.set("path", field === "path" ? value : "Archive/image.bin");
-      blank.set("token", field === "token" ? value : token);
-      const response = await requestPath("/api/download", { method: "POST", headers: { origin: ORIGIN }, body: blank }, env);
-      expect(response.status, field).toBe(400);
-      expectCors(response);
-      await expect(errorOf(response)).resolves.toEqual({ code: "bad_request", message: "Download request is missing required fields." });
-    }
+    const blankPath = new FormData();
+    blankPath.set("path", " ");
+    blankPath.set("token", token);
+    const blankPathResponse = await requestPath("/api/download", { method: "POST", headers: { origin: ORIGIN }, body: blankPath }, env);
+    expect(blankPathResponse.status).toBe(400);
+    expectCors(blankPathResponse);
+    await expect(errorOf(blankPathResponse)).resolves.toEqual({ code: "bad_request", message: "Download request is missing required fields." });
+
+    const blankToken = new FormData();
+    blankToken.set("path", "Archive/image.bin");
+    blankToken.set("token", " ");
+    const blankTokenResponse = await requestPath("/api/download", { method: "POST", headers: { origin: ORIGIN }, body: blankToken }, env);
+    expect(blankTokenResponse.status).toBe(401);
+    expectCors(blankTokenResponse);
+    await expect(errorOf(blankTokenResponse)).resolves.toEqual({ code: "unauthorized", message: "Missing bearer token." });
 
     const invalidToken = new FormData();
     invalidToken.set("path", "Archive/image.bin");

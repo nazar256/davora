@@ -234,7 +234,7 @@ describe("authorized file route matrix (public handleRequest characterization)",
       }
       for (const path of ["/api/folders", "/api/upload", "/api/move", "/api/copy", "/api/delete"]) {
         const callsBeforeValidation = fake?.calls.length;
-        expect((await request(env, token, path, { method: "POST", body: "not-json" })).status).toBe(path === "/api/move" || path === "/api/copy" ? 500 : 400);
+        expect((await request(env, token, path, { method: "POST", body: "not-json" })).status).toBe(400);
         if (fake) expect(fake.calls.length).toBe(callsBeforeValidation);
       }
       const callsBeforeUploadValidation = fake?.calls.length;
@@ -269,8 +269,8 @@ describe("authorized file route matrix (public handleRequest characterization)",
         expect((await response.json() as { data: { code: string } }).data.code).toBe("not_found");
       }
       const invalidPath = await request(env, token, "/api/files?path=../escape");
-      expect(invalidPath.status).toBe(500);
-      expect((await invalidPath.json() as { data: { code: string } }).data.code).toBe("mutation_failed");
+      expect(invalidPath.status).toBe(400);
+      expect((await invalidPath.json() as { data: { code: string } }).data.code).toBe("invalid_request");
       const malformed = await request(env, token, "/api/upload", { method: "POST", body: "not-json" });
       expect(malformed.status).toBe(400);
       if (fake) {
@@ -287,6 +287,10 @@ describe("authorized file route matrix (public handleRequest characterization)",
       const callsBeforeNoBearer = fake?.calls.length;
       const noBearer = await handleRequest(new Request("http://127.0.0.1:8787/api/files?path=Projects", { headers: { origin: ORIGIN } }), env);
       expect(noBearer.status).toBe(401);
+      const noBearerRootPath = await handleRequest(new Request("http://127.0.0.1:8787/api/files?path=/", { headers: { origin: ORIGIN } }), env);
+      expect(noBearerRootPath.status).toBe(401);
+      const noBearerInvalidPath = await handleRequest(new Request("http://127.0.0.1:8787/api/files?path=../escape", { headers: { origin: ORIGIN } }), env);
+      expect(noBearerInvalidPath.status).toBe(401);
       const invalidBearer = await request(env, "invalid-session-token", "/api/files?path=Projects");
       expect(invalidBearer.status).toBe(401);
       const session = await verifySessionToken(token, SESSION_SECRET);
@@ -305,7 +309,7 @@ describe("authorized file route matrix (public handleRequest characterization)",
       const form = new FormData(); form.set("path", "Archive/image.bin"); form.set("token", token);
       const response = await handleRequest(new Request("http://127.0.0.1:8787/api/download", { method: "POST", headers: { origin: ORIGIN }, body: form }), env);
       expect(response.status).toBe(200);
-      const missing = await handleRequest(new Request("http://127.0.0.1:8787/api/download", { method: "POST", headers: { origin: ORIGIN }, body: new FormData() }), env);
+      const missing = await handleRequest(new Request("http://127.0.0.1:8787/api/download", { method: "POST", headers: { origin: ORIGIN, authorization: `Bearer ${token}` }, body: new FormData() }), env);
       expect(missing.status).toBe(400);
       const invalid = new FormData(); invalid.set("path", "Archive/image.bin"); invalid.set("token", "invalid-session-token");
       const callsBeforeInvalid = fake?.calls.length;

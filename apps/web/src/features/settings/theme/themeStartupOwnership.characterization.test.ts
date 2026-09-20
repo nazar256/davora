@@ -22,7 +22,7 @@ const repositoryRoot = existsSync(resolve(process.cwd(), "apps/web/index.html"))
 
 const characterizedSourceHashes = {
   "apps/web/index.html": "7651689e50f9ddd2d3404492fb6a56f4efcbe8ee59e2be05eeb2cd2bd11a1b91",
-  "apps/web/vite.config.ts": "272157530fc5132d402eff03542814f39c5711b4ac0eea1f0767c781cf87506c",
+  "apps/web/vite.config.ts": "a1ed60fcf63ec45912b4cbffe3aad70baabdc11bc56b0dc02424d1ee86cfaea2",
   "apps/web/src/features/settings/storageContract.ts": "b4ebdf83606ff10aeb2a7f74eb949a11d3c7d3c3206e865872a71d50dcd391a1",
   "apps/web/src/features/settings/service.ts": "86ddff3ceadffca48a8f54eba713f125e78f6774dc615a3d17ea244d238b2106",
   "apps/web/src/features/settings/theme/model.ts": "7565fd9c16fa93e89f8e50a0469605ac66d564d2686c94db098b1968834e6b5f",

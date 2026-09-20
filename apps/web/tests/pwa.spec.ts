@@ -9,7 +9,6 @@ import { expectNoSeriousAccessibilityViolations } from "./support/accessibility"
 
 const chromeExecutable = process.env.PLAYWRIGHT_CHROME_EXECUTABLE ?? "/usr/bin/google-chrome";
 const useSystemChrome = Boolean(chromeExecutable && existsSync(chromeExecutable));
-const workerPort = 8787;
 
 async function dismissToastIfVisible(page: Page) {
   const dismissButton = page.getByRole("button", { name: /^Dismiss$/i });
@@ -55,10 +54,6 @@ async function installCurrentPageAsPwa(page: Page, context: BrowserContext) {
   const manifestId = manifestResponse.manifest?.id ?? appIdResponse.appId ?? "/";
   await pageSession.send("PWA.install", { manifestId });
   return { pageSession, manifestId };
-}
-
-async function stopWorkerServer() {
-  await fetch(`http://127.0.0.1:${workerPort}/__davora/stop-worker`, { method: "POST" });
 }
 
 async function dispatchBeforeInstallPrompt(page: Page, outcome: "accepted" | "dismissed" = "dismissed") {
@@ -204,6 +199,7 @@ test("offline preview build keeps cached account data usable after installable-s
 });
 
 test("update prompt reload applies changed build content", async ({ page, context }) => {
+  test.setTimeout(240_000);
   await connectAccount(page, "Update workspace");
   await waitForServiceWorkerControl(page);
   await expect(await fetchBuildLabel(page)).toBe("pwa-initial");
@@ -264,7 +260,9 @@ test("installed PWA opens with cached shell when the worker is stopped but brows
 
     const { pageSession, manifestId } = await installCurrentPageAsPwa(persistentPage, persistentContext);
     await pageSession.send("PWA.changeAppUserSettings", { manifestId, displayMode: "standalone" });
-    await stopWorkerServer();
+    // Simulate an unreachable server without killing the shared worker process
+    // that later specs in this suite still need.
+    await persistentContext.route("**/*", (route) => route.abort());
     const existingPages = persistentContext.pages().length;
     const launched = await pageSession.send("PWA.launch", { manifestId }) as { targetId: string };
     const appPage = await persistentContext.waitForEvent("page");

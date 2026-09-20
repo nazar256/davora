@@ -7,6 +7,7 @@ type WorkerSecretSummary = { name?: string; type?: string };
 
 export const DEFAULT_DEPLOYED_WORKER_ORIGIN = "https://api.example.invalid";
 export const DEFAULT_PAGES_PROJECT_NAME = "davora";
+export const DEFAULT_PAGES_BRANCH = "main";
 export const REQUIRED_WORKER_SECRETS = ["SESSION_SECRET", "ACCOUNT_STATE_SECRET", "SESSION_TOKEN_SECRET"];
 const WORKER_SECRET_LIST_VALUE_FLAGS = new Set(["--config", "-c", "--cwd", "--env", "-e", "--env-file", "--name"]);
 const WORKER_SECRET_LIST_INLINE_FLAGS = ["--config=", "-c=", "--cwd=", "--env=", "-e=", "--env-file=", "--name="];
@@ -86,31 +87,64 @@ function appendOptionalValue(args: string[], value: string | undefined, flag: st
   }
 }
 
-export function resolveWebDeployConfig(env: NodeJS.ProcessEnv = process.env): {
+export interface GitDeployMetadata {
+  readonly commitHash?: string;
+  readonly commitMessage?: string;
+  readonly dirty?: boolean;
+}
+
+function probeGit(args: string[]): string | undefined {
+  const result = spawnSync("git", args, { cwd: repoRoot, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  return result.status === 0 ? result.stdout : undefined;
+}
+
+export function readGitDeployMetadata(): GitDeployMetadata {
+  const commitHash = probeGit(["rev-parse", "HEAD"])?.trim() || undefined;
+  const commitMessage = probeGit(["log", "-1", "--pretty=%s", "HEAD"])?.trim() || undefined;
+  const status = probeGit(["status", "--porcelain"]);
+  return { commitHash, commitMessage, dirty: status === undefined ? undefined : status.trim().length > 0 };
+}
+
+export function resolveWebDeployConfig(
+  env: NodeJS.ProcessEnv = process.env,
+  git: () => GitDeployMetadata = readGitDeployMetadata
+): {
   apiBaseUrl: string;
   projectName: string;
+  branch: string;
   wranglerArgs: string[];
   usingDefaultApiBaseUrl: boolean;
   usingDefaultProjectName: boolean;
+  usingDefaultBranch: boolean;
 } {
   const configuredApiBaseUrl = readEnv("VITE_API_BASE_URL", env);
   const apiBaseUrl = configuredApiBaseUrl ?? DEFAULT_DEPLOYED_WORKER_ORIGIN;
   const configuredProjectName = readEnv("CLOUDFLARE_PAGES_PROJECT_NAME", env);
   const projectName = configuredProjectName ?? DEFAULT_PAGES_PROJECT_NAME;
+  const configuredBranch = readEnv("CLOUDFLARE_PAGES_BRANCH", env);
+  // Wrangler otherwise derives the Pages branch from the current git branch,
+  // which silently produces Preview deployments from non-main checkouts.
+  const branch = configuredBranch ?? DEFAULT_PAGES_BRANCH;
+  const configuredHash = readEnv("CLOUDFLARE_DEPLOY_COMMIT_HASH", env);
+  const configuredMessage = readEnv("CLOUDFLARE_DEPLOY_COMMIT_MESSAGE", env);
+  const configuredDirty = readEnv("CLOUDFLARE_DEPLOY_COMMIT_DIRTY", env);
+  const metadata = configuredHash && configuredMessage && configuredDirty ? {} : git();
   const wranglerArgs = ["pages", "deploy", "apps/web/dist", "--project-name", projectName];
-  appendOptionalValue(wranglerArgs, env.CLOUDFLARE_PAGES_BRANCH, "--branch");
-  appendOptionalValue(wranglerArgs, env.CLOUDFLARE_DEPLOY_COMMIT_HASH, "--commit-hash");
-  appendOptionalValue(wranglerArgs, env.CLOUDFLARE_DEPLOY_COMMIT_MESSAGE, "--commit-message");
-  appendFlag(wranglerArgs, env.CLOUDFLARE_DEPLOY_COMMIT_DIRTY, "--commit-dirty");
+  wranglerArgs.push("--branch", branch);
+  appendOptionalValue(wranglerArgs, configuredHash ?? metadata.commitHash, "--commit-hash");
+  appendOptionalValue(wranglerArgs, configuredMessage ?? metadata.commitMessage, "--commit-message");
+  appendFlag(wranglerArgs, configuredDirty ?? (metadata.dirty ? "true" : undefined), "--commit-dirty");
   appendFlag(wranglerArgs, env.CLOUDFLARE_PAGES_SKIP_CACHING, "--skip-caching");
   appendFlag(wranglerArgs, env.CLOUDFLARE_PAGES_NO_BUNDLE, "--no-bundle");
   appendFlag(wranglerArgs, env.CLOUDFLARE_PAGES_UPLOAD_SOURCE_MAPS, "--upload-source-maps");
   return {
     apiBaseUrl,
     projectName,
+    branch,
     wranglerArgs,
     usingDefaultApiBaseUrl: !configuredApiBaseUrl,
-    usingDefaultProjectName: !configuredProjectName
+    usingDefaultProjectName: !configuredProjectName,
+    usingDefaultBranch: !configuredBranch
   };
 }
 
@@ -182,6 +216,9 @@ function deployWeb(extraArgs: string[]): void {
   }
   if (config.usingDefaultProjectName) {
     console.log(`ℹ Using default CLOUDFLARE_PAGES_PROJECT_NAME=${config.projectName}`);
+  }
+  if (config.usingDefaultBranch) {
+    console.log(`ℹ Using default CLOUDFLARE_PAGES_BRANCH=${config.branch}`);
   }
 
   run("npm", ["run", "build", "--workspace=@davora/web"], {
