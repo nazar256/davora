@@ -1335,5 +1335,19 @@
     "documentationAlignment": "done_2026-06-05_agents_identifies_current_live_deploy_vs_historical_logs_deployed_browse_density_green_validation_open_manual_review_no_commit_instruction_and_required_docs_state_update_set",
     "improvementLoopExecutionMode": "pm_delegates_all_work__sequential_by_default_parallelize_only_when_definitely_harmless",
     "stableStateCommitWorkflow": "current_goal_user_approved_commit_and_push_to_main_after_clean_diff_audit"
+  },
+  "lastStoryIntegrationRelease": {
+    "date": "2026-09-20",
+    "stories": ["PER-85", "PER-54", "PER-5", "PER-56", "PER-86"],
+    "mergedPullRequests": [1, 2, 3, 4, 5],
+    "previousMain": "4674704",
+    "mainCommit": "01858f8",
+    "workerVersionId": "82c2b2b6-69ac-4a62-8a67-342a80319a89",
+    "workerOrigin": "https://api.example.invalid",
+    "pagesProductionDeploymentId": "34d96660",
+    "canonicalWebUrl": "https://davora.pages.dev",
+    "productionBundle": "assets/index-BRvna0oP.js",
+    "verification": "worker_health_configLoaded_true_backend_nextcloud_unlockRequired_false__mock_reset_404_unreachable_in_production__unauthenticated_files_401__manifest_and_sw_200__live_bundle_markers_present_for_all_five_stories__per5_stale_info_absent_from_live_css",
+    "knownPreexistingNotRegression": "unauthenticated_get_api_files_with_path_query_returns_500_invalid_file_query_mapped_opaque_instead_of_401__worker_and_shared_byte_identical_to_previously_deployed_production_commit_eac6209"
   }
 }
