@@ -110,9 +110,9 @@ test("folder sort settings persist per folder, inherit through context, and rese
   await expect(rowNames).toHaveText(["song.mp3", "roadmap.txt", "demo.json", "clip.mp4"]);
 
   await page.reload();
-  await expect(page.getByRole("button", { name: /Open folder Projects/i })).toBeVisible({ timeout: 15_000 });
-  await page.getByRole("button", { name: /Open folder Projects/i }).click();
-  await expect(rowNames).toHaveText(["song.mp3", "roadmap.txt", "demo.json", "clip.mp4"]);
+  // NAV-01 keeps ?path= in the URL, so reload restores inside the folder rather
+  // than at the account root; the persisted Z-A override must survive that restore.
+  await expect(rowNames).toHaveText(["song.mp3", "roadmap.txt", "demo.json", "clip.mp4"], { timeout: 15_000 });
   expect(await folderSortKeys()).toHaveLength(2);
 
   if (isMobile) {
