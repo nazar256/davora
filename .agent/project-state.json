@@ -1348,6 +1348,17 @@
     "canonicalWebUrl": "https://davora.pages.dev",
     "productionBundle": "assets/index-BRvna0oP.js",
     "verification": "worker_health_configLoaded_true_backend_nextcloud_unlockRequired_false__mock_reset_404_unreachable_in_production__unauthenticated_files_401__manifest_and_sw_200__live_bundle_markers_present_for_all_five_stories__per5_stale_info_absent_from_live_css",
-    "knownPreexistingNotRegression": "unauthenticated_get_api_files_with_path_query_returns_500_invalid_file_query_mapped_opaque_instead_of_401__worker_and_shared_byte_identical_to_previously_deployed_production_commit_eac6209"
+    "knownPreexistingNotRegression": "resolved_2026-09-20_in_8dcdc3f__unauthenticated_malformed_input_now_401_after_auth__see_postReleaseHardening"
+  },
+  "postReleaseHardening": {
+    "date": "2026-09-20",
+    "commit": "8dcdc3f",
+    "summary": "auth_before_route_input_validation__playwright_preview_config__pwa_isolation_fix__pages_branch_pinned_main__node24_webstorage_vitest_fix",
+    "workerVersionId": "8f37d4a0-5fbe-4ddc-bb97-5035e836afdf",
+    "workerOrigin": "https://api.example.invalid",
+    "pagesProductionDeploymentId": "0369a83b",
+    "canonicalWebUrl": "https://davora.pages.dev",
+    "gates": "lint_typecheck_architecture_depcruise_quality_19_deploy_10_worker_275_shared_83_web_2658_build__playwright_main_214_pass_0_fail__pwa_7_7__dev_1_pass",
+    "productionVerification": "unauthenticated_files_path_root_escape_and_missing_all_401__invalid_bearer_401__health_nextcloud_configLoaded__mock_reset_404__pages_canonical_200_index_BRvna0oP__pages_deploy_on_main_branch_production_environment"
   }
 }
