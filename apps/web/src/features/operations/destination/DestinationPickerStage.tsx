@@ -100,17 +100,18 @@ export function DestinationPickerStage(props: DestinationPickerStageProps) {
             {props.actionError ? <ErrorBanner message={props.actionError} /> : null}
             {props.error ? <ErrorBanner message={props.error} /> : null}
             {props.validationMessage ? <ErrorBanner message={props.validationMessage} /> : null}
-          {!props.batch ? (
-            <label>
-              Destination name
-              <input
-                aria-label="Destination name"
-                disabled={props.busy || props.manualMode}
-                onChange={(event) => props.onNameChange(event.target.value)}
-                value={props.name}
-              />
-            </label>
-          ) : null}
+            {!props.batch ? (
+              <label>
+                Destination name
+                <input
+                  aria-label="Destination name"
+                  disabled={props.busy || props.manualMode}
+                  onChange={(event) => props.onNameChange(event.target.value)}
+                  value={props.name}
+                />
+              </label>
+            ) : null}
+          </div>
           <nav aria-label="Destination folder path" className="breadcrumbs destination-breadcrumbs">
             {buildBreadcrumbs(props.folderPath).map((item) => (
               <span className="breadcrumb-segment" key={item.value || "home"}>
@@ -164,7 +165,6 @@ export function DestinationPickerStage(props: DestinationPickerStageProps) {
                 />
               </label>
             ) : null}
-          </div>
           </div>
           <div className="dialog-actions destination-picker-actions">
             <button className="quiet-button" onClick={props.onClose} type="button">Cancel</button>

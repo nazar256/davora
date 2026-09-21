@@ -21,7 +21,14 @@
 .destination-picker-form {
   min-height: 0;
   min-width: 0;
-  grid-template-rows: minmax(0, 1fr) auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  grid-template-rows:
+    minmax(min(4rem, 18dvh), auto)
+    auto
+    minmax(min(9rem, 27dvh), 1fr)
+    auto
+    auto;
 }
 
 .destination-picker-scroll {
@@ -72,7 +79,7 @@
 }
 
 .destination-folder-list {
-  max-height: min(34vh, 20rem);
+  min-height: 0;
   overflow: auto;
   padding: 0.35rem;
   border: var(--border-width) solid var(--color-border-subtle);
@@ -110,12 +117,15 @@
 
 .destination-manual-path label,
 .destination-manual-path input,
-.destination-picker-form > label,
-.destination-picker-form > label input {
+.destination-picker-scroll > label,
+.destination-picker-scroll > label input {
   width: 100%;
 }
 
 .destination-picker-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-2);
@@ -130,6 +140,9 @@
 
 .destination-source-paths {
   min-width: 0;
+  max-height: min(7rem, 24dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   color: var(--color-text-muted);
   overflow-wrap: anywhere;
 }

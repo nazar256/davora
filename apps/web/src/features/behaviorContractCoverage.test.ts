@@ -56,7 +56,7 @@ const contractIds = [
   "MUT-01", "MUT-02", "MUT-03", "MUT-04", "MUT-05", "MUT-06", "MUT-07", "MUT-08", "MUT-09", "MUT-10", "MUT-11", "MUT-12",
   "OFF-01", "OFF-02", "OFF-03", "OFF-04", "OFF-05", "OFF-06", "OFF-07",
   "PRV-01", "PRV-02", "PRV-03", "PRV-04", "PRV-05", "PRV-06", "PRV-07",
-  "UI-01", "UI-02", "UI-03", "UI-04", "UI-05", "UI-06", "UI-07", "UI-08", "UI-09", "UI-10",
+  "UI-01", "UI-02", "UI-03", "UI-04", "UI-05", "UI-06", "UI-07", "UI-08", "UI-09", "UI-10", "UI-11",
   "SEC-01", "SEC-02", "SEC-03", "SEC-04", "SEC-05"
 ] as const;
 
@@ -132,6 +132,7 @@ const coverage: Record<ContractId, OwnerCitation> = {
   "UI-08": owner("unit", "src/features/pwa/workspace/usePwaWorkspace.test.tsx", "projects only install and reload presentation bindings"),
   "UI-09": owner("unit", "src/features/navigation/pullToRefresh/usePullToRefresh.test.tsx", "refreshes and clears after a full pull release"),
   "UI-10": owner("browser", "tests/quick-actions.spec.ts", "quick actions render only on narrow viewports and expand upward with three items"),
+  "UI-11": owner("browser", "tests/destination-picker-layout.spec.ts", "PER-88 batch destination picker keeps the folder browser usable under a large selection"),
   "SEC-01": owner("unit", "../worker/tests/app.test.ts", "connects an account, creates a bound session, and lists files in mock mode"),
   "SEC-02": owner("unit", "../../packages/shared/tests/paths.test.ts", "rejects traversal and encoded separators"),
   "SEC-03": owner("unit", "../worker/tests/nextcloud-destination-policy.test.ts", "guards every NextcloudClient request immediately before fetch"),
