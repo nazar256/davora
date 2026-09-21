@@ -162,6 +162,7 @@ export function useMutationWorkspace(input: MutationWorkspaceInput): MutationWor
     getOperationContextToken: () => input.context.operationContextToken,
     isCurrentOperationContext: (context) => isCurrentContext(input, context),
     getCurrentDestinationPicker: () => lifecycle.currentDestinationPicker,
+    setDestinationPicker: lifecycle.setDestinationPicker,
     currentFocusedSelection: () => input.context.currentFocusedSelection,
     getBatchSelectionEntries: () => input.context.batchSelectionEntries,
     getCurrentPath: () => input.context.currentPath,
@@ -238,7 +239,12 @@ export function useMutationWorkspace(input: MutationWorkspaceInput): MutationWor
     openCopyMove: copyMove.openCopyMove,
     openCopyMoveSelection: copyMove.openCopyMoveSelection,
     submitActionDialog: actionDialog.submitActionDialog,
-    submitDestinationPicker: copyMove.submitDestinationPicker
+    submitDestinationPicker: copyMove.submitDestinationPicker,
+    updateConflictDecision: copyMove.updateConflictDecision,
+    applyConflictDecisionToAll: copyMove.applyConflictDecisionToAll,
+    updateConflictApplySizeRule: copyMove.updateConflictApplySizeRule,
+    dismissConflictReview: copyMove.dismissConflictReview,
+    confirmConflictReview: copyMove.confirmConflictReview
   };
 
   const currentOwnerRef = useRef<{

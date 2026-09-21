@@ -1,10 +1,13 @@
 import type { FileEntry, MutationResult } from "@davora/shared";
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import type { Dispatch, SetStateAction } from "react";
+import { describe, expect, it, vi, type Mock } from "vitest";
 
 import { createOperationContextToken } from "../policy";
+import type { DestinationPickerState } from "../destination";
+import { buildDestinationConflictReview } from "../destination/conflicts";
 import type { CopyMoveOrchestrationPorts, CopyMoveOpenerPorts, CopyMovePorts } from "./orchestrationPorts";
-import { buildSingleCopyMovePickerInitialState } from "./model";
+import { buildSingleCopyMovePickerInitialState, type CopyMovePickerSnapshot } from "./model";
 import { useCopyMove, type UseCopyMoveInput } from "./useCopyMove";
 import { issueMutationAttemptToken } from "../mutation/attempt";
 
@@ -58,6 +61,8 @@ function createPorts(): CopyMovePorts {
     },
     batch: {
       executeCopyMoveTarget: vi.fn(async () => ({ kind: "completed" } as const)),
+      listChildren: vi.fn(async () => ({ kind: "completed", entries: [] } as const)),
+      deleteFolder: vi.fn(async () => ({ kind: "completed" } as const)),
       refreshFolder: vi.fn(async () => ({ kind: "completed" } as const))
     },
     selection: {
@@ -96,6 +101,7 @@ describe("useCopyMove", () => {
       getBatchSelectionEntries: () => [selected],
       getCurrentPath: () => "Archive",
       getAccountName: () => "Workspace",
+      setDestinationPicker: vi.fn(),
       workflow: workflow(context),
       ports
     }));
@@ -131,12 +137,14 @@ describe("useCopyMove", () => {
         nameEdited: false,
         manualPath: "Archive/notes.txt",
         manualMode: false,
-        entries: []
+        entries: [],
+        loading: false
       }),
       currentFocusedSelection: () => selected,
       getBatchSelectionEntries: () => [],
       getCurrentPath: () => "Archive",
       getAccountName: () => "Workspace",
+      setDestinationPicker: vi.fn(),
       workflow: workflow(context),
       ports
     }));
@@ -168,6 +176,7 @@ describe("useCopyMove", () => {
           getBatchSelectionEntries: () => [selected],
           getCurrentPath: () => "Archive",
           getAccountName: () => "Workspace",
+          setDestinationPicker: vi.fn(),
           workflow: workflow(context),
           ports: latestPorts
         });
@@ -202,6 +211,7 @@ describe("useCopyMove", () => {
       getBatchSelectionEntries: () => entries,
       getCurrentPath: () => path,
       getAccountName: () => "Workspace",
+      setDestinationPicker: vi.fn(),
       workflow: workflow(context),
       ports
     });
@@ -248,6 +258,7 @@ describe("useCopyMove", () => {
       getBatchSelectionEntries: () => [selected],
       getCurrentPath: () => "Projects",
       getAccountName: () => "Workspace",
+      setDestinationPicker: vi.fn(),
       workflow: workflow(context),
       ports
     });
@@ -293,6 +304,7 @@ describe("useCopyMove", () => {
         getBatchSelectionEntries: () => entries,
         getCurrentPath: () => "Projects",
         getAccountName: () => "Workspace",
+        setDestinationPicker: vi.fn(),
         workflow: workflow(context),
         ports
       };
@@ -321,5 +333,316 @@ describe("useCopyMove", () => {
     expect(ports.opener.pushActionSurface).not.toHaveBeenCalled();
     expect(ports.opener.openDestinationPicker).not.toHaveBeenCalled();
     unmount();
+  });
+
+  function pickerSnapshot(
+    context: ReturnType<typeof createOperationContextToken>,
+    overrides: Partial<CopyMovePickerSnapshot> = {}
+  ): CopyMovePickerSnapshot {
+    return {
+      context,
+      kind: "copyMove",
+      sourceEntries: [entry("notes.txt")],
+      batch: false,
+      folderPath: "Archive",
+      name: "notes.txt",
+      nameEdited: false,
+      manualPath: "",
+      manualMode: false,
+      entries: [],
+      loading: false,
+      ...overrides
+    };
+  }
+
+  function applyPickerUpdate(
+    setDestinationPicker: Mock<Dispatch<SetStateAction<DestinationPickerState | undefined>>>,
+    picker: CopyMovePickerSnapshot
+  ): DestinationPickerState | undefined {
+    const updater = setDestinationPicker.mock.calls.at(-1)?.[0];
+    return typeof updater === "function"
+      ? updater({ reloadKey: 0, ...picker })
+      : undefined;
+  }
+
+  it("opens a conflict review instead of executing when the plan has conflicts", async () => {
+    const ports = createPorts();
+    const context = createOperationContextToken();
+    const picker = pickerSnapshot(context, { entries: [entry("Archive/notes.txt")] });
+    const setDestinationPicker = vi.fn();
+    const { result } = renderHook(() => useCopyMove({
+      isCurrentOperationHandler: () => true,
+      hasSession: () => true,
+      isOperationAllowed: () => true,
+      getOperationContextToken: () => context,
+      isCurrentOperationContext: () => true,
+      getCurrentDestinationPicker: () => picker,
+      currentFocusedSelection: () => undefined,
+      getBatchSelectionEntries: () => [],
+      getCurrentPath: () => "Archive",
+      getAccountName: () => "Workspace",
+      setDestinationPicker,
+      workflow: workflow(context),
+      ports
+    }));
+
+    await act(async () => {
+      await result.current.submitDestinationPicker("copy");
+    });
+
+    expect(ports.submit.mutation.execute).not.toHaveBeenCalled();
+    expect(ports.submit.api.runCopyOrMove).not.toHaveBeenCalled();
+    expect(ports.submit.batch.executeCopyMoveTarget).not.toHaveBeenCalled();
+    const reviewed = applyPickerUpdate(setDestinationPicker, picker);
+    expect(reviewed?.conflictReview?.operation).toBe("copy");
+    expect(reviewed?.conflictReview?.items).toHaveLength(1);
+    expect(reviewed?.conflictReview?.items[0]?.allowedDecisions).toEqual(["replace", "keepBoth", "skip"]);
+  });
+
+  it("ignores submit while the destination listing is still loading", async () => {
+    const ports = createPorts();
+    const context = createOperationContextToken();
+    const picker = pickerSnapshot(context, { loading: true });
+    const setDestinationPicker = vi.fn();
+    const { result } = renderHook(() => useCopyMove({
+      isCurrentOperationHandler: () => true,
+      hasSession: () => true,
+      isOperationAllowed: () => true,
+      getOperationContextToken: () => context,
+      isCurrentOperationContext: () => true,
+      getCurrentDestinationPicker: () => picker,
+      currentFocusedSelection: () => undefined,
+      getBatchSelectionEntries: () => [],
+      getCurrentPath: () => "Archive",
+      getAccountName: () => "Workspace",
+      setDestinationPicker,
+      workflow: workflow(context),
+      ports
+    }));
+
+    await act(async () => {
+      await result.current.submitDestinationPicker("copy");
+    });
+
+    expect(setDestinationPicker).not.toHaveBeenCalled();
+    expect(ports.submit.mutation.execute).not.toHaveBeenCalled();
+    expect(ports.submit.api.runCopyOrMove).not.toHaveBeenCalled();
+  });
+
+  it("ignores submit while a conflict review is open", async () => {
+    const ports = createPorts();
+    const context = createOperationContextToken();
+    const existing = entry("Archive/notes.txt");
+    const plan = {
+      kind: "valid" as const,
+      destinationPath: "Archive",
+      targets: [{ source: entry("notes.txt"), destinationPath: "Archive/notes.txt" }],
+      conflicts: [{ source: entry("notes.txt"), existing, destinationPath: "Archive/notes.txt", isSelfCollision: false }]
+    };
+    const picker = pickerSnapshot(context, {
+      entries: [existing],
+      conflictReview: buildDestinationConflictReview(plan, "copy")
+    });
+    const setDestinationPicker = vi.fn();
+    const { result } = renderHook(() => useCopyMove({
+      isCurrentOperationHandler: () => true,
+      hasSession: () => true,
+      isOperationAllowed: () => true,
+      getOperationContextToken: () => context,
+      isCurrentOperationContext: () => true,
+      getCurrentDestinationPicker: () => picker,
+      currentFocusedSelection: () => undefined,
+      getBatchSelectionEntries: () => [],
+      getCurrentPath: () => "Archive",
+      getAccountName: () => "Workspace",
+      setDestinationPicker,
+      workflow: workflow(context),
+      ports
+    }));
+
+    await act(async () => {
+      await result.current.submitDestinationPicker("copy");
+    });
+
+    expect(setDestinationPicker).not.toHaveBeenCalled();
+    expect(ports.submit.mutation.execute).not.toHaveBeenCalled();
+  });
+
+  it("confirms a conflict review and executes the resolved replace with overwrite", async () => {
+    const ports = createPorts();
+    ports.submit.mutation.execute = vi.fn(async (run: () => Promise<MutationResult>) => run());
+    const context = createOperationContextToken();
+    const flow = workflow(context);
+    const source = { ...entry("notes.txt"), size: 100 };
+    const existing = { ...entry("Archive/notes.txt"), size: 40 };
+    const plan = {
+      kind: "valid" as const,
+      destinationPath: "Archive",
+      targets: [{ source, destinationPath: "Archive/notes.txt" }],
+      conflicts: [{ source, existing, destinationPath: "Archive/notes.txt", isSelfCollision: false }]
+    };
+    const picker = pickerSnapshot(context, {
+      sourceEntries: [source],
+      entries: [existing],
+      conflictReview: buildDestinationConflictReview(plan, "copy")
+    });
+    const { result } = renderHook(() => useCopyMove({
+      isCurrentOperationHandler: () => true,
+      hasSession: () => true,
+      isOperationAllowed: () => true,
+      getOperationContextToken: () => context,
+      isCurrentOperationContext: () => true,
+      getCurrentDestinationPicker: () => picker,
+      currentFocusedSelection: () => undefined,
+      getBatchSelectionEntries: () => [],
+      getCurrentPath: () => "Archive",
+      getAccountName: () => "Workspace",
+      setDestinationPicker: vi.fn(),
+      workflow: flow,
+      ports
+    }));
+
+    await act(async () => {
+      await result.current.confirmConflictReview();
+    });
+
+    expect(ports.submit.api.runCopyOrMove).toHaveBeenCalledWith("copy", "notes.txt", "Archive/notes.txt", true);
+    expect(flow.completeDestination).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports skips without executing when every conflict is skipped", async () => {
+    const ports = createPorts();
+    const context = createOperationContextToken();
+    const flow = workflow(context);
+    const existing = entry("Archive/notes.txt");
+    const plan = {
+      kind: "valid" as const,
+      destinationPath: "Archive",
+      targets: [{ source: entry("notes.txt"), destinationPath: "Archive/notes.txt" }],
+      conflicts: [{ source: entry("notes.txt"), existing, destinationPath: "Archive/notes.txt", isSelfCollision: false }]
+    };
+    const review = buildDestinationConflictReview(plan, "copy");
+    const picker = pickerSnapshot(context, {
+      entries: [existing],
+      conflictReview: { ...review, applySizeRule: false }
+    });
+    const { result } = renderHook(() => useCopyMove({
+      isCurrentOperationHandler: () => true,
+      hasSession: () => true,
+      isOperationAllowed: () => true,
+      getOperationContextToken: () => context,
+      isCurrentOperationContext: () => true,
+      getCurrentDestinationPicker: () => picker,
+      currentFocusedSelection: () => undefined,
+      getBatchSelectionEntries: () => [],
+      getCurrentPath: () => "Archive",
+      getAccountName: () => "Workspace",
+      setDestinationPicker: vi.fn(),
+      workflow: flow,
+      ports
+    }));
+
+    await act(async () => {
+      await result.current.confirmConflictReview();
+    });
+
+    expect(ports.submit.mutation.execute).not.toHaveBeenCalled();
+    expect(ports.submit.api.runCopyOrMove).not.toHaveBeenCalled();
+    expect(ports.submit.presentation.setStatus).toHaveBeenCalledWith(expect.stringContaining("skipped"));
+    expect(flow.completeDestination).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes a merge decision through the batch executor for a single folder", async () => {
+    const ports = createPorts();
+    const context = createOperationContextToken();
+    const flow = workflow(context);
+    const source = { ...entry("Docs"), isFolder: true };
+    const existing = { ...entry("Archive/Docs"), isFolder: true };
+    const plan = {
+      kind: "valid" as const,
+      destinationPath: "Archive",
+      targets: [{ source, destinationPath: "Archive/Docs" }],
+      conflicts: [{ source, existing, destinationPath: "Archive/Docs", isSelfCollision: false }]
+    };
+    const review = {
+      ...buildDestinationConflictReview(plan, "move"),
+      items: buildDestinationConflictReview(plan, "move").items.map((item) => ({ ...item, decision: "merge" as const }))
+    };
+    const picker = pickerSnapshot(context, {
+      kind: "move",
+      sourceEntries: [source],
+      entries: [existing],
+      conflictReview: review
+    });
+    const { result } = renderHook(() => useCopyMove({
+      isCurrentOperationHandler: () => true,
+      hasSession: () => true,
+      isOperationAllowed: () => true,
+      getOperationContextToken: () => context,
+      isCurrentOperationContext: () => true,
+      getCurrentDestinationPicker: () => picker,
+      currentFocusedSelection: () => undefined,
+      getBatchSelectionEntries: () => [],
+      getCurrentPath: () => "Archive",
+      getAccountName: () => "Workspace",
+      setDestinationPicker: vi.fn(),
+      workflow: flow,
+      ports
+    }));
+
+    await act(async () => {
+      await result.current.confirmConflictReview();
+    });
+
+    expect(ports.submit.batch.listChildren).toHaveBeenCalledWith("Docs", context);
+    expect(ports.submit.batch.listChildren).toHaveBeenCalledWith("Archive/Docs", context);
+    expect(ports.submit.batch.deleteFolder).toHaveBeenCalledWith("Docs", "Docs", context, { kind: "move", count: 1 }, expect.any(Function));
+    expect(ports.submit.mutation.execute).not.toHaveBeenCalled();
+    expect(ports.submit.api.runCopyOrMove).not.toHaveBeenCalled();
+    expect(flow.completeDestination).toHaveBeenCalledTimes(1);
+  });
+
+  it("updates per-item decisions, bulk decisions, and the size rule on the open review", () => {
+    const ports = createPorts();
+    const context = createOperationContextToken();
+    const existing = entry("Archive/notes.txt");
+    const plan = {
+      kind: "valid" as const,
+      destinationPath: "Archive",
+      targets: [{ source: entry("notes.txt"), destinationPath: "Archive/notes.txt" }],
+      conflicts: [{ source: entry("notes.txt"), existing, destinationPath: "Archive/notes.txt", isSelfCollision: false }]
+    };
+    const picker = pickerSnapshot(context, {
+      entries: [existing],
+      conflictReview: buildDestinationConflictReview(plan, "copy")
+    });
+    const setDestinationPicker = vi.fn();
+    const { result } = renderHook(() => useCopyMove({
+      isCurrentOperationHandler: () => true,
+      hasSession: () => true,
+      isOperationAllowed: () => true,
+      getOperationContextToken: () => context,
+      isCurrentOperationContext: () => true,
+      getCurrentDestinationPicker: () => picker,
+      currentFocusedSelection: () => undefined,
+      getBatchSelectionEntries: () => [],
+      getCurrentPath: () => "Archive",
+      getAccountName: () => "Workspace",
+      setDestinationPicker,
+      workflow: workflow(context),
+      ports
+    }));
+
+    act(() => result.current.updateConflictDecision("notes.txt", "keepBoth"));
+    expect(applyPickerUpdate(setDestinationPicker, picker)?.conflictReview?.items[0]?.decision).toBe("keepBoth");
+
+    act(() => result.current.applyConflictDecisionToAll("skip"));
+    expect(applyPickerUpdate(setDestinationPicker, picker)?.conflictReview?.items[0]?.decision).toBe("skip");
+
+    act(() => result.current.updateConflictApplySizeRule(false));
+    expect(applyPickerUpdate(setDestinationPicker, picker)?.conflictReview?.applySizeRule).toBe(false);
+
+    act(() => result.current.dismissConflictReview());
+    expect(applyPickerUpdate(setDestinationPicker, picker)?.conflictReview).toBeUndefined();
   });
 });

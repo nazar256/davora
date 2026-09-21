@@ -137,7 +137,7 @@ function createMutationCurrentnessFixture(): AppServices {
     },
     download: { prepareDownloadFile: async () => ({ blob: new Blob(), filename: "fixture" }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "fixture" }), listFiles: async (path, token, signal) => mutationApi.listFiles(path, token, signal), triggerBrowserDownload: () => undefined, saveDownload: () => undefined },
     batch: { downloadSelectionAsZip: async () => ({ blob: new Blob(), plan: { archiveName: "fixture", selectedCount: 0, selectedFileCount: 0, selectedDirectoryCount: 0, directories: [], files: [], failedFiles: [] } }) },
-    uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) },
+    preview: { createFileStreamUrl: async () => "" }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) },
     isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (_error: unknown, fallback: string) => fallback
   };
   const snapshotFor = (account: Parameters<AppServices["retentionRepository"]["readSnapshot"]>[0]) => ({ account, normalCache: { itemCount: 0, totalBytes: 0, limitBytes: 1 }, roots: [], files: [], memberships: [] });

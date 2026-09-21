@@ -1,6 +1,6 @@
 import type { FileEntry } from "@davora/shared";
 
-import type { DestinationOperation } from "../destination";
+import type { DestinationOperation, ResolvedDestinationTarget } from "../destination";
 import type { OperationIntent } from "../policy";
 import type { MutationAttemptToken } from "../mutation/attempt";
 import { executeBatchCopyMove } from "./controller";
@@ -9,8 +9,9 @@ import {
   buildBatchCopyMovePartialStatus,
   buildBatchCopyMoveSuccessStatus,
   buildCopyMoveOperationLabel,
+  buildCopyMoveSkippedStatus,
   deriveRetainedFailedEntries,
-  mapBatchTargets,
+  mapResolvedTargets,
   shouldCloseDestinationPickerAfterSubmit,
   shouldRetainDestinationPickerAfterPartialBatch,
   type CopyMovePickerSnapshot
@@ -21,7 +22,9 @@ export interface CopyMoveSubmitInput {
   readonly operation: DestinationOperation;
   readonly picker: CopyMovePickerSnapshot;
   readonly destinationPath: string;
-  readonly targets: readonly { readonly source: FileEntry; readonly destinationPath: string }[];
+  readonly targets: readonly ResolvedDestinationTarget[];
+  readonly skipped: readonly FileEntry[];
+  readonly applySizeRule: boolean;
   readonly accountName: string;
   readonly ownerPath: string;
   readonly attempt: MutationAttemptToken;
@@ -35,27 +38,46 @@ export async function runCopyMoveSubmitOrchestration(
   input: CopyMoveSubmitInput,
   ports: CopyMoveOrchestrationPorts
 ): Promise<void> {
-  const { operation, picker, destinationPath, targets, accountName } = input;
+  const { operation, picker, destinationPath, targets, skipped, accountName } = input;
   const intent: OperationIntent = { kind: operation, count: picker.sourceEntries.length };
   const pickerStillCurrent = () => input.isAttemptCurrent(input.attempt)
     && ports.context.isContextAllowed(picker.context, intent);
+  const operationLabel = buildCopyMoveOperationLabel(operation);
 
   try {
-    if (picker.batch) {
-      const batchTargets = targets;
-      const sourceEntriesByPath = new Map(batchTargets.map((target) => [target.source.path, target.source]));
+    if (targets.length === 0) {
+      ports.presentation.setStatus(buildCopyMoveSkippedStatus(operationLabel, skipped.length, accountName));
+      if (shouldCloseDestinationPickerAfterSubmit(pickerStillCurrent())) {
+        input.completeDestination(input.attempt, picker.context);
+      }
+      return;
+    }
+
+    if (picker.batch || targets.length > 1 || targets.some((target) => target.merge)) {
+      const sourceEntriesByPath = new Map(picker.sourceEntries.map((entry) => [entry.path, entry] as const));
       ports.mutations.begin(picker.context, input.attempt);
       let outcome: Awaited<ReturnType<typeof executeBatchCopyMove>>;
       try {
         outcome = await executeBatchCopyMove({
           operation,
-          targets: mapBatchTargets(batchTargets)
+          targets: mapResolvedTargets(targets),
+          skipped,
+          applySizeRule: input.applySizeRule
         }, {
           isCurrent: pickerStillCurrent,
-          executeTarget: async (targetOperation, target) => ports.batch.executeCopyMoveTarget(
+          executeTarget: (targetOperation, target) => ports.batch.executeCopyMoveTarget(
             targetOperation,
-            target.sourcePath,
+            target.source.path,
             target.destinationPath,
+            target.mode === "overwrite",
+            picker.context,
+            intent,
+            pickerStillCurrent
+          ),
+          listChildren: (path) => ports.batch.listChildren(path, picker.context),
+          deleteFolder: (path, confirmName) => ports.batch.deleteFolder(
+            path,
+            confirmName,
             picker.context,
             intent,
             pickerStillCurrent
@@ -69,33 +91,32 @@ export async function runCopyMoveSubmitOrchestration(
       if (outcome.kind === "superseded") {
         return;
       }
-      if (outcome.kind === "sessionTerminated") {
+      if (outcome.kind === "sessionTerminated" || outcome.kind === "canceled") {
         if (shouldCloseDestinationPickerAfterSubmit(pickerStillCurrent())) {
           ports.destinationPicker.closeIfCurrent(picker.context);
         }
         return;
       }
 
-      const operationLabel = buildCopyMoveOperationLabel(operation);
       if (outcome.kind === "partial") {
         if (!pickerStillCurrent()) return;
         const failures = deriveRetainedFailedEntries(sourceEntriesByPath, outcome.failures);
-        const failedEntries = failures.map((failure) => failure.entry);
+        const retainedEntries = [...failures.map((failure) => failure.entry), ...skipped];
         const partialError = buildBatchCopyMovePartialActionError(
           operationLabel,
           outcome.completedCount,
-          outcome.totalCount,
+          outcome.totalCount + outcome.skippedCount,
           failures
         );
-        ports.selection.retainFailedPaths(failedEntries.map((entry) => entry.path));
+        ports.selection.retainFailedPaths(retainedEntries.map((entry) => entry.path));
         if (shouldRetainDestinationPickerAfterPartialBatch()) {
-          input.reportPartial(input.attempt, partialError, failedEntries);
+          input.reportPartial(input.attempt, partialError, failures.map((failure) => failure.entry));
         }
         if (!pickerStillCurrent()) return;
         ports.presentation.setStatus(buildBatchCopyMovePartialStatus(
           operationLabel,
           outcome.completedCount,
-          outcome.totalCount,
+          outcome.totalCount + outcome.skippedCount,
           failures.length,
           accountName
         ));
@@ -103,26 +124,31 @@ export async function runCopyMoveSubmitOrchestration(
       }
 
       if (!pickerStillCurrent()) return;
-      ports.selection.clear();
+      if (picker.batch && skipped.length > 0) {
+        ports.selection.retainFailedPaths(skipped.map((entry) => entry.path));
+      } else {
+        ports.selection.clear();
+      }
       ports.presentation.clearFocused();
       ports.presentation.closeMobileDetails();
       ports.presentation.setStatus(buildBatchCopyMoveSuccessStatus(
         operationLabel,
-        batchTargets.length,
+        outcome.completedCount,
         destinationPath,
         accountName,
-        ports.labels.toDisplayPath
+        ports.labels.toDisplayPath,
+        outcome.skippedCount
       ));
       input.completeDestination(input.attempt, picker.context);
       return;
     }
 
-    const [selectedEntry] = picker.sourceEntries;
-    if (!selectedEntry) {
+    const [target] = targets;
+    if (!target) {
       return;
     }
     await ports.mutation.execute(
-      () => ports.api.runCopyOrMove(operation, selectedEntry.path, destinationPath),
+      () => ports.api.runCopyOrMove(operation, target.source.path, target.destinationPath, target.overwrite),
       { context: picker.context, intent, isAttemptCurrent: pickerStillCurrent, busyOwner: input.attempt }
     );
     if (shouldCloseDestinationPickerAfterSubmit(pickerStillCurrent())) {

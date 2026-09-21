@@ -32,11 +32,50 @@ export interface DestinationTarget {
   destinationPath: string;
 }
 
+export interface PlannedDestinationConflict {
+  readonly source: FileEntry;
+  readonly existing: FileEntry;
+  readonly destinationPath: string;
+  readonly isSelfCollision: boolean;
+}
+
+export type DestinationConflictDecision = "replace" | "merge" | "keepBoth" | "skip";
+
+export interface DestinationConflictReviewItem {
+  readonly source: FileEntry;
+  readonly existing: FileEntry;
+  readonly destinationPath: string;
+  readonly isSelfCollision: boolean;
+  readonly allowedDecisions: readonly DestinationConflictDecision[];
+  readonly decision?: DestinationConflictDecision;
+}
+
+export interface DestinationConflictReview {
+  readonly operation: DestinationOperation;
+  readonly destinationPath: string;
+  readonly targets: readonly DestinationTarget[];
+  readonly items: readonly DestinationConflictReviewItem[];
+  readonly applySizeRule: boolean;
+}
+
+export interface ResolvedDestinationTarget {
+  readonly source: FileEntry;
+  readonly destinationPath: string;
+  readonly overwrite: boolean;
+  readonly merge: boolean;
+}
+
+export interface ResolvedDestinationConflicts {
+  readonly targets: readonly ResolvedDestinationTarget[];
+  readonly skipped: readonly FileEntry[];
+}
+
 export type DestinationPlan =
   | {
       kind: "valid";
       destinationPath: string;
       targets: readonly DestinationTarget[];
+      conflicts: readonly PlannedDestinationConflict[];
     }
   | {
       kind: "invalid";
@@ -69,9 +108,10 @@ export interface DestinationPickerState {
   loading: boolean;
   reloadKey: number;
   error?: string;
+  conflictReview?: DestinationConflictReview;
 }
 
-export type DestinationPickerSnapshot = Omit<DestinationPickerState, "loading" | "reloadKey" | "error">;
+export type DestinationPickerSnapshot = Omit<DestinationPickerState, "reloadKey" | "error">;
 
 export interface DestinationPickerInitialState extends DestinationPickerState {
   loading: true;

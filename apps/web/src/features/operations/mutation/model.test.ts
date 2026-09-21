@@ -296,6 +296,35 @@ describe("mutation model", () => {
     expect(mutationWorkflowReducer(completed, accept)).toEqual(initialMutationWorkflowState);
   });
 
+  it("keeps destination draft updates live while a partial picker is retained", () => {
+    const context = createOperationContextToken();
+    const owner = attempt(context, 61);
+    const source = entry("notes.txt");
+    const picker = buildMovePickerInitialState(context, source);
+    const opened = mutationWorkflowReducer(initialMutationWorkflowState, {
+      kind: "open", identity: 61, draft: { kind: "destination", picker }
+    });
+    const running = mutationWorkflowReducer(mutationWorkflowReducer(opened, {
+      kind: "validate", identity: 61, context, intent: { kind: "move", count: 1 }, attempt: owner
+    }), { kind: "run", identity: 61, context, attempt: owner });
+    const partial = mutationWorkflowReducer(running, {
+      kind: "partial", identity: 61, context, attempt: owner, error: "partial", failedEntries: [source]
+    });
+
+    const refreshed = { ...picker, entries: [entry("Archive/notes.txt")] };
+    const next = mutationWorkflowReducer(partial, {
+      kind: "update-draft", identity: 61, context, draft: { kind: "destination", picker: refreshed }
+    });
+    expect(next).not.toBe(partial);
+    expect(next.kind === "partial" && next.draft.kind === "destination"
+      ? next.draft.picker.entries : []).toEqual([entry("Archive/notes.txt")]);
+
+    expect(mutationWorkflowReducer(partial, {
+      kind: "update-draft", identity: 61, context,
+      draft: { kind: "action", dialog: { kind: "createFolder", value: "x", context } }
+    })).toBe(partial);
+  });
+
   it("accepts exactly one ordered delete removal and rejects duplicate, reordered, substituted, and skipped progress", () => {
     const context = createOperationContextToken();
     const workflow = createBatchDeleteWorkflow(43, [

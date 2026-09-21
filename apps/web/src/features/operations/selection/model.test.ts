@@ -141,7 +141,7 @@ describe("batch selection model", () => {
   it("rejects select-all for a different account or invalid origin", () => {
     const state = createBatchSelectionState("alpha");
     expect(selectAllBatchEntries(state, "beta", [file("a.txt")], browseOrigin)).toBe(state);
-    expect(selectAllBatchEntries(state, "alpha", [file("a.txt")], { kind: "folder", folderPath: "/" } as never)).toBe(state);
+    expect(selectAllBatchEntries(state, "alpha", [file("a.txt")], { kind: "browse", folderPath: "../escape" })).toBe(state);
   });
 
   it("removes only the listed paths and preserves other selections in order", () => {

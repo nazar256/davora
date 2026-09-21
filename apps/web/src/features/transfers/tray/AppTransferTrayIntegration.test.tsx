@@ -189,7 +189,7 @@ function createDownloadFixture(): AppServices {
       saveDownload: mockedApi.triggerBrowserDownload
     },
     batch: { downloadSelectionAsZip },
-    uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) },
+    preview: { createFileStreamUrl: async () => "" }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) },
     isUnauthorized: (error) => error instanceof ApiRequestError && error.status === 401,
     isReconnectRequired: (error) => error instanceof ApiRequestError && error.code === "account_reconnect_required",
     toErrorMessage: (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback

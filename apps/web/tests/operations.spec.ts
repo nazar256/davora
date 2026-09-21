@@ -320,7 +320,13 @@ test("PER-84 copies a mixed selection through the mobile destination picker", as
   await expect(dialog.getByRole("button", { name: /^Copy here$/i })).toBeEnabled();
   await dialog.getByRole("button", { name: /^Copy here$/i }).click();
 
-  await expect(dialog).toHaveCount(0);
+  const conflictDialog = page.getByRole("dialog", { name: "Resolve destination conflicts" });
+  await expect(conflictDialog).toBeVisible();
+  await conflictDialog.getByRole("button", { name: /Keep both for all/i }).click();
+  await conflictDialog.getByRole("button", { name: /Copy with these choices/i }).click();
+
+  await expect(conflictDialog).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: /Copy or move 2 items/i })).toHaveCount(0);
   await expect(page.getByRole("toolbar", { name: /Selection actions/i })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Open folder Archive \(1\)/i })).toBeVisible();
   await expect(page.getByRole("button", { name: /Open file alpha \(1\)\.txt/i })).toBeVisible();
@@ -369,6 +375,11 @@ test("mobile batch copy retries only retained failures in original order and cle
   await dialog.screenshot({ path: mutationEvidencePath("mobile-batch-copy-picker-before-submit.png") });
 
   await dialog.getByRole("button", { name: /^Copy here$/i }).click();
+  const conflictDialog = page.getByRole("dialog", { name: "Resolve destination conflicts" });
+  await expect(conflictDialog).toBeVisible();
+  await conflictDialog.getByRole("button", { name: /Keep both for all/i }).click();
+  await conflictDialog.getByRole("button", { name: /Copy with these choices/i }).click();
+
   const partialDialog = page.getByRole("dialog", { name: /Copy or move 2 items/i });
   await expect(partialDialog).toBeVisible();
   await expect(partialDialog.getByText(/Copied 1 of 3 selected items; 2 failed\./i)).toBeVisible();
@@ -379,6 +390,10 @@ test("mobile batch copy retries only retained failures in original order and cle
   await partialDialog.screenshot({ path: mutationEvidencePath("mobile-batch-copy-partial-failure.png") });
 
   await partialDialog.getByRole("button", { name: /^Copy here$/i }).click();
+  const retryConflictDialog = page.getByRole("dialog", { name: "Resolve destination conflicts" });
+  await expect(retryConflictDialog).toBeVisible();
+  await retryConflictDialog.getByRole("button", { name: /Keep both for all/i }).click();
+  await retryConflictDialog.getByRole("button", { name: /Copy with these choices/i }).click();
   await expect(page.getByRole("dialog", { name: /Copy or move 2 items/i })).toHaveCount(0);
   await expect(toolbar).toHaveCount(0);
   await expect(page.locator(".browse-status-note")).toContainText(/Copied 2 selected items to \/ in Mobile batch retry workspace\./i);
@@ -426,6 +441,8 @@ test("desktop deferred copy becomes inert when the same-account session is repla
   await expect(picker.getByRole("button", { name: /^Copy here$/i })).toBeEnabled();
   await picker.screenshot({ path: mutationEvidencePath("desktop-deferred-copy-before-submit.png") });
 
+  await picker.getByRole("button", { name: /Manual path/i }).click();
+  await picker.getByLabel("Full destination path").fill("Projects/Archive");
   await picker.getByRole("button", { name: /^Copy here$/i }).click();
   await expect.poll(() => copyRequests).toBe(1);
   await expect(picker).toBeVisible();

@@ -33,6 +33,11 @@ function props(overrides: Partial<MutationWorkflowStageProps>): MutationWorkflow
     onDestinationReload: vi.fn(),
     onSubmitAction: vi.fn(),
     onSubmitDestination: vi.fn(),
+    onConflictDecisionChange: vi.fn(),
+    onConflictApplyToAll: vi.fn(),
+    onConflictApplySizeRuleChange: vi.fn(),
+    onConflictConfirm: vi.fn(),
+    onConflictBack: vi.fn(),
     ...overrides
   };
 }

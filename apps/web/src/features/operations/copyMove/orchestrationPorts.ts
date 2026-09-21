@@ -4,7 +4,7 @@ import type { DestinationOperation } from "../destination";
 import type { OperationContextToken, OperationIntent } from "../policy";
 import type { MutationAttemptToken } from "../mutation/attempt";
 import type { BatchCopyMoveOperation, CopyMoveDestinationPickerInitialState } from "./model";
-import type { FolderRefreshResult, TargetExecutionResult } from "./ports";
+import type { FolderListResult, FolderRefreshResult, TargetExecutionResult } from "./ports";
 
 export interface CopyMoveMutationExecuteOptions {
   readonly refreshFolder?: boolean;
@@ -45,10 +45,13 @@ export interface CopyMoveBatchTargetPort {
     operation: BatchCopyMoveOperation,
     sourcePath: string,
     destinationPath: string,
+    overwrite: boolean,
     context: OperationContextToken,
     intent: OperationIntent,
     isAttemptCurrent: () => boolean
   ): Promise<TargetExecutionResult>;
+  listChildren(path: string, context: OperationContextToken): Promise<FolderListResult>;
+  deleteFolder(path: string, confirmName: string, context: OperationContextToken, intent: OperationIntent, isAttemptCurrent: () => boolean): Promise<TargetExecutionResult>;
   refreshFolder(path: string): Promise<FolderRefreshResult>;
 }
 
@@ -76,7 +79,8 @@ export interface CopyMoveApiPort {
   runCopyOrMove(
     operation: DestinationOperation,
     sourcePath: string,
-    destinationPath: string
+    destinationPath: string,
+    overwrite: boolean
   ): Promise<MutationResult>;
 }
 

@@ -35,7 +35,8 @@ describe("destination planning", () => {
     expect(plan).toEqual({
       kind: "valid",
       destinationPath: "Archive/report final.txt",
-      targets: [{ source: frozenSource, destinationPath: "Archive/report final.txt" }]
+      targets: [{ source: frozenSource, destinationPath: "Archive/report final.txt" }],
+      conflicts: []
     });
     expect(destinationEntries).toEqual([entry("existing.txt", "Archive/existing.txt")]);
   });
@@ -75,13 +76,14 @@ describe("destination planning", () => {
       message: "Choose a different destination folder or name."
     });
     expect(planDestination({ ...base, operation: "copy" })).toEqual({
-      kind: "invalid",
+      kind: "valid",
       destinationPath: "Projects/report.txt",
-      message: "Destination already contains report.txt. Use report (1).txt or choose a different folder."
+      targets: [{ source, destinationPath: "Projects/report.txt" }],
+      conflicts: [{ source, existing: source, destinationPath: "Projects/report.txt", isSelfCollision: true }]
     });
   });
 
-  it("checks conflicts for canonical manual paths", () => {
+  it("emits conflicts for canonical manual paths", () => {
     const existing = entry("report.txt", "Archive/report.txt");
     const plan = planDestination({
       kind: "single",
@@ -95,9 +97,10 @@ describe("destination planning", () => {
     });
 
     expect(plan).toEqual({
-      kind: "invalid",
+      kind: "valid",
       destinationPath: "Archive/report.txt",
-      message: "Destination already contains report.txt. Choose a different name or folder."
+      targets: [{ source, destinationPath: "Archive/report.txt" }],
+      conflicts: [{ source, existing, destinationPath: "Archive/report.txt", isSelfCollision: false }]
     });
   });
 
@@ -168,17 +171,18 @@ describe("destination planning", () => {
     expect(sibling).toMatchObject({ kind: "valid", destinationPath: "Project-archive/Project" });
   });
 
-  it("plans batch copies in source order and accounts for earlier planned conflicts", () => {
+  it("plans batch copies in source order and collects conflicts for colliding names", () => {
     const sources = [
       entry("notes.txt", "One/notes.txt"),
       entry("notes.txt", "Two/notes.txt"),
       entry("photo.png", "photo.png")
     ];
+    const existing = entry("notes.txt", "Archive/notes.txt");
     const plan = planDestination({
       kind: "batch",
       operation: "copy",
       sources,
-      destinationEntries: [entry("notes.txt", "Archive/notes.txt")],
+      destinationEntries: [existing],
       manualMode: true,
       folderPath: "",
       manualPath: " /Archive// "
@@ -188,30 +192,41 @@ describe("destination planning", () => {
       kind: "valid",
       destinationPath: "Archive",
       targets: [
-        { source: sources[0], destinationPath: "Archive/notes (1).txt" },
-        { source: sources[1], destinationPath: "Archive/notes (2).txt" },
+        { source: sources[0], destinationPath: "Archive/notes.txt" },
+        { source: sources[1], destinationPath: "Archive/notes.txt" },
         { source: sources[2], destinationPath: "Archive/photo.png" }
+      ],
+      conflicts: [
+        { source: sources[0], existing, destinationPath: "Archive/notes.txt", isSelfCollision: false },
+        { source: sources[1], existing, destinationPath: "Archive/notes.txt", isSelfCollision: false }
       ]
     });
   });
 
-  it("invalidates an entire batch move on its first conflict", () => {
+  it("collects batch-move conflicts instead of invalidating the plan", () => {
+    const sources = [entry("first.txt", "One/first.txt"), entry("second.txt", "Two/second.txt")];
+    const existing = entry("second.txt", "Archive/second.txt");
     const plan = planDestination({
       kind: "batch",
       operation: "move",
-      sources: [entry("first.txt", "One/first.txt"), entry("second.txt", "Two/second.txt")],
-      destinationEntries: [entry("second.txt", "Archive/second.txt")],
+      sources,
+      destinationEntries: [existing],
       manualMode: false,
       folderPath: "Archive",
       manualPath: "ignored"
     });
 
     expect(plan).toEqual({
-      kind: "invalid",
-      destinationPath: "Archive/second.txt",
-      message: "Destination already contains second.txt. Choose a different folder."
+      kind: "valid",
+      destinationPath: "Archive",
+      targets: [
+        { source: sources[0], destinationPath: "Archive/first.txt" },
+        { source: sources[1], destinationPath: "Archive/second.txt" }
+      ],
+      conflicts: [
+        { source: sources[1], existing, destinationPath: "Archive/second.txt", isSelfCollision: false }
+      ]
     });
-    expect(plan).not.toHaveProperty("targets");
   });
 
   it("resolves the folder whose entries must back the plan", () => {
@@ -223,7 +238,7 @@ describe("destination planning", () => {
       .toEqual({ kind: "valid", path: "Projects" });
   });
 
-  it("always emits canonical and unique batch destinations", () => {
+  it("always emits canonical batch destinations and flags duplicate names as conflicts", () => {
     fc.assert(fc.property(fc.integer({ min: 1, max: 25 }), fc.integer({ min: 0, max: 1000 }), (count, segment) => {
       const sources = Array.from({ length: count }, (_, index) => entry("same.txt", `Source-${index}/same.txt`));
       const plan = planDestination({
@@ -239,8 +254,11 @@ describe("destination planning", () => {
       expect(plan.kind).toBe("valid");
       if (plan.kind === "valid") {
         const destinations = plan.targets.map((target) => target.destinationPath);
-        expect(new Set(destinations).size).toBe(destinations.length);
+        expect(new Set(destinations).size).toBe(1);
         expect(destinations.every((path) => path.startsWith(`Archive/Part-${segment}/`) && !path.includes("//"))).toBe(true);
+        expect(plan.conflicts).toHaveLength(count - 1);
+        expect(plan.conflicts.map((conflict) => conflict.source)).toEqual(sources.slice(1));
+        expect(plan.conflicts.every((conflict) => conflict.isSelfCollision === false)).toBe(true);
       }
     }), { numRuns: 100, seed: 424246 });
   });

@@ -153,6 +153,11 @@ export interface MutationWorkspaceCommands {
     operation: DestinationOperation,
     event?: import("react").FormEvent<HTMLFormElement>
   ): Promise<void>;
+  updateConflictDecision(sourcePath: string, decision: import("../../destination").DestinationConflictDecision): void;
+  applyConflictDecisionToAll(decision: import("../../destination").DestinationConflictDecision): void;
+  updateConflictApplySizeRule(checked: boolean): void;
+  dismissConflictReview(): void;
+  confirmConflictReview(): Promise<void>;
 }
 
 export interface MutationWorkspaceOutput {

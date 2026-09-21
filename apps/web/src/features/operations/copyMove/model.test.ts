@@ -43,7 +43,7 @@ describe("copyMove model helpers", () => {
       ["b.txt", entry("b.txt")]
     ]);
     const failures: BatchCopyMoveFailure[] = [
-      { target: { sourcePath: "b.txt", destinationPath: "Archive/b.txt" }, message: "failed" }
+      { sourcePath: "b.txt", message: "failed" }
     ];
     expect(deriveRetainedFailedEntries(sourceEntriesByPath, failures)).toEqual([
       { entry: entry("b.txt"), message: "failed" }
@@ -88,7 +88,8 @@ describe("copyMove model helpers", () => {
       nameEdited: false,
       manualPath: "Projects/roadmap.txt",
       manualMode: false,
-      entries: []
+      entries: [],
+      loading: false
     }, "copy")).toEqual({ kind: "invalid", destinationPath: "", message: "No selected item." });
     expect(buildDestinationPlanFromPicker({
       context,
@@ -100,7 +101,8 @@ describe("copyMove model helpers", () => {
       nameEdited: false,
       manualPath: "Archive/roadmap.txt",
       manualMode: false,
-      entries: []
+      entries: [],
+      loading: false
     }, "copy").kind).toBe("valid");
   });
 });

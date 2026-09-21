@@ -32,6 +32,10 @@ function entry(path: string): FileEntry {
   return { path, name: path.split("/").pop() ?? path, isFolder: false };
 }
 
+function resolved(source: FileEntry, destinationPath: string, options: { overwrite?: boolean; merge?: boolean } = {}) {
+  return { source, destinationPath, overwrite: options.overwrite ?? false, merge: options.merge ?? false };
+}
+
 function picker(overrides: Partial<CopyMovePickerSnapshot> = {}): CopyMovePickerSnapshot {
   const context = overrides.context ?? createOperationContextToken();
   return {
@@ -45,6 +49,7 @@ function picker(overrides: Partial<CopyMovePickerSnapshot> = {}): CopyMovePicker
     manualPath: "Archive/notes.txt",
     manualMode: false,
     entries: [],
+    loading: false,
     ...overrides
   };
 }
@@ -82,6 +87,8 @@ function ports(overrides: Partial<CopyMoveOrchestrationPorts> = {}): MutableFixt
     },
     batch: {
       executeCopyMoveTarget: vi.fn(async () => ({ kind: "completed" } as const)),
+      listChildren: vi.fn(async () => ({ kind: "completed", entries: [] } as const)),
+      deleteFolder: vi.fn(async () => ({ kind: "completed" } as const)),
       refreshFolder: vi.fn(async () => ({ kind: "completed" } as const))
     },
     selection: {
@@ -136,13 +143,15 @@ describe("runCopyMoveSubmitOrchestration", () => {
       operation: "copy",
       picker: currentPicker,
       destinationPath: "Archive/notes.txt",
-      targets: [{ source: entry("notes.txt"), destinationPath: "Archive/notes.txt" }],
+      targets: [resolved(entry("notes.txt"), "Archive/notes.txt")],
+      skipped: [],
+      applySizeRule: true,
       accountName: "Workspace",
       ...owner
     }, adapter);
 
     expect(adapter.mutation.execute).toHaveBeenCalledTimes(1);
-    expect(adapter.api.runCopyOrMove).toHaveBeenCalledWith("copy", "notes.txt", "Archive/notes.txt");
+    expect(adapter.api.runCopyOrMove).toHaveBeenCalledWith("copy", "notes.txt", "Archive/notes.txt", false);
     expect(owner.completeDestination).toHaveBeenCalledWith(owner.attempt, currentPicker.context);
     expect(adapter.mutations.begin).not.toHaveBeenCalled();
   });
@@ -156,9 +165,11 @@ describe("runCopyMoveSubmitOrchestration", () => {
       picker: currentPicker,
       destinationPath: "Archive",
       targets: [
-        { source: entry("a.txt"), destinationPath: "Archive/a.txt" },
-        { source: entry("b.txt"), destinationPath: "Archive/b.txt" }
+        resolved(entry("a.txt"), "Archive/a.txt"),
+        resolved(entry("b.txt"), "Archive/b.txt")
       ],
+      skipped: [],
+      applySizeRule: true,
       accountName: "Workspace",
       ...owner
     }, adapter);
@@ -179,6 +190,8 @@ describe("runCopyMoveSubmitOrchestration", () => {
             ? { kind: "failed", message: "failed" }
             : { kind: "completed" };
         }),
+        listChildren: vi.fn(async () => ({ kind: "completed", entries: [] } as const)),
+        deleteFolder: vi.fn(async () => ({ kind: "completed" } as const)),
         refreshFolder: vi.fn(async () => ({ kind: "completed" } as const))
       }
     });
@@ -193,10 +206,12 @@ describe("runCopyMoveSubmitOrchestration", () => {
       picker: currentPicker,
       destinationPath: "Archive",
       targets: [
-        { source: entry("a.txt"), destinationPath: "Archive/a.txt" },
-        { source: entry("b.txt"), destinationPath: "Archive/b.txt" },
-        { source: entry("c.txt"), destinationPath: "Archive/c.txt" }
+        resolved(entry("a.txt"), "Archive/a.txt"),
+        resolved(entry("b.txt"), "Archive/b.txt"),
+        resolved(entry("c.txt"), "Archive/c.txt")
       ],
+      skipped: [],
+      applySizeRule: true,
       accountName: "Workspace",
       ...owner
     }, adapter);
@@ -223,9 +238,11 @@ describe("runCopyMoveSubmitOrchestration", () => {
       picker: retryPicker,
       destinationPath: "Archive",
       targets: [
-        { source: entry("b.txt"), destinationPath: "Archive/b.txt" },
-        { source: entry("c.txt"), destinationPath: "Archive/c.txt" }
+        resolved(entry("b.txt"), "Archive/b.txt"),
+        resolved(entry("c.txt"), "Archive/c.txt")
       ],
+      skipped: [],
+      applySizeRule: true,
       accountName: "Workspace",
       ...retryOwner
     }, adapter);
@@ -235,6 +252,7 @@ describe("runCopyMoveSubmitOrchestration", () => {
       "copy",
       "b.txt",
       "Archive/b.txt",
+      false,
       retryPicker.context,
       { kind: "copy", count: 2 },
       expect.any(Function)
@@ -243,6 +261,7 @@ describe("runCopyMoveSubmitOrchestration", () => {
       "copy",
       "c.txt",
       "Archive/c.txt",
+      false,
       retryPicker.context,
       { kind: "copy", count: 2 },
       expect.any(Function)
@@ -254,6 +273,8 @@ describe("runCopyMoveSubmitOrchestration", () => {
     const adapter = ports({
       batch: {
         executeCopyMoveTarget: vi.fn(async () => ({ kind: "completed" } as const)),
+        listChildren: vi.fn(async () => ({ kind: "completed", entries: [] } as const)),
+        deleteFolder: vi.fn(async () => ({ kind: "completed" } as const)),
         refreshFolder: vi.fn(async () => ({ kind: "completed" } as const))
       }
     });
@@ -264,7 +285,9 @@ describe("runCopyMoveSubmitOrchestration", () => {
       operation: "copy",
       picker: currentPicker,
       destinationPath: "Archive",
-      targets: [{ source: entry("a.txt"), destinationPath: "Archive/a.txt" }],
+      targets: [resolved(entry("a.txt"), "Archive/a.txt")],
+      skipped: [],
+      applySizeRule: true,
       accountName: "Workspace",
       ...ownership(currentPicker.context)
     }, adapter);
@@ -277,6 +300,8 @@ describe("runCopyMoveSubmitOrchestration", () => {
     const adapter = ports({
       batch: {
         executeCopyMoveTarget: vi.fn(async () => ({ kind: "sessionTerminated" } as const)),
+        listChildren: vi.fn(async () => ({ kind: "completed", entries: [] } as const)),
+        deleteFolder: vi.fn(async () => ({ kind: "completed" } as const)),
         refreshFolder: vi.fn(async () => ({ kind: "completed" } as const))
       }
     });
@@ -287,7 +312,9 @@ describe("runCopyMoveSubmitOrchestration", () => {
       operation: "copy",
       picker: currentPicker,
       destinationPath: "Archive",
-      targets: [{ source: entry("a.txt"), destinationPath: "Archive/a.txt" }],
+      targets: [resolved(entry("a.txt"), "Archive/a.txt")],
+      skipped: [],
+      applySizeRule: true,
       accountName: "Workspace",
       ...owner
     }, adapter);
@@ -310,7 +337,9 @@ describe("runCopyMoveSubmitOrchestration", () => {
       operation: "move",
       picker: currentPicker,
       destinationPath: "Archive/notes.txt",
-      targets: [{ source: entry("notes.txt"), destinationPath: "Archive/notes.txt" }],
+      targets: [resolved(entry("notes.txt"), "Archive/notes.txt")],
+      skipped: [],
+      applySizeRule: true,
       accountName: "Workspace",
       ...owner
     }, adapter);
@@ -333,7 +362,9 @@ describe("runCopyMoveSubmitOrchestration", () => {
       operation: "copy",
       picker: currentPicker,
       destinationPath: "Archive/notes.txt",
-      targets: [{ source: entry("notes.txt"), destinationPath: "Archive/notes.txt" }],
+      targets: [resolved(entry("notes.txt"), "Archive/notes.txt")],
+      skipped: [],
+      applySizeRule: true,
       accountName: "Workspace",
       ...owner
     }, adapter);

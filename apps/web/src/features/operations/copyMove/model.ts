@@ -1,28 +1,47 @@
 import type { FileEntry } from "@davora/shared";
 import { dirname } from "@davora/shared";
 
-import type { DestinationOperation, DestinationPickerInitialState, DestinationPickerSnapshot, DestinationTarget } from "../destination";
+import type { DestinationOperation, DestinationPickerInitialState, DestinationPickerSnapshot, ResolvedDestinationTarget } from "../destination";
 import type { OperationContextToken } from "../policy";
 
 export type BatchCopyMoveOperation = "copy" | "move";
 
+export type CopyMoveTargetMode = "write" | "overwrite" | "merge";
+
 export interface BatchCopyMoveTarget {
+  readonly source: FileEntry;
+  readonly destinationPath: string;
+  readonly mode: CopyMoveTargetMode;
+}
+
+export type CopyMoveItemStatus = "done" | "skipped" | "failed";
+
+export interface CopyMoveSettledItem {
   readonly sourcePath: string;
   readonly destinationPath: string;
+  readonly isFolder: boolean;
+  readonly size?: number;
+  readonly status: CopyMoveItemStatus;
+  readonly error?: string;
 }
 
 export interface BatchCopyMoveInput {
   readonly operation: BatchCopyMoveOperation;
   readonly targets: readonly BatchCopyMoveTarget[];
+  /** Pre-resolved conflicts the user chose to skip — reported but never executed. */
+  readonly skipped?: readonly FileEntry[];
+  /** Whether nested merge conflicts replace when source size >= existing size. */
+  readonly applySizeRule?: boolean;
 }
 
 export interface BatchCopyMoveFailure {
-  readonly target: BatchCopyMoveTarget;
+  readonly sourcePath: string;
   readonly message: string;
 }
 
 interface BatchCopyMoveOutcomeBase {
   readonly completedCount: number;
+  readonly skippedCount: number;
   readonly totalCount: number;
   readonly failures: readonly BatchCopyMoveFailure[];
 }
@@ -31,6 +50,7 @@ export type BatchCopyMoveOutcome =
   | (BatchCopyMoveOutcomeBase & { readonly kind: "completed" })
   | (BatchCopyMoveOutcomeBase & { readonly kind: "partial" })
   | (BatchCopyMoveOutcomeBase & { readonly kind: "sessionTerminated" })
+  | (BatchCopyMoveOutcomeBase & { readonly kind: "canceled" })
   | (BatchCopyMoveOutcomeBase & { readonly kind: "superseded" });
 
 export type CopyMovePickerSnapshot = DestinationPickerSnapshot;
@@ -120,9 +140,19 @@ export function buildBatchCopyMoveSuccessStatus(
   batchTargetCount: number,
   destinationPath: string,
   accountName: string,
-  toDisplayPath: (path: string) => string
+  toDisplayPath: (path: string) => string,
+  skippedCount = 0
 ): string {
-  return `${operationLabel} ${pluralize(batchTargetCount, "selected item")} to ${toDisplayPath(destinationPath)} in ${accountName}.`;
+  const skipped = skippedCount > 0 ? ` ${pluralize(skippedCount, "item")} skipped.` : "";
+  return `${operationLabel} ${pluralize(batchTargetCount, "selected item")} to ${toDisplayPath(destinationPath)} in ${accountName}.${skipped}`;
+}
+
+export function buildCopyMoveSkippedStatus(
+  operationLabel: "Copied" | "Moved",
+  skippedCount: number,
+  accountName: string
+): string {
+  return `Nothing ${operationLabel.toLowerCase()} — ${pluralize(skippedCount, "item")} skipped in ${accountName}.`;
 }
 
 export function buildBatchCopyMovePartialActionError(
@@ -149,7 +179,7 @@ export function deriveRetainedFailedEntries(
   failures: readonly BatchCopyMoveFailure[]
 ): CopyMovePartialFailure[] {
   return failures.map((failure) => {
-    const entry = sourceEntriesByPath.get(failure.target.sourcePath);
+    const entry = sourceEntriesByPath.get(failure.sourcePath);
     if (!entry) {
       throw new Error("Batch copy/move outcome referenced an unknown source.");
     }
@@ -167,11 +197,12 @@ export function shouldRetainDestinationPickerAfterPartialBatch(): boolean {
   return true;
 }
 
-export function mapBatchTargets(
-  targets: readonly DestinationTarget[]
+export function mapResolvedTargets(
+  targets: readonly ResolvedDestinationTarget[]
 ): readonly BatchCopyMoveTarget[] {
   return targets.map((target) => ({
-    sourcePath: target.source.path,
-    destinationPath: target.destinationPath
+    source: target.source,
+    destinationPath: target.destinationPath,
+    mode: target.merge ? "merge" : target.overwrite ? "overwrite" : "write"
   }));
 }

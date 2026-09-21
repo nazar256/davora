@@ -71,7 +71,7 @@ type LifecycleChild = Pick<
 type DestinationChild = Pick<
   ReturnType<typeof useDestinationPicker>,
   "destinationPicker" | "currentDestinationPicker" | "setDestinationPicker" | "close" |
-  "closeIfCurrent" | "updateFailedSourcesIfCurrent" | "updateFolder" | "updateName" |
+  "closeIfCurrent" | "updateFolder" | "updateName" |
   "updateManualMode" | "updateManualPath" | "reload" | "getValidation"
 >;
 
@@ -221,6 +221,8 @@ function createOrchestrationPorts(): MutationWorkflowOrchestrationPorts {
       api: { runCopyOrMove: vi.fn() },
       batch: {
         executeCopyMoveTarget: vi.fn(),
+        listChildren: vi.fn(),
+        deleteFolder: vi.fn(),
         refreshFolder: vi.fn()
       }
     }
@@ -251,7 +253,8 @@ function createWorkflowPorts() {
         parentPath: "Projects",
         path: "Projects/photo.png",
         destinationPath: "Archive/photo.png"
-      } satisfies MutationResult))
+      } satisfies MutationResult)),
+      listChildren: vi.fn(async () => ({ items: [] }))
     },
     refresh: {
       getCurrentPath: vi.fn(() => "Projects"),
@@ -382,13 +385,12 @@ function createChildren(inputContext: OperationContextToken, surface: "action" |
     setDestinationPicker: vi.fn(),
     close: vi.fn(() => order.push("destination-close")),
     closeIfCurrent: vi.fn(),
-    updateFailedSourcesIfCurrent: vi.fn(),
     updateFolder: vi.fn(),
     updateName: vi.fn(),
     updateManualMode: vi.fn(),
     updateManualPath: vi.fn(),
     reload: vi.fn(),
-    getValidation: vi.fn(() => ({ kind: "valid" as const, destinationPath: "Archive", targets: [] }))
+    getValidation: vi.fn(() => ({ kind: "valid" as const, destinationPath: "Archive", targets: [], conflicts: [] }))
   };
   const workflow: WorkflowChild = {
     mutationBusy: true,
@@ -408,7 +410,12 @@ function createChildren(inputContext: OperationContextToken, surface: "action" |
     openMove: vi.fn(),
     openCopyMove: vi.fn(),
     openCopyMoveSelection: vi.fn(),
-    submitDestinationPicker: vi.fn()
+    submitDestinationPicker: vi.fn(),
+    updateConflictDecision: vi.fn(),
+    applyConflictDecisionToAll: vi.fn(),
+    updateConflictApplySizeRule: vi.fn(),
+    dismissConflictReview: vi.fn(),
+    confirmConflictReview: vi.fn(async () => {})
   };
   mockedChildren.lifecycle.mockReturnValue(lifecycle);
   mockedChildren.destination.mockReturnValue(destination);

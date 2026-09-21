@@ -1,5 +1,7 @@
 import { useMemo } from "react";
 
+import { getViewerKind } from "@davora/shared";
+
 import { projectDeleteDialogCanConfirm, projectOperationRenderCapabilities } from "../policy";
 import { useMutationWorkspace } from "../mutation/workspace/useMutationWorkspace";
 import { createDownloadWorkspacePorts, useDownloadWorkspace } from "../download/workspace";
@@ -69,7 +71,8 @@ export function useOperationExecutionWorkspace(input: OperationExecutionWorkspac
           createFolder: input.runtime.mutation.createFolder,
           deleteFile: input.runtime.mutation.deleteFile,
           uploadFileWithProgress: input.runtime.mutation.uploadFile,
-          runCopyOrMove: (operation, source, destination, token) => input.runtime.mutation.copyOrMove(operation, source, destination, token)
+          runCopyOrMove: (operation, source, destination, token, overwrite) => input.runtime.mutation.copyOrMove(operation, source, destination, token, overwrite),
+          listChildren: (path, token) => input.runtime.mutation.listDestination(path, token)
         }
       },
       destination: {
@@ -187,6 +190,17 @@ export function useOperationExecutionWorkspace(input: OperationExecutionWorkspac
       files: input.runtime.uploadFiles
     }
   });
+  const token = input.context.token;
+  const resolvePreviewUrl = useMemo(() => async (entry: { path: string; mimeType?: string }) => {
+    if (!token || getViewerKind(entry.mimeType) !== "image") {
+      return undefined;
+    }
+    try {
+      return await input.runtime.preview.createFileStreamUrl(entry.path, token);
+    } catch {
+      return undefined;
+    }
+  }, [input.runtime, token]);
   const stage = {
     state: mutationState,
     busy: mutationState.busy,
@@ -206,7 +220,13 @@ export function useOperationExecutionWorkspace(input: OperationExecutionWorkspac
     onDestinationNameChange: mutationWorkspace.commands.updateDestinationName,
     onDestinationReload: mutationWorkspace.commands.reloadDestinationPicker,
     onSubmitAction: (event: import("react").FormEvent<HTMLFormElement>) => { void mutationWorkspace.commands.submitActionDialog(event); },
-    onSubmitDestination: (operation: import("../destination").DestinationOperation, event?: import("react").FormEvent<HTMLFormElement>) => { void mutationWorkspace.commands.submitDestinationPicker(operation, event); }
+    onSubmitDestination: (operation: import("../destination").DestinationOperation, event?: import("react").FormEvent<HTMLFormElement>) => { void mutationWorkspace.commands.submitDestinationPicker(operation, event); },
+    onConflictDecisionChange: mutationWorkspace.commands.updateConflictDecision,
+    onConflictApplyToAll: mutationWorkspace.commands.applyConflictDecisionToAll,
+    onConflictApplySizeRuleChange: mutationWorkspace.commands.updateConflictApplySizeRule,
+    onConflictConfirm: () => { void mutationWorkspace.commands.confirmConflictReview(); },
+    onConflictBack: mutationWorkspace.commands.dismissConflictReview,
+    resolvePreviewUrl
   } satisfies OperationExecutionWorkspaceOutput["mutation"]["stage"];
   const commands: OperationExecutionWorkspaceOutput["commands"] = {
     openCreateFolder: mutationWorkspace.commands.openCreateFolder,

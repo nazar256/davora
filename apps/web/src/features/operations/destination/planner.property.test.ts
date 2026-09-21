@@ -248,7 +248,8 @@ describe("destination planner property characterization", () => {
         expect(plan).toEqual({
           kind: "valid",
           destinationPath: expectedDestinationPath,
-          targets: [{ source, destinationPath: expectedDestinationPath }]
+          targets: [{ source, destinationPath: expectedDestinationPath }],
+          conflicts: []
         });
         expect(input).toEqual(before);
         if (plan.kind === "valid") {
@@ -283,9 +284,15 @@ describe("destination planner property characterization", () => {
         manualPath: samePath
       });
       expect(copyPlan).toEqual({
-        kind: "invalid",
+        kind: "valid",
         destinationPath: source.path,
-        message: `Destination already contains ${name}. Use ${expectedSuffixName(name, 1)} or choose a different folder.`
+        targets: [{ source, destinationPath: source.path }],
+        conflicts: [{
+          source,
+          existing: source,
+          destinationPath: source.path,
+          isSelfCollision: true
+        }]
       });
       expect(movePlan).toEqual({
         kind: "invalid",
@@ -374,10 +381,17 @@ describe("destination planner property characterization", () => {
       expect(plan.kind).toBe("valid");
       if (plan.kind === "valid") {
         const destinations = plan.targets.map((target) => target.destinationPath);
+        const seen = new Set<string>();
+        const expectedConflictSources = sources.filter((source) => {
+          const collides = seen.has(source.name);
+          seen.add(source.name);
+          return collides;
+        });
         expect(plan.destinationPath).toBe(normalizeRootPath(folderDraft));
         expect(plan.targets).toHaveLength(sources.length);
         expect(plan.targets.map((target) => target.source)).toEqual(sources);
-        expect(new Set(destinations).size).toBe(destinations.length);
+        expect(plan.conflicts.map((conflict) => conflict.source)).toEqual(expectedConflictSources);
+        expect(new Set(destinations).size).toBe(new Set(sources.map((source) => source.name)).size);
         expect(destinations.every((path) => normalizeRootPath(path) === path)).toBe(true);
         expect(destinations.every((path) => path.startsWith(plan.destinationPath ? `${plan.destinationPath}/` : ""))).toBe(true);
       }
@@ -391,10 +405,10 @@ describe("destination planner property characterization", () => {
       manualMode: true,
       folderPath: "ignored",
       manualPath: " / "
-    })).toEqual({ kind: "valid", destinationPath: "", targets: [] });
+    })).toEqual({ kind: "valid", destinationPath: "", targets: [], conflicts: [] });
   });
 
-  it("accounts for pre-existing and earlier planned copy conflicts with the smallest gaps", () => {
+  it("collects conflicts for pre-existing and earlier planned copy targets", () => {
     fc.assert(fc.property(
       fc.array(nameArb, { minLength: 1, maxLength: 8 }),
       fc.array(nameArb, { maxLength: 8 }),
@@ -403,11 +417,12 @@ describe("destination planner property characterization", () => {
         const sources = sourceNames.map((name, index) => sourceEntry(index, name));
         const destinationEntries = existingNames.map((name, index) => entry(name, `${destinationFolder}/${index}/${name}`));
         const usedNames: Set<string> = new Set(existingNames);
-        const expectedNames: string[] = [];
-        for (const name of sourceNames) {
-          const candidate = usedNames.has(name) ? expectedAvailableSuffix(name, usedNames) : name;
-          expectedNames.push(candidate);
-          usedNames.add(candidate);
+        const expectedConflictingSources: FileEntry[] = [];
+        for (const source of sources) {
+          if (usedNames.has(source.name)) {
+            expectedConflictingSources.push(source);
+          }
+          usedNames.add(source.name);
         }
         const plan = planDestination({
           kind: "batch",
@@ -419,40 +434,48 @@ describe("destination planner property characterization", () => {
           manualPath: decorateCanonicalPath(destinationFolder)
         });
 
-        expect(plan).toEqual({
-          kind: "valid",
-          destinationPath: destinationFolder,
-          targets: expectedNames.map((name, index) => ({
-            source: sources[index],
-            destinationPath: `${destinationFolder}/${name}`
-          }))
-        });
+        expect(plan.kind).toBe("valid");
+        if (plan.kind === "valid") {
+          expect(plan.destinationPath).toBe(destinationFolder);
+          expect(plan.targets).toEqual(sources.map((source) => ({
+            source,
+            destinationPath: `${destinationFolder}/${source.name}`
+          })));
+          expect(plan.conflicts.map((conflict) => conflict.source)).toEqual(expectedConflictingSources);
+          expect(plan.conflicts.every((conflict) => conflict.existing.name === conflict.source.name)).toBe(true);
+        }
       }
     ), PROPERTY_OPTIONS);
 
     const sources = [sourceEntry(0, "report.txt"), sourceEntry(1, "report.txt")];
+    const existing = entry("report.txt", "Destination/report.txt");
     expect(planDestination({
       kind: "batch",
       operation: "copy",
       sources,
       destinationEntries: [
-        entry("report.txt", "Destination/report.txt"),
+        existing,
         entry("report (1).txt", "Destination/report (1).txt"),
         entry("report (3).txt", "Destination/report (3).txt")
       ],
       manualMode: true,
       folderPath: "ignored",
       manualPath: "Destination"
-    })).toMatchObject({
+    })).toEqual({
       kind: "valid",
+      destinationPath: "Destination",
       targets: [
-        { destinationPath: "Destination/report (2).txt" },
-        { destinationPath: "Destination/report (4).txt" }
+        { source: sources[0], destinationPath: "Destination/report.txt" },
+        { source: sources[1], destinationPath: "Destination/report.txt" }
+      ],
+      conflicts: [
+        { source: sources[0], existing, destinationPath: "Destination/report.txt", isSelfCollision: false },
+        { source: sources[1], existing, destinationPath: "Destination/report.txt", isSelfCollision: false }
       ]
     });
   });
 
-  it("rejects the first batch-move conflict atomically and returns typed invalid shapes", () => {
+  it("collects batch-move conflicts and returns typed invalid shapes", () => {
     const invalidKindArb = fc.constantFrom("empty-name", "bad-manual-path", "bad-source-path");
     fc.assert(fc.property(
       fc.uniqueArray(nameArb, { minLength: 1, maxLength: 6 }),
@@ -465,21 +488,29 @@ describe("destination planner property characterization", () => {
         if (!conflictName) {
           throw new Error("The generated conflict source must exist.");
         }
+        const existing = entry(conflictName, `Destination/${conflictName}`);
         const plan = planDestination({
           kind: "batch",
           operation: "move",
           sources,
-          destinationEntries: [entry(conflictName, `Destination/${conflictName}`)],
+          destinationEntries: [existing],
           manualMode: false,
           folderPath: " /Destination// ",
           manualPath: "ignored"
         });
         expect(plan).toEqual({
-          kind: "invalid",
-          destinationPath: `Destination/${conflictName}`,
-          message: `Destination already contains ${conflictName}. Choose a different folder.`
+          kind: "valid",
+          destinationPath: "Destination",
+          targets: sources.map((source) => ({ source, destinationPath: `Destination/${source.name}` })),
+          conflicts: sources
+            .filter((source) => source.name === conflictName)
+            .map((source) => ({
+              source,
+              existing,
+              destinationPath: `Destination/${source.name}`,
+              isSelfCollision: false
+            }))
         });
-        expect(plan).not.toHaveProperty("targets");
 
         if (invalidKind === "empty-name") {
           expectInvalidPlan({

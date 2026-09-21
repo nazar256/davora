@@ -153,6 +153,7 @@ function createUploadFixture() {
       triggerBrowserDownload: vi.fn(), saveDownload: vi.fn()
     },
     batch: { downloadSelectionAsZip: vi.fn() },
+    preview: { createFileStreamUrl: vi.fn(async () => "") },
     uploadFiles,
     isUnauthorized: (error) => error instanceof ApiRequestError && error.status === 401,
     isReconnectRequired: (error) => error instanceof ApiRequestError && error.code === "account_reconnect_required",

@@ -8,6 +8,7 @@ import type {
   DestinationOperation,
   DestinationPlan,
   DestinationTarget,
+  PlannedDestinationConflict,
   SingleDestinationPlanInput
 } from "./model";
 
@@ -30,7 +31,26 @@ export function destinationNameExists(
   selectedEntry: FileEntry,
   operation: DestinationOperation
 ): boolean {
-  return entries.some((entry) => entry.name === name && (operation === "copy" || entry.path !== selectedEntry.path));
+  return findDestinationNameConflict(entries, name, selectedEntry, operation) !== undefined;
+}
+
+function sameNormalizedPath(left: string, right: string): boolean {
+  try {
+    return normalizeRootPath(left) === normalizeRootPath(right);
+  } catch {
+    return left === right;
+  }
+}
+
+export function findDestinationNameConflict(
+  entries: readonly FileEntry[],
+  name: string,
+  selectedEntry: FileEntry,
+  operation: DestinationOperation
+): FileEntry | undefined {
+  return entries.find(
+    (entry) => entry.name === name && (operation === "copy" || !sameNormalizedPath(entry.path, selectedEntry.path))
+  );
 }
 
 export function suggestDestinationName(
@@ -52,14 +72,14 @@ export function suggestDestinationName(
   }
 }
 
-function joinCanonicalPath(parentPath: string, name: string): string {
+export function joinCanonicalDestinationPath(parentPath: string, name: string): string {
   return parentPath ? `${parentPath}/${name}` : name;
 }
 
 export function buildDestinationDraftPath(parentPath: string, name: string): string {
   const trimmedParent = parentPath.trim().replace(/^\/+|\/+$/g, "");
   const trimmedName = name.trim();
-  return joinCanonicalPath(trimmedParent, trimmedName);
+  return joinCanonicalDestinationPath(trimmedParent, trimmedName);
 }
 
 function invalid(destinationPath: string, message: string): DestinationPlan {
@@ -122,7 +142,7 @@ function planSingle(input: SingleDestinationPlanInput): DestinationPlan {
         return invalid(destinationParentPath, "Choose a destination name before continuing.");
       }
       destinationName = normalizedName;
-      destinationPath = joinCanonicalPath(destinationParentPath, destinationName);
+      destinationPath = joinCanonicalDestinationPath(destinationParentPath, destinationName);
     }
   } catch {
     return invalid(
@@ -142,35 +162,34 @@ function planSingle(input: SingleDestinationPlanInput): DestinationPlan {
     return invalid(destinationPath, "Enter a valid destination path.");
   }
 
-  if (destinationPath === sourcePath) {
-    return invalid(
-      destinationPath,
-      input.operation === "copy"
-        ? `Destination already contains ${destinationName}. Use ${suggestDestinationName(input.destinationEntries, destinationName, input.source, "copy")} or choose a different folder.`
-        : "Choose a different destination folder or name."
-    );
+  if (destinationPath === sourcePath && input.operation === "move") {
+    return invalid(destinationPath, "Choose a different destination folder or name.");
   }
 
   if (input.source.isFolder && isSameOrDescendantPath(destinationParentPath, sourcePath)) {
     return invalid(destinationPath, "Folders cannot be moved or copied into themselves or their descendants.");
   }
 
-  if (destinationNameExists(input.destinationEntries, destinationName, input.source, input.operation)) {
-    const suggestedName = input.operation === "copy"
-      ? suggestDestinationName(input.destinationEntries, destinationName, input.source, "copy")
-      : undefined;
-    return invalid(
+  const conflicts: PlannedDestinationConflict[] = [];
+  if (destinationPath === sourcePath) {
+    conflicts.push({
+      source: input.source,
+      existing: input.destinationEntries.find((entry) => sameNormalizedPath(entry.path, sourcePath)) ?? input.source,
       destinationPath,
-      suggestedName
-        ? `Destination already contains ${destinationName}. Use ${suggestedName} or choose a different folder.`
-        : `Destination already contains ${destinationName}. Choose a different name or folder.`
-    );
+      isSelfCollision: true
+    });
+  } else {
+    const existing = findDestinationNameConflict(input.destinationEntries, destinationName, input.source, input.operation);
+    if (existing) {
+      conflicts.push({ source: input.source, existing, destinationPath, isSelfCollision: false });
+    }
   }
 
   return {
     kind: "valid",
     destinationPath,
-    targets: [{ source: input.source, destinationPath }]
+    targets: [{ source: input.source, destinationPath }],
+    conflicts
   };
 }
 
@@ -187,6 +206,7 @@ function planBatch(input: BatchDestinationPlanInput): DestinationPlan {
 
   const plannedEntries = [...input.destinationEntries];
   const targets: DestinationTarget[] = [];
+  const conflicts: PlannedDestinationConflict[] = [];
 
   for (const source of input.sources) {
     let sourcePath: string;
@@ -209,25 +229,23 @@ function planBatch(input: BatchDestinationPlanInput): DestinationPlan {
       );
     }
 
-    const directDestinationPath = joinCanonicalPath(destinationFolderPath, destinationName);
-    const hasConflict = directDestinationPath === sourcePath
-      || destinationNameExists(plannedEntries, destinationName, source, input.operation);
-    if (hasConflict) {
-      if (input.operation === "move") {
-        return invalid(
-          directDestinationPath,
-          `Destination already contains ${destinationName}. Choose a different folder.`
-        );
-      }
-      destinationName = suggestDestinationName(plannedEntries, destinationName, source, "copy");
+    const destinationPath = joinCanonicalDestinationPath(destinationFolderPath, destinationName);
+    const existing = findDestinationNameConflict(plannedEntries, destinationName, source, input.operation);
+    const isSelfCollision = destinationPath === sourcePath;
+    if (isSelfCollision || existing) {
+      conflicts.push({
+        source,
+        existing: isSelfCollision ? (existing ?? source) : existing!,
+        destinationPath,
+        isSelfCollision
+      });
     }
 
-    const destinationPath = joinCanonicalPath(destinationFolderPath, destinationName);
     targets.push({ source, destinationPath });
     plannedEntries.push({ ...source, path: destinationPath, name: destinationName });
   }
 
-  return { kind: "valid", destinationPath: destinationFolderPath, targets };
+  return { kind: "valid", destinationPath: destinationFolderPath, targets, conflicts };
 }
 
 export function planDestination(input: SingleDestinationPlanInput | BatchDestinationPlanInput): DestinationPlan {

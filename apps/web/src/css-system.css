@@ -24,6 +24,7 @@
 @import "./features/preview/folderAudio/folderAudio.css" layer(features);
 @import "./features/operations/selection/selectionDetails.css" layer(features);
 @import "./features/operations/destination/destinationPicker.css" layer(features);
+@import "./features/operations/destination/conflictResolution.css" layer(features);
 @import "./features/operations/actionDialog/actionDialog.css" layer(features);
 @import "./features/settings/settingsDialog/settingsDialog.css" layer(features);
 @import "./features/diagnostics/report/reportBug.css" layer(features);

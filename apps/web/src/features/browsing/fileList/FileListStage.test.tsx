@@ -255,7 +255,7 @@ describe("FileListStage", () => {
     const { unmount } = render(<FileListStage {...buildProps({ selectAllState: "partial" })} />);
     const mixed = screen.getByRole("checkbox", { name: /Select all items in this folder/i });
     expect(mixed).toHaveAttribute("aria-checked", "mixed");
-    expect((mixed as HTMLInputElement).indeterminate).toBe(true);
+    expect(mixed).toHaveProperty("indeterminate", true);
     unmount();
 
     render(<FileListStage {...buildProps({ selectAllState: "all" })} />);

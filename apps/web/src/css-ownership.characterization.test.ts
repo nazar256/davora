@@ -23,6 +23,7 @@ const featureSheets = [
   "features/preview/folderAudio/folderAudio.css",
   "features/operations/selection/selectionDetails.css",
   "features/operations/destination/destinationPicker.css",
+  "features/operations/destination/conflictResolution.css",
   "features/operations/actionDialog/actionDialog.css",
   "features/settings/settingsDialog/settingsDialog.css",
   "features/diagnostics/report/reportBug.css",

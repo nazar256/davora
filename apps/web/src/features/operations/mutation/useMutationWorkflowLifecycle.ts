@@ -91,8 +91,9 @@ export function useMutationWorkflowLifecycle(input: UseMutationWorkflowLifecycle
     const current = stateRef.current;
     const context = draft.kind === "action" ? draft.dialog.context : draft.picker.context;
     if (!replaceExisting) {
-      if ((current.kind === "collectingInput" || current.kind === "choosingDestination")
-        && current.context.isSame(context)) {
+      const acceptsDraftUpdate = current.kind === "collectingInput" || current.kind === "choosingDestination"
+        || (current.kind === "partial" && current.draft.kind === "destination" && draft.kind === "destination");
+      if (acceptsDraftUpdate && current.context.isSame(context)) {
         send({ kind: "update-draft", identity: current.identity, context: current.context, draft });
       }
       return;

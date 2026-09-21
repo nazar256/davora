@@ -137,8 +137,10 @@ export interface MutationApiSources {
     operation: DestinationOperation,
     sourcePath: string,
     destinationPath: string,
-    token: string
+    token: string,
+    overwrite?: boolean
   ): Promise<MutationResult>;
+  listChildren(path: string, token: string): Promise<{ readonly items: readonly FileEntry[] }>;
 }
 
 export interface CreateMutationWorkflowPortsInput {
@@ -453,24 +455,61 @@ export function createMutationOrchestrationPorts(
     copyMoveSubmit: {
       ...shared,
       api: {
-        runCopyOrMove: (operation, sourcePath, destinationPath) => {
+        runCopyOrMove: (operation, sourcePath, destinationPath, overwrite) => {
           return Promise.resolve(input.api.runCopyOrMove(
             operation,
             sourcePath,
             destinationPath,
-            sessionApi.getToken()
+            sessionApi.getToken(),
+            overwrite
           ));
         }
       },
       batch: {
-        executeCopyMoveTarget: async (operation: BatchCopyMoveOperation, sourcePath, destinationPath, context, intent, isAttemptCurrent) => {
+        executeCopyMoveTarget: async (operation: BatchCopyMoveOperation, sourcePath, destinationPath, overwrite, context, intent, isAttemptCurrent) => {
           return executeBatchMutationTarget(
             Boolean(input.session.getToken()),
             { execute: runner.executeMutation },
-            () => input.api.runCopyOrMove(operation, sourcePath, destinationPath, sessionApi.getToken()),
+            () => input.api.runCopyOrMove(operation, sourcePath, destinationPath, sessionApi.getToken(), overwrite),
             context,
             intent,
             "Unable to complete this item.",
+            isAttemptCurrent
+          );
+        },
+        listChildren: async (path, context) => {
+          if (!input.session.getToken()) {
+            return { kind: "sessionTerminated" };
+          }
+          try {
+            const listing = await input.api.listChildren(path, sessionApi.getToken());
+            if (!input.context.isCurrentOperationContext(context)) {
+              return { kind: "failed", message: "This action was superseded." };
+            }
+            return { kind: "completed", entries: listing.items };
+          } catch (error) {
+            if (isMutationUnauthorized(error)) {
+              input.session.resetActiveSession("Session expired. Create a fresh session for this account.");
+              return { kind: "sessionTerminated" };
+            }
+            if (isMutationReconnectRequired(error)) {
+              input.session.resetActiveSession("This account needs to be reconnected before completing mutations.", true);
+              return { kind: "sessionTerminated" };
+            }
+            return {
+              kind: "failed",
+              message: error instanceof Error ? error.message : "Unable to read the destination folder."
+            };
+          }
+        },
+        deleteFolder: async (path, confirmName, context, intent, isAttemptCurrent) => {
+          return executeBatchMutationTarget(
+            Boolean(input.session.getToken()),
+            { execute: runner.executeMutation },
+            () => input.api.deleteFile(path, confirmName, sessionApi.getToken()),
+            context,
+            intent,
+            "Unable to remove the emptied source folder.",
             isAttemptCurrent
           );
         },

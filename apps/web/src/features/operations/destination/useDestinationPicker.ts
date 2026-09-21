@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 
-import type { FileEntry } from "@davora/shared";
-
 import type { OperationContextToken } from "../policy";
 import {
   executeDestinationListing,
@@ -15,7 +13,6 @@ import {
   matchesDestinationListing,
   reloadDestinationPickerFolder,
   selectCurrentDestinationPicker,
-  updateDestinationPickerFailedSourcesIfCurrent,
   updateDestinationPickerFolder,
   updateDestinationPickerManualMode,
   updateDestinationPickerManualPath,
@@ -190,20 +187,6 @@ export function useDestinationPicker(input: UseDestinationPickerInput) {
     ));
   }, [setDestinationPicker]);
 
-  const updateFailedSourcesIfCurrent = useCallback((
-    context: OperationContextToken,
-    pickerStillCurrent: () => boolean,
-    failedEntries: readonly FileEntry[]
-  ) => {
-    setDestinationPicker((previous) => updateDestinationPickerFailedSourcesIfCurrent(
-      previous,
-      context,
-      pickerStillCurrent,
-      failedEntries,
-      inputRef.current.isCurrentOperationContext
-    ));
-  }, [setDestinationPicker]);
-
   const updateFolder = useCallback((folderPath: string) => {
     inputRef.current.onClearActionError();
     setDestinationPicker((previous) => previous ? updateDestinationPickerFolder(previous, folderPath) : previous);
@@ -250,7 +233,6 @@ export function useDestinationPicker(input: UseDestinationPickerInput) {
     setDestinationPicker,
     close,
     closeIfCurrent,
-    updateFailedSourcesIfCurrent,
     updateFolder,
     updateName,
     updateManualMode,

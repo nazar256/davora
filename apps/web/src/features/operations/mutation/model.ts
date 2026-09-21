@@ -164,15 +164,19 @@ export function mutationWorkflowReducer(
         : { kind: "choosingDestination", identity: event.identity, context, draft: event.draft };
     }
     case "update-draft": {
-      if (!ownsEvent(state, event) || (state.kind !== "collectingInput" && state.kind !== "choosingDestination")) {
+      const acceptsDraft = state.kind === "collectingInput" || state.kind === "choosingDestination"
+        || (state.kind === "partial" && state.draft.kind === "destination");
+      if (!ownsEvent(state, event) || !acceptsDraft) {
         return state;
       }
       if (!draftContext(event.draft).isSame(state.context)) {
         return state;
       }
-      if ((state.kind === "collectingInput") !== (event.draft.kind === "action")) return state;
+      if ((state.kind === "collectingInput") !== (event.draft.kind === "action")
+        && state.kind !== "partial") return state;
       if (state.kind === "collectingInput" && event.draft.kind === "action") return { ...state, draft: event.draft };
-      if (state.kind === "choosingDestination" && event.draft.kind === "destination") return { ...state, draft: event.draft };
+      if ((state.kind === "choosingDestination" || state.kind === "partial")
+        && event.draft.kind === "destination") return { ...state, draft: event.draft };
       return state;
     }
     case "set-error": {
@@ -235,7 +239,7 @@ export function mutationWorkflowReducer(
         presentationError: event.error,
         partial: { kind: "destination", failedSourcePaths: event.failedEntries.map((entry) => entry.path) },
         draft: event.failedEntries
-          ? { kind: "destination", picker: { ...state.draft.picker, sourceEntries: [...event.failedEntries] } }
+          ? { kind: "destination", picker: { ...state.draft.picker, sourceEntries: [...event.failedEntries], conflictReview: undefined } }
           : state.draft
       };
     }

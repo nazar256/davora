@@ -30,11 +30,14 @@ export interface OperationRuntimePort {
       onProgress: (loadedBytes: number, totalBytes: number) => void,
       signal: AbortSignal
     ): Promise<MutationResult>;
-    copyOrMove(kind: "copy" | "move", source: string, destination: string, token: string): Promise<MutationResult>;
+    copyOrMove(kind: "copy" | "move", source: string, destination: string, token: string, overwrite?: boolean): Promise<MutationResult>;
     listDestination(path: string, token: string): Promise<{ readonly items: FileEntry[] }>;
   };
   readonly download: DownloadFileSources & { saveDownload(blob: Blob, filename: string): void };
   readonly batch: DownloadBatchSource;
+  readonly preview: {
+    createFileStreamUrl(path: string, token: string, signal?: AbortSignal): Promise<string>;
+  };
   readonly uploadFiles: UploadFileContentPort;
   isUnauthorized(error: unknown): boolean;
   isReconnectRequired(error: unknown): boolean;

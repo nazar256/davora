@@ -85,7 +85,8 @@ export function updateDestinationPickerFolder(
     entries: [],
     loading: true,
     reloadKey: previous.reloadKey + 1,
-    error: undefined
+    error: undefined,
+    conflictReview: undefined
   };
 }
 
@@ -99,7 +100,8 @@ export function updateDestinationPickerName(
     nameEdited: true,
     manualPath: previous.manualMode
       ? previous.manualPath
-      : buildDestinationDraftPath(previous.folderPath, name)
+      : buildDestinationDraftPath(previous.folderPath, name),
+    conflictReview: undefined
   };
 }
 
@@ -112,7 +114,8 @@ export function updateDestinationPickerManualMode(
     manualMode,
     manualPath: previous.batch
       ? previous.folderPath
-      : buildDestinationDraftPath(previous.folderPath, previous.name)
+      : buildDestinationDraftPath(previous.folderPath, previous.name),
+    conflictReview: undefined
   };
 }
 
@@ -123,7 +126,8 @@ export function updateDestinationPickerManualPath(
   return {
     ...previous,
     manualPath,
-    ...(previous.manualMode ? { entries: [], loading: true, error: undefined } : {})
+    ...(previous.manualMode ? { entries: [], loading: true, error: undefined } : {}),
+    conflictReview: undefined
   };
 }
 
@@ -135,7 +139,8 @@ export function reloadDestinationPickerFolder(
     entries: [],
     loading: true,
     error: undefined,
-    reloadKey: previous.reloadKey + 1
+    reloadKey: previous.reloadKey + 1,
+    conflictReview: undefined
   };
 }
 
@@ -164,7 +169,8 @@ export function applyDestinationListingSuccess(
       ? buildDestinationDraftPath(previous.folderPath, suggestedName)
       : previous.manualPath,
     loading: false,
-    error: undefined
+    error: undefined,
+    conflictReview: undefined
   };
 }
 
@@ -178,23 +184,6 @@ export function closeDestinationPickerIfCurrent(
 ): DestinationPickerState | undefined {
   return previous && isCurrentOperationContext(previous.context, context)
     ? undefined
-    : previous;
-}
-
-export function updateDestinationPickerFailedSourcesIfCurrent(
-  previous: DestinationPickerState | undefined,
-  context: OperationContextToken,
-  pickerStillCurrent: () => boolean,
-  failedEntries: readonly FileEntry[],
-  isCurrentOperationContext: (
-    context: OperationContextToken,
-    expected: OperationContextToken
-  ) => boolean
-): DestinationPickerState | undefined {
-  return previous
-    && isCurrentOperationContext(previous.context, context)
-    && pickerStillCurrent()
-    ? { ...previous, sourceEntries: [...failedEntries] }
     : previous;
 }
 

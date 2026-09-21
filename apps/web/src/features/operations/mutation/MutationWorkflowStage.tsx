@@ -1,8 +1,10 @@
 import type { FormEvent } from "react";
 
+import type { FileEntry } from "@davora/shared";
+
 import { ActionDialogStage } from "../actionDialog";
-import { DestinationPickerStage } from "../destination";
-import type { DestinationOperation } from "../destination";
+import { ConflictResolutionStage, DestinationPickerStage } from "../destination";
+import type { DestinationConflictDecision, DestinationOperation } from "../destination";
 import type { MutationWorkflowState } from "./model";
 
 function pluralize(count: number, singular: string, plural = `${singular}s`): string {
@@ -27,6 +29,12 @@ export interface MutationWorkflowStageProps {
   readonly onDestinationReload: () => void;
   readonly onSubmitAction: (event: FormEvent<HTMLFormElement>) => void;
   readonly onSubmitDestination: (operation: DestinationOperation, event?: FormEvent<HTMLFormElement>) => void;
+  readonly onConflictDecisionChange: (sourcePath: string, decision: DestinationConflictDecision) => void;
+  readonly onConflictApplyToAll: (decision: DestinationConflictDecision) => void;
+  readonly onConflictApplySizeRuleChange: (checked: boolean) => void;
+  readonly onConflictConfirm: () => void;
+  readonly onConflictBack: () => void;
+  readonly resolvePreviewUrl?: (entry: FileEntry) => Promise<string | undefined>;
 }
 
 export function MutationWorkflowStage(props: MutationWorkflowStageProps) {
@@ -57,6 +65,22 @@ export function MutationWorkflowStage(props: MutationWorkflowStageProps) {
 
   if (draft.kind === "destination" && draft.picker.sourceEntries.length > 0) {
     const picker = draft.picker;
+    if (picker.conflictReview) {
+      return (
+        <ConflictResolutionStage
+          busy={props.busy}
+          onApplySizeRuleChange={props.onConflictApplySizeRuleChange}
+          onApplyToAll={props.onConflictApplyToAll}
+          onBack={props.onConflictBack}
+          onClose={props.onClose}
+          onConfirm={props.onConflictConfirm}
+          onDecisionChange={props.onConflictDecisionChange}
+          open
+          resolvePreviewUrl={props.resolvePreviewUrl}
+          review={picker.conflictReview}
+        />
+      );
+    }
     return (
       <DestinationPickerStage
         actionError={error}

@@ -4,6 +4,7 @@ import {
   ApiRequestError,
   copyFile,
   createFolder,
+  createStreamingFileUrl,
   deleteFile,
   fetchDownloadBlob,
   listFiles,
@@ -24,7 +25,7 @@ export interface OperationRuntimePort {
     createFolder(parentPath: string, name: string, token: string): Promise<MutationResult>;
     deleteFile(path: string, confirmName: string, token: string): Promise<MutationResult>;
     uploadFile(input: { readonly path: string; readonly name: string; readonly mimeType: string; readonly contentBase64: string }, token: string, onProgress: (loadedBytes: number, totalBytes: number) => void, signal: AbortSignal): Promise<MutationResult>;
-    copyOrMove(kind: "copy" | "move", source: string, destination: string, token: string): Promise<MutationResult>;
+    copyOrMove(kind: "copy" | "move", source: string, destination: string, token: string, overwrite?: boolean): Promise<MutationResult>;
     listDestination(path: string, token: string): Promise<{ readonly items: FileEntry[] }>;
   };
   readonly download: {
@@ -35,6 +36,9 @@ export interface OperationRuntimePort {
     readonly saveDownload: typeof triggerBrowserDownload;
   };
   readonly batch: { readonly downloadSelectionAsZip: typeof downloadSelectionAsZip };
+  readonly preview: {
+    readonly createFileStreamUrl: (path: string, token: string, signal?: AbortSignal) => Promise<string>;
+  };
   readonly uploadFiles: ReturnType<typeof createBrowserUploadFileContent>;
   isUnauthorized(error: unknown): boolean;
   isReconnectRequired(error: unknown): boolean;
@@ -85,7 +89,7 @@ export function createBrowserOperationRuntime(
       createFolder: (parentPath, name, token) => dependencies.createFolder({ path: parentPath, name }, token).then((response) => response.result),
       deleteFile: (path, confirmName, token) => dependencies.deleteFile({ path, confirmName }, token).then((response) => response.result),
       uploadFile: (input, token, onProgress, signal) => dependencies.uploadFileWithProgress(input, token, onProgress, signal).then((response) => response.result),
-      copyOrMove: (kind, source, destination, token) => (kind === "move" ? dependencies.moveFile : dependencies.copyFile)({ path: source, destinationPath: destination }, token).then((response) => response.result),
+      copyOrMove: (kind, source, destination, token, overwrite) => (kind === "move" ? dependencies.moveFile : dependencies.copyFile)({ path: source, destinationPath: destination, overwrite }, token).then((response) => response.result),
       listDestination: (path, token) => dependencies.listFiles(path, token)
     },
     download: {
@@ -96,6 +100,7 @@ export function createBrowserOperationRuntime(
       saveDownload: dependencies.triggerBrowserDownload
     },
     batch: { downloadSelectionAsZip: dependencies.downloadSelectionAsZip },
+    preview: { createFileStreamUrl: createStreamingFileUrl },
     uploadFiles: dependencies.createBrowserUploadFileContent(),
     isUnauthorized: (error) => error instanceof ApiRequestError && error.status === 401,
     isReconnectRequired: (error) => error instanceof ApiRequestError && error.code === "account_reconnect_required",

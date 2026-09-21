@@ -19,8 +19,8 @@ type ListResponse = { path: string; items: FileEntry[] };
 
 const mutationApi = {
   listFiles: vi.fn<(path: string, token: string, signal?: AbortSignal) => Promise<ListResponse>>(),
-  copyFile: vi.fn<(input: { path: string; destinationPath: string }, token: string) => Promise<{ result: MutationResult }>>(),
-  moveFile: vi.fn<(input: { path: string; destinationPath: string }, token: string) => Promise<{ result: MutationResult }>>(),
+  copyFile: vi.fn<(input: { path: string; destinationPath: string; overwrite?: boolean }, token: string) => Promise<{ result: MutationResult }>>(),
+  moveFile: vi.fn<(input: { path: string; destinationPath: string; overwrite?: boolean }, token: string) => Promise<{ result: MutationResult }>>(),
   deleteFile: vi.fn<(input: { path: string; confirmName: string }, token: string) => Promise<{ result: MutationResult }>>()
 };
 
@@ -145,12 +145,12 @@ function createMutationServices(): AppServices {
       createFolder: async () => ({ action: "createFolder", parentPath: "", path: "" }),
       deleteFile: async (path, confirmName, token) => (await mutationApi.deleteFile({ path, confirmName }, token)).result,
       uploadFile: async () => ({ action: "upload", parentPath: "", path: "" }),
-      copyOrMove: async (kind, source, destination, token) => (await (kind === "copy" ? mutationApi.copyFile({ path: source, destinationPath: destination }, token) : mutationApi.moveFile({ path: source, destinationPath: destination }, token))).result,
+      copyOrMove: async (kind, source, destination, token, overwrite) => (await (kind === "copy" ? mutationApi.copyFile({ path: source, destinationPath: destination, overwrite: overwrite || undefined }, token) : mutationApi.moveFile({ path: source, destinationPath: destination, overwrite: overwrite || undefined }, token))).result,
       listDestination: async (path, token) => mutationApi.listFiles(path, token)
     },
     download: { prepareDownloadFile: async () => ({ blob: new Blob(), filename: "download.bin" }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "download.bin" }), listFiles, triggerBrowserDownload: () => undefined, saveDownload: () => undefined },
     batch: { downloadSelectionAsZip: async () => ({ blob: new Blob(), plan: { archiveName: "download.zip", selectedCount: 0, selectedFileCount: 0, selectedDirectoryCount: 0, directories: [], files: [], failedFiles: [] } }) },
-    uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) },
+    preview: { createFileStreamUrl: async () => "" }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) },
     isUnauthorized: (error) => error instanceof ApiRequestError && error.status === 401,
     isReconnectRequired: (error) => error instanceof ApiRequestError && error.code === "account_reconnect_required",
     toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback
@@ -341,22 +341,29 @@ describe("mutation workflow App integration", () => {
     expect(within(copyDialog).queryByText(/already contains roadmap\.txt-copy/i)).not.toBeInTheDocument();
     expect(within(copyDialog).getByRole("button", { name: /Copy here/i })).not.toBeDisabled();
     fireEvent.change(within(copyDialog).getByLabelText("Destination name"), { target: { value: "roadmap.txt" } });
-    expect(await within(copyDialog).findByText(/Destination already contains roadmap\.txt\. Use roadmap \(1\)\.txt/i)).toBeInTheDocument();
-    expect(within(copyDialog).getByRole("button", { name: /Copy here/i })).toBeDisabled();
-    fireEvent.change(within(copyDialog).getByLabelText("Destination name"), { target: { value: "bad\\name.txt" } });
-    expect(await within(copyDialog).findByText(/Enter a valid destination name/i)).toBeInTheDocument();
-    expect(within(copyDialog).getByRole("button", { name: /Copy here/i })).toBeDisabled();
-    fireEvent.change(within(copyDialog).getByLabelText("Destination name"), { target: { value: "folder/name.txt" } });
-    expect(await within(copyDialog).findByText(/Destination name cannot contain slashes/i)).toBeInTheDocument();
-    expect(within(copyDialog).getByRole("button", { name: /Copy here/i })).toBeDisabled();
-    fireEvent.click(within(copyDialog).getByRole("button", { name: /Manual path/i }));
-    fireEvent.change(within(copyDialog).getByLabelText("Full destination path"), { target: { value: "Projects/foo%2Fbar.txt" } });
-    expect(await within(copyDialog).findByText(/Enter a valid destination path/i)).toBeInTheDocument();
-    expect(within(copyDialog).getByRole("button", { name: /Copy here/i })).toBeDisabled();
-    fireEvent.click(within(copyDialog).getByRole("button", { name: /Manual path/i }));
-    fireEvent.change(within(copyDialog).getByLabelText("Destination name"), { target: { value: "roadmap copied.txt" } });
-    await waitFor(() => expect(within(copyDialog).queryByText(/already contains|valid destination|cannot contain/i)).not.toBeInTheDocument());
-    fireEvent.click(within(copyDialog).getByRole("button", { name: /Cancel/i }));
+    await waitFor(() => expect(within(copyDialog).getByRole("button", { name: /Copy here/i })).toBeEnabled());
+    fireEvent.click(within(copyDialog).getByRole("button", { name: /Copy here/i }));
+
+    const conflictDialog = await screen.findByRole("dialog", { name: "Resolve destination conflicts" });
+    expect(within(conflictDialog).getByText("Same item at the destination")).toBeInTheDocument();
+    expect(within(conflictDialog).getByRole("radio", { name: /Keep both roadmap\.txt/i })).toBeInTheDocument();
+    expect(within(conflictDialog).queryByRole("radio", { name: /Replace roadmap\.txt/i })).not.toBeInTheDocument();
+    fireEvent.click(within(conflictDialog).getByRole("button", { name: /^Back$/i }));
+    const copyDialogRestored = await screen.findByRole("dialog", { name: /Copy or move item/i });
+    fireEvent.change(within(copyDialogRestored).getByLabelText("Destination name"), { target: { value: "bad\\name.txt" } });
+    expect(await within(copyDialogRestored).findByText(/Enter a valid destination name/i)).toBeInTheDocument();
+    expect(within(copyDialogRestored).getByRole("button", { name: /Copy here/i })).toBeDisabled();
+    fireEvent.change(within(copyDialogRestored).getByLabelText("Destination name"), { target: { value: "folder/name.txt" } });
+    expect(await within(copyDialogRestored).findByText(/Destination name cannot contain slashes/i)).toBeInTheDocument();
+    expect(within(copyDialogRestored).getByRole("button", { name: /Copy here/i })).toBeDisabled();
+    fireEvent.click(within(copyDialogRestored).getByRole("button", { name: /Manual path/i }));
+    fireEvent.change(within(copyDialogRestored).getByLabelText("Full destination path"), { target: { value: "Projects/foo%2Fbar.txt" } });
+    expect(await within(copyDialogRestored).findByText(/Enter a valid destination path/i)).toBeInTheDocument();
+    expect(within(copyDialogRestored).getByRole("button", { name: /Copy here/i })).toBeDisabled();
+    fireEvent.click(within(copyDialogRestored).getByRole("button", { name: /Manual path/i }));
+    fireEvent.change(within(copyDialogRestored).getByLabelText("Destination name"), { target: { value: "roadmap copied.txt" } });
+    await waitFor(() => expect(within(copyDialogRestored).queryByText(/already contains|valid destination|cannot contain/i)).not.toBeInTheDocument());
+    fireEvent.click(within(copyDialogRestored).getByRole("button", { name: /Cancel/i }));
 
     fireEvent.click(screen.getByRole("button", { name: /Go to home folder/i }));
     fireEvent.click(await screen.findByRole("button", { name: /Open actions for Projects/i }));
@@ -409,21 +416,151 @@ describe("mutation workflow App integration", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /Manual path/i }));
     const manualPath = within(dialog).getByLabelText("Full destination path");
     fireEvent.change(manualPath, { target: { value: " /Projects//roadmap.txt/ " } });
-    expect(await within(dialog).findByText(/Destination already contains roadmap\.txt\. Use roadmap \(1\)\.txt/i)).toBeInTheDocument();
-    expect(copyButton).toBeDisabled();
-
-    fireEvent.change(manualPath, { target: { value: " /Archive//roadmap.txt/ " } });
-    await waitFor(() => expect(mutationApi.listFiles).toHaveBeenCalledWith("Archive", "token-alpha"));
-    expect(await within(dialog).findByText(/Destination already contains roadmap\.txt\. Use roadmap \(1\)\.txt/i)).toBeInTheDocument();
-    expect(copyButton).toBeDisabled();
-
-    fireEvent.change(manualPath, { target: { value: " /Archive//new.txt/ " } });
     await waitFor(() => expect(copyButton).toBeEnabled());
     fireEvent.click(copyButton);
+
+    let conflictDialog = await screen.findByRole("dialog", { name: "Resolve destination conflicts" });
+    expect(within(conflictDialog).getByText("Same item at the destination")).toBeInTheDocument();
+    fireEvent.click(within(conflictDialog).getByRole("button", { name: /^Back$/i }));
+    const restoredDialog = await screen.findByRole("dialog", { name: /Copy or move item/i });
+    const restoredManualPath = within(restoredDialog).getByLabelText("Full destination path");
+    const restoredCopyButton = within(restoredDialog).getByRole("button", { name: /^Copy here$/i });
+
+    fireEvent.change(restoredManualPath, { target: { value: " /Archive//roadmap.txt/ " } });
+    await waitFor(() => expect(mutationApi.listFiles).toHaveBeenCalledWith("Archive", "token-alpha"));
+    await waitFor(() => expect(restoredCopyButton).toBeEnabled());
+    fireEvent.click(restoredCopyButton);
+
+    conflictDialog = await screen.findByRole("dialog", { name: "Resolve destination conflicts" });
+    expect(within(conflictDialog).getByRole("radio", { name: /Replace roadmap\.txt/i })).toBeInTheDocument();
+    fireEvent.click(within(conflictDialog).getByRole("button", { name: /^Back$/i }));
+    const finalDialog = await screen.findByRole("dialog", { name: /Copy or move item/i });
+    const finalManualPath = within(finalDialog).getByLabelText("Full destination path");
+    const finalCopyButton = within(finalDialog).getByRole("button", { name: /^Copy here$/i });
+
+    fireEvent.change(finalManualPath, { target: { value: " /Archive//new.txt/ " } });
+    await waitFor(() => expect(finalCopyButton).toBeEnabled());
+    fireEvent.click(finalCopyButton);
 
     await waitFor(() => expect(mutationApi.copyFile).toHaveBeenCalledWith({
       path: "Projects/roadmap.txt",
       destinationPath: "Archive/new.txt"
+    }, "token-alpha"));
+  });
+
+  it("replaces an existing file after an explicit conflict decision", async () => {
+    const account = buildAccount("alpha", { displayName: "Replace workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mutationApi.listFiles.mockImplementation(async (path: string) => {
+      if (path === "Projects") {
+        return {
+          path,
+          items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }]
+        };
+      }
+      if (path === "Archive") {
+        return {
+          path,
+          items: [{ path: "Archive/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 30, mimeType: "text/plain" }]
+        };
+      }
+      return {
+        path,
+        items: [
+          { path: "Projects", name: "Projects", isFolder: true },
+          { path: "Archive", name: "Archive", isFolder: true }
+        ]
+      };
+    });
+
+    render(<App services={createMutationFixture()} />);
+    await screen.findByRole("button", { name: /Open folder Projects/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open folder Projects/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open actions for roadmap.txt" }));
+    fireEvent.click(screen.getByRole("button", { name: /Copy or move/i }));
+
+    const dialog = await screen.findByRole("dialog", { name: /Copy or move item/i });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Manual path/i }));
+    const manualPath = within(dialog).getByLabelText("Full destination path");
+    fireEvent.change(manualPath, { target: { value: "/Archive/roadmap.txt" } });
+    await waitFor(() => expect(mutationApi.listFiles).toHaveBeenCalledWith("Archive", "token-alpha"));
+    const copyButton = within(dialog).getByRole("button", { name: /^Copy here$/i });
+    await waitFor(() => expect(copyButton).toBeEnabled());
+    fireEvent.click(copyButton);
+
+    const conflictDialog = await screen.findByRole("dialog", { name: "Resolve destination conflicts" });
+    fireEvent.click(within(conflictDialog).getByRole("radio", { name: /Replace roadmap\.txt/i }));
+    fireEvent.click(within(conflictDialog).getByRole("button", { name: /Copy with these choices/i }));
+
+    await waitFor(() => expect(mutationApi.copyFile).toHaveBeenCalledWith({
+      path: "Projects/roadmap.txt",
+      destinationPath: "Archive/roadmap.txt",
+      overwrite: true
+    }, "token-alpha"));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Copy or move item/i })).not.toBeInTheDocument());
+  });
+
+  it("merges a folder into an existing destination folder for moves", async () => {
+    const account = buildAccount("alpha", { displayName: "Merge workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    const moved = new Set<string>();
+    mutationApi.moveFile.mockImplementation(async (request) => {
+      moved.add(request.path);
+      return { result: { action: "move", parentPath: "Archive/Docs", path: request.path, destinationPath: request.destinationPath } };
+    });
+    mutationApi.listFiles.mockImplementation(async (path: string) => {
+      if (path === "Docs") {
+        return {
+          path,
+          items: moved.has("Docs/a.txt")
+            ? []
+            : [{ path: "Docs/a.txt", name: "a.txt", isFolder: false, size: 10, mimeType: "text/plain" }]
+        };
+      }
+      if (path === "Archive") {
+        return {
+          path,
+          items: [{ path: "Archive/Docs", name: "Docs", isFolder: true }]
+        };
+      }
+      if (path === "Archive/Docs") {
+        return {
+          path,
+          items: [{ path: "Archive/Docs/b.txt", name: "b.txt", isFolder: false, size: 5, mimeType: "text/plain" }]
+        };
+      }
+      return {
+        path,
+        items: [
+          { path: "Docs", name: "Docs", isFolder: true },
+          { path: "Archive", name: "Archive", isFolder: true }
+        ]
+      };
+    });
+
+    render(<App services={createMutationFixture()} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Open actions for Docs/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Rename or move/i }));
+
+    const moveDialog = await screen.findByRole("dialog", { name: /Move item/i });
+    fireEvent.click(within(moveDialog).getByRole("button", { name: /Open destination folder Archive/i }));
+    const moveButton = within(moveDialog).getByRole("button", { name: /Move here/i });
+    await waitFor(() => expect(moveButton).toBeEnabled());
+    fireEvent.click(moveButton);
+
+    const conflictDialog = await screen.findByRole("dialog", { name: "Resolve destination conflicts" });
+    fireEvent.click(within(conflictDialog).getByRole("radio", { name: /Merge Docs/i }));
+    fireEvent.click(within(conflictDialog).getByRole("button", { name: /Move with these choices/i }));
+
+    await waitFor(() => expect(mutationApi.listFiles).toHaveBeenCalledWith("Docs", "token-alpha"));
+    await waitFor(() => expect(mutationApi.listFiles).toHaveBeenCalledWith("Archive/Docs", "token-alpha"));
+    await waitFor(() => expect(mutationApi.moveFile).toHaveBeenCalledWith({
+      path: "Docs/a.txt",
+      destinationPath: "Archive/Docs/a.txt"
+    }, "token-alpha"));
+    await waitFor(() => expect(mutationApi.deleteFile).toHaveBeenCalledWith({
+      path: "Docs",
+      confirmName: "Docs"
     }, "token-alpha"));
   });
 
@@ -611,6 +748,11 @@ describe("mutation workflow App integration", () => {
     const copyButton = within(dialog).getByRole("button", { name: /^Copy here$/i });
     await waitFor(() => expect(copyButton).toBeEnabled());
     fireEvent.click(copyButton);
+
+    const conflictDialog = await screen.findByRole("dialog", { name: "Resolve destination conflicts" });
+    expect(within(conflictDialog).getAllByText("notes.txt").length).toBeGreaterThan(0);
+    fireEvent.click(within(conflictDialog).getByRole("radio", { name: /Keep both notes\.txt/i }));
+    fireEvent.click(within(conflictDialog).getByRole("button", { name: /^Copy with these choices/i }));
 
     await waitFor(() => expect(mutationApi.copyFile).toHaveBeenCalledTimes(2));
     expect(mutationApi.copyFile).toHaveBeenNthCalledWith(1, { path: "Projects", destinationPath: "Archive/Projects" }, "token-alpha");
@@ -839,6 +981,10 @@ describe("mutation workflow App integration", () => {
     const copyButton = within(dialog).getByRole("button", { name: /^Copy here$/i });
     await waitFor(() => expect(copyButton).toBeEnabled());
     fireEvent.click(copyButton);
+
+    const conflictDialog = await screen.findByRole("dialog", { name: "Resolve destination conflicts" });
+    fireEvent.click(within(conflictDialog).getByRole("radio", { name: /Keep both notes\.txt/i }));
+    fireEvent.click(within(conflictDialog).getByRole("button", { name: /^Copy with these choices/i }));
 
     await waitFor(() => expect(mutationApi.copyFile).toHaveBeenCalledTimes(2));
     expect(mutationApi.copyFile).toHaveBeenNthCalledWith(1, { path: "Projects", destinationPath: "Archive/Projects" }, "token-alpha");

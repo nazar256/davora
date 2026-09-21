@@ -97,7 +97,8 @@ function createInput(overrides: Partial<CreateMutationWorkflowPortsInput> = {}):
         parentPath: "",
         path: "a.txt",
         destinationPath: "b.txt"
-      }))
+      })),
+      listChildren: vi.fn(async () => ({ items: [] }))
     },
     deleteWorkflow: {
       getActiveDeleteWorkflowId: vi.fn(() => createBatchDeleteWorkflow(1, [{ path: "notes.txt", confirmName: "notes.txt" }]).id),
@@ -184,7 +185,8 @@ describe("createMutationWorkflowPorts", () => {
           throw new ApiRequestError("expired", 401);
         }),
         uploadFileWithProgress: vi.fn(),
-        runCopyOrMove: vi.fn()
+        runCopyOrMove: vi.fn(),
+        listChildren: vi.fn()
       }
     });
     const ports = createMutationOrchestrationPorts(input, {
