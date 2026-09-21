@@ -137,7 +137,7 @@ function createMutationCurrentnessFixture(): AppServices {
     },
     download: { prepareDownloadFile: async () => ({ blob: new Blob(), filename: "fixture" }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "fixture" }), listFiles: async (path, token, signal) => mutationApi.listFiles(path, token, signal), triggerBrowserDownload: () => undefined, saveDownload: () => undefined },
     batch: { downloadSelectionAsZip: async () => ({ blob: new Blob(), plan: { archiveName: "fixture", selectedCount: 0, selectedFileCount: 0, selectedDirectoryCount: 0, directories: [], files: [], failedFiles: [] } }) },
-    preview: { createFileStreamUrl: async () => "" }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) },
+    preview: { createFileStreamUrl: async () => "" }, time: { wait: async () => {} }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) },
     isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (_error: unknown, fallback: string) => fallback
   };
   const snapshotFor = (account: Parameters<AppServices["retentionRepository"]["readSnapshot"]>[0]) => ({ account, normalCache: { itemCount: 0, totalBytes: 0, limitBytes: 1 }, roots: [], files: [], memberships: [] });
@@ -291,7 +291,7 @@ describe("mutation currentness App integration", () => {
     expect(screen.queryByText(/delete completed for/i)).not.toBeInTheDocument();
   });
 
-  it("makes a pending copy attempt inert after path navigation without closing its replacement", async () => {
+  it("keeps a queued copy task alive across path navigation without closing a replacement picker", async () => {
     const account = buildAccount("alpha", { displayName: "Copy path owner" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     const pending = createDeferred<Awaited<ReturnType<typeof mutationApi.copyFile>>>();
@@ -306,6 +306,7 @@ describe("mutation currentness App integration", () => {
     await waitFor(() => expect(copy).toBeEnabled());
     fireEvent.click(copy);
     await waitFor(() => expect(mutationApi.copyFile).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Copy or move item/i })).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: /Open folder Projects/i }));
     await screen.findByRole("button", { name: /Open actions for roadmap.txt/i });
@@ -314,14 +315,14 @@ describe("mutation currentness App integration", () => {
     const replacement = await screen.findByRole("dialog", { name: /Copy or move item/i });
     const replacementFocusedDetails = screen.getByLabelText("Details for roadmap.txt");
 
-    pending.resolve({ result: { action: "copy", parentPath: "", path: "Projects/roadmap.txt", destinationPath: "roadmap-copy.txt" } });
+    pending.resolve({ result: { action: "copy", parentPath: "", path: "Projects/roadmap.txt", destinationPath: "Projects/roadmap (1).txt" } });
     await act(async () => pending.promise);
     expect(screen.getByRole("dialog", { name: /Copy or move item/i })).toBe(replacement);
     expect(screen.getByLabelText("Details for roadmap.txt")).toBe(replacementFocusedDetails);
-    expect(screen.queryByText(/copy completed for/i)).not.toBeInTheDocument();
+    expect(await screen.findByText(/Copied 1 selected item to \/Projects\/roadmap \(1\)\.txt in Copy path owner\./i)).toBeInTheDocument();
   });
 
-  it("makes a pending move attempt inert after path navigation without closing its replacement", async () => {
+  it("keeps a queued move task alive across path navigation", async () => {
     const account = buildAccount("alpha", { displayName: "Move path owner" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     const pending = createDeferred<Awaited<ReturnType<typeof mutationApi.moveFile>>>();
@@ -337,19 +338,14 @@ describe("mutation currentness App integration", () => {
     await waitFor(() => expect(move).toBeEnabled());
     fireEvent.click(move);
     await waitFor(() => expect(mutationApi.moveFile).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Move item/i })).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: /Open folder Projects/i }));
     await screen.findByRole("button", { name: /Open actions for roadmap.txt/i });
-    fireEvent.click(screen.getByRole("button", { name: /Open actions for roadmap.txt/i }));
-    fireEvent.click(screen.getByRole("button", { name: /Rename or move/i }));
-    const replacement = await screen.findByRole("dialog", { name: /Move item/i });
-    const replacementFocusedDetails = screen.getByLabelText("Details for roadmap.txt");
 
-    pending.resolve({ result: { action: "move", parentPath: "", path: "Projects/roadmap.txt", destinationPath: "moved.txt" } });
+    pending.resolve({ result: { action: "move", parentPath: "", path: "Projects/roadmap.txt", destinationPath: "Projects/moved.txt" } });
     await act(async () => pending.promise);
-    expect(screen.getByRole("dialog", { name: /Move item/i })).toBe(replacement);
-    expect(screen.getByLabelText("Details for roadmap.txt")).toBe(replacementFocusedDetails);
-    expect(screen.queryByText(/move completed for/i)).not.toBeInTheDocument();
+    expect(await screen.findByText(/Moved 1 selected item to \/Projects\/moved\.txt in Move path owner\./i)).toBeInTheDocument();
   });
 
   it("discards a destination listing that completes after the active account changes", async () => {

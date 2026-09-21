@@ -129,7 +129,7 @@ describe("diagnostics instrumentation", () => {
         }))
       },
       preview: { createFileStreamUrl: vi.fn(async () => "") },
-      uploadFiles: { prepare: vi.fn() },
+      time: { wait: async () => {} }, uploadFiles: { prepare: vi.fn() },
       isUnauthorized: () => false,
       isReconnectRequired: () => false,
       toErrorMessage: (error) => (error instanceof Error ? error.message : "failed")

@@ -28,8 +28,10 @@ export function useTransferTray({ ports }: UseTransferTrayInput) {
     open: ports.chrome.isOpen,
     onToggleOpen: toggleOpen,
     onClearFinished,
-    ...(ports.onRetryFailedSync ? { onRetryFailedSync: ports.onRetryFailedSync } : {})
-  }), [tasks, ports.chrome.isOpen, toggleOpen, onClearFinished, ports.onRetryFailedSync]);
+    ...(ports.onRetryFailedSync ? { onRetryFailedSync: ports.onRetryFailedSync } : {}),
+    ...(ports.onCancelTransfer ? { onCancelTransfer: ports.onCancelTransfer } : {}),
+    ...(ports.onRetryTransfer ? { onRetryTransfer: ports.onRetryTransfer } : {})
+  }), [tasks, ports.chrome.isOpen, toggleOpen, onClearFinished, ports.onRetryFailedSync, ports.onCancelTransfer, ports.onRetryTransfer]);
 
   return { stage } as const;
 }

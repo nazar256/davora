@@ -332,23 +332,24 @@ test("PER-84 copies a mixed selection through the mobile destination picker", as
   await expect(page.getByRole("button", { name: /Open file alpha \(1\)\.txt/i })).toBeVisible();
 });
 
-test("mobile batch copy retries only retained failures in original order and clears its terminal surfaces", async ({ page }, testInfo) => {
+test("mobile batch copy retries transient failures in place and retains permanent failures for tray retry", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chrome", "Batch mutation surface evidence is mobile-specific.");
   await page.setViewportSize({ width: 360, height: 640 });
 
   const copySources: string[] = [];
-  const failedOnce = new Set(["Archive", "alpha.txt"]);
+  const failedOnce = new Set(["alpha.txt"]);
   const attempts = new Map<string, number>();
+  let archiveBlocked = true;
   await page.route("**/api/copy", async (route) => {
     const request = route.request().postDataJSON() as { path: string };
     copySources.push(request.path);
     const attempt = (attempts.get(request.path) ?? 0) + 1;
     attempts.set(request.path, attempt);
-    if (failedOnce.has(request.path) && attempt === 1) {
+    if ((request.path === "Archive" && archiveBlocked) || (failedOnce.has(request.path) && attempt === 1)) {
       await route.fulfill({
         status: 500,
         contentType: "application/json",
-        body: JSON.stringify({ data: { code: "mutation_failed", message: `${request.path} copy failed once` } })
+        body: JSON.stringify({ data: { code: "mutation_failed", message: `${request.path} copy failed` } })
       });
       return;
     }
@@ -379,29 +380,74 @@ test("mobile batch copy retries only retained failures in original order and cle
   await expect(conflictDialog).toBeVisible();
   await conflictDialog.getByRole("button", { name: /Keep both for all/i }).click();
   await conflictDialog.getByRole("button", { name: /Copy with these choices/i }).click();
+  await expect(page.getByRole("dialog", { name: /Copy or move/i })).toHaveCount(0);
 
-  const partialDialog = page.getByRole("dialog", { name: /Copy or move 2 items/i });
-  await expect(partialDialog).toBeVisible();
-  await expect(partialDialog.getByText(/Copied 1 of 3 selected items; 2 failed\./i)).toBeVisible();
-  await expect(partialDialog.locator(".destination-source-paths")).toHaveText("Archive, alpha.txt");
-  await expect(partialDialog.getByText(/Archive copy failed once/i)).toBeVisible();
-  await expect(partialDialog.getByText(/alpha\.txt copy failed once/i)).toBeVisible();
-  expect(copySources).toEqual(["Archive", "Design", "alpha.txt"]);
-  await partialDialog.screenshot({ path: mutationEvidencePath("mobile-batch-copy-partial-failure.png") });
+  await expect(page.locator(".browse-status-note")).toContainText(/Copied 2 of 3 selected items; 1 failed in Mobile batch retry workspace\./i);
+  expect(copySources).toEqual(["Archive", "Archive", "Archive", "Archive", "Design", "alpha.txt", "alpha.txt"]);
+  const retainedToolbar = await getVisibleSelectionToolbar(page);
+  if (retainedToolbar) {
+    await expect(retainedToolbar.getByText(/1 item selected/i)).toBeVisible();
+  } else {
+    await expect(page.getByText(/1 item selected \(1 folder\)/i).first()).toBeAttached();
+  }
+  await page.screenshot({ path: mutationEvidencePath("mobile-batch-copy-partial-failure.png"), fullPage: false });
 
-  await partialDialog.getByRole("button", { name: /^Copy here$/i }).click();
-  const retryConflictDialog = page.getByRole("dialog", { name: "Resolve destination conflicts" });
-  await expect(retryConflictDialog).toBeVisible();
-  await retryConflictDialog.getByRole("button", { name: /Keep both for all/i }).click();
-  await retryConflictDialog.getByRole("button", { name: /Copy with these choices/i }).click();
-  await expect(page.getByRole("dialog", { name: /Copy or move 2 items/i })).toHaveCount(0);
+  archiveBlocked = false;
+  await page.getByRole("button", { name: "Transfers" }).click();
+  const transferTray = page.getByRole("dialog", { name: "Transfer status" });
+  await expect(transferTray).toBeVisible();
+  await expect(transferTray.getByText(/Archive copy failed/i)).toBeVisible();
+  await transferTray.getByRole("button", { name: "Retry" }).click();
+
+  await expect(page.locator(".browse-status-note")).toContainText(/Copied 1 selected item to \/ in Mobile batch retry workspace\./i);
   await expect(toolbar).toHaveCount(0);
-  await expect(page.locator(".browse-status-note")).toContainText(/Copied 2 selected items to \/ in Mobile batch retry workspace\./i);
-  expect(copySources).toEqual(["Archive", "Design", "alpha.txt", "Archive", "alpha.txt"]);
+  expect(copySources).toEqual(["Archive", "Archive", "Archive", "Archive", "Design", "alpha.txt", "alpha.txt", "Archive"]);
   await page.screenshot({ path: mutationEvidencePath("mobile-batch-copy-retry-complete.png"), fullPage: false });
 });
 
-test("desktop deferred copy becomes inert when the same-account session is replaced", async ({ page }, testInfo) => {
+test("batch copy runs as a background transfer task that can be canceled from the tray", async ({ page }) => {
+  const copyGate = createGate();
+  let copyRequests = 0;
+  await page.route("**/api/copy", async (route) => {
+    copyRequests += 1;
+    await copyGate.promise;
+    await route.fallback();
+  });
+
+  await connectAccount(page, "Cancelable copy workspace");
+  await selectFileListEntry(page, /Select Archive folder/i, /Open folder Archive/i);
+  await selectFileListEntry(page, /Select Design folder/i, /Open folder Design/i);
+
+  const copyOrMoveButton = page.getByRole("button", { name: /^Copy or move selected$/i }).first();
+  await expect(copyOrMoveButton).toBeVisible();
+  await copyOrMoveButton.click();
+
+  const dialog = page.getByRole("dialog", { name: /Copy or move 2 items/i });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /^Copy here$/i })).toBeEnabled();
+  await dialog.getByRole("button", { name: /^Copy here$/i }).click();
+
+  const conflictDialog = page.getByRole("dialog", { name: "Resolve destination conflicts" });
+  await expect(conflictDialog).toBeVisible();
+  await conflictDialog.getByRole("button", { name: /Keep both for all/i }).click();
+  await conflictDialog.getByRole("button", { name: /Copy with these choices/i }).click();
+  await expect(page.getByRole("dialog", { name: /Copy or move/i })).toHaveCount(0);
+  await expect.poll(() => copyRequests).toBe(1);
+
+  await page.getByRole("button", { name: "Transfers" }).click();
+  const transferTray = page.getByRole("dialog", { name: "Transfer status" });
+  await expect(transferTray).toBeVisible();
+  await expect(transferTray.getByText(/Copying/i)).toBeVisible();
+  await transferTray.getByRole("button", { name: /Cancel 2 items/i }).click();
+
+  copyGate.release();
+  await expect(page.locator(".browse-status-note")).toContainText(/Copy canceled after 0 of 2 items in Cancelable copy workspace\./i);
+  await expect(transferTray.getByText("Canceled", { exact: true })).toBeVisible();
+  expect(copyRequests).toBe(1);
+  await page.screenshot({ path: mutationEvidencePath("batch-copy-canceled.png"), fullPage: false });
+});
+
+test("desktop deferred copy task is superseded when the same-account session is replaced", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chrome", "Deferred mutation replacement evidence is desktop-specific.");
 
   const copyGate = createGate();
@@ -444,12 +490,10 @@ test("desktop deferred copy becomes inert when the same-account session is repla
   await picker.getByRole("button", { name: /Manual path/i }).click();
   await picker.getByLabel("Full destination path").fill("Projects/Archive");
   await picker.getByRole("button", { name: /^Copy here$/i }).click();
+  await expect(picker).toHaveCount(0);
   await expect.poll(() => copyRequests).toBe(1);
-  await expect(picker).toBeVisible();
   await page.screenshot({ path: mutationEvidencePath("desktop-deferred-copy-pending.png"), fullPage: false });
 
-  await page.goBack();
-  await expect(picker).toHaveCount(0);
   await openSettings(page);
   const settingsDialog = page.getByRole("dialog", { name: /Profile and settings/i });
   await settingsDialog.getByRole("button", { name: /^Reconnect$/i }).click();
@@ -566,6 +610,9 @@ test("mutation flow still works for the active account", async ({ page }, testIn
   await moveDialog.getByLabel("Destination name").fill("renamed.txt");
   await expect(moveDialog.getByRole("button", { name: /Move here/i })).toBeEnabled();
   await moveDialog.getByRole("button", { name: /Move here/i }).click();
+  await expect(moveDialog).toHaveCount(0);
+  await expect(page.locator(".browse-status-note")).toContainText(/Moved 1 selected item to \/renamed\.txt in Mutation workspace\./i);
+  await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).click();
   await expect(page.getByRole("button", { name: /Open file renamed.txt/i })).toBeVisible();
 });
 

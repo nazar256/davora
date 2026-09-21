@@ -231,7 +231,11 @@ export function useAppWorkspacePresentation(input: AppWorkspacePresentationInput
       pwa,
       wakeLock,
       transfers,
-      offlineSync: offlineSyncWorkspace
+      offlineSync: offlineSyncWorkspace,
+      operation: {
+        cancelTransferTask: operationWorkspace.mutation.cancelTransferTask,
+        retryTransferTask: operationWorkspace.mutation.retryTransferTask
+      }
     }
   });
 

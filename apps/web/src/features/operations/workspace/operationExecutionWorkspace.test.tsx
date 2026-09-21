@@ -27,6 +27,7 @@ function runtime(): OperationRuntimePort {
     },
     download,
     batch: { downloadSelectionAsZip: vi.fn(async () => ({ blob: new Blob(), plan: { archiveName: "docs.zip", selectedCount: 0, selectedFileCount: 0, selectedDirectoryCount: 0, directories: [], files: [], failedFiles: [] } })) },
+    time: { wait: vi.fn(async () => {}) },
     uploadFiles: { prepare: vi.fn(async () => ({ kind: "prepared", contentBase64: "" })) },
     isUnauthorized: (error: unknown) => Boolean(error),
     isReconnectRequired: () => false,

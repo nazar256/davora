@@ -84,7 +84,8 @@ function buildWorkspaceOwners(currentPath: string, navigateToPath: (path: string
     pwa: { install: { available: false, busy: false, onInstall: vi.fn() } },
     wakeLock: { active: false, reasonLabel: "media playback" },
     transfers: { tasks: [], clearAccountHistory: vi.fn() },
-    offlineSync: { commands: { retry: vi.fn() } }
+    offlineSync: { commands: { retry: vi.fn() } },
+    operation: { cancelTransferTask: vi.fn(), retryTransferTask: vi.fn() }
   };
 }
 

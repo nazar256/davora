@@ -38,6 +38,11 @@ interface MergeResult {
   readonly children?: MergeChildrenResult;
 }
 
+/** An interrupted await means the scope aborted (superseded) or the user cancelled. */
+function interruptedTerminal(ports: BatchCopyMovePorts): NonNullable<MergeResult["terminal"]> {
+  return ports.isCancelled?.() ? "canceled" : "superseded";
+}
+
 /**
  * Recursively combines a source folder into an existing destination folder.
  * Nested folder-on-folder conflicts recurse; nested file conflicts follow the
@@ -55,11 +60,11 @@ async function executeMergeFolder(
 
   const sourceListing = await ports.listChildren(source.path);
   if (sourceListing.kind !== "completed") {
-    return mergeListingFailure(sourceListing);
+    return mergeListingFailure(sourceListing, ports);
   }
   const destinationListing = await ports.listChildren(destinationPath);
   if (destinationListing.kind !== "completed") {
-    return mergeListingFailure(destinationListing);
+    return mergeListingFailure(destinationListing, ports);
   }
 
   const existingByName = new Map(destinationListing.entries.map((entry) => [entry.name, entry] as const));
@@ -134,6 +139,7 @@ async function executeMergeFolder(
         allDone = false;
       }
       if (overwritten.kind === "sessionTerminated") return { terminal: "sessionTerminated" };
+      if (overwritten.kind === "interrupted") return { terminal: interruptedTerminal(ports) };
       continue;
     }
 
@@ -146,11 +152,13 @@ async function executeMergeFolder(
       allDone = false;
     }
     if (result.kind === "sessionTerminated") return { terminal: "sessionTerminated" };
+    if (result.kind === "interrupted") return { terminal: interruptedTerminal(ports) };
   }
 
   if (input.operation === "move" && allDone) {
     const remaining = await ports.listChildren(source.path);
     if (remaining.kind === "sessionTerminated") return { terminal: "sessionTerminated" };
+    if (remaining.kind === "interrupted") return { terminal: interruptedTerminal(ports) };
     if (remaining.kind !== "completed") {
       failures.push(`${source.path}: ${remaining.message}`);
       allDone = false;
@@ -159,6 +167,7 @@ async function executeMergeFolder(
     } else {
       const removed = await ports.deleteFolder(source.path, source.name);
       if (removed.kind === "sessionTerminated") return { terminal: "sessionTerminated" };
+      if (removed.kind === "interrupted") return { terminal: interruptedTerminal(ports) };
       if (removed.kind === "failed") {
         failures.push(`${source.path}: ${removed.message}`);
         allDone = false;
@@ -171,8 +180,12 @@ async function executeMergeFolder(
   };
 }
 
-function mergeListingFailure(listing: Exclude<FolderListResult, { kind: "completed" }>): MergeResult {
+function mergeListingFailure(
+  listing: Exclude<FolderListResult, { kind: "completed" }>,
+  ports: BatchCopyMovePorts
+): MergeResult {
   if (listing.kind === "sessionTerminated") return { terminal: "sessionTerminated" };
+  if (listing.kind === "interrupted") return { terminal: interruptedTerminal(ports) };
   return { children: { kind: "settled", allDone: false, failures: [listing.message], skippedCount: 0 } };
 }
 
@@ -188,7 +201,7 @@ function settleLeaf(
     settle(ports, { ...settledItem, status: "failed", error: result.message });
     return true;
   }
-  if (result.kind === "sessionTerminated") {
+  if (result.kind === "sessionTerminated" || result.kind === "interrupted") {
     return true;
   }
   settle(ports, { ...settledItem, status: "done" });
@@ -213,13 +226,33 @@ export async function executeBatchCopyMove(
     });
   }
 
+  /** Cancellation refreshes the visible folder so already-applied moves/copies settle into the listing. */
+  const canceledOutcome = async (): Promise<BatchCopyMoveOutcome> => {
+    skippedCount += input.targets.length - completedCount - failures.length;
+    if (ports.isCurrent()) {
+      const refreshResult = await ports.refreshFolder();
+      if (!ports.isCurrent()) {
+        return outcome("superseded", input, completedCount, skippedCount, failures);
+      }
+      if (refreshResult.kind === "sessionTerminated") {
+        return outcome("sessionTerminated", input, completedCount, skippedCount, failures);
+      }
+    }
+    return outcome("canceled", input, completedCount, skippedCount, failures);
+  };
+
+  /** An interrupted await settles as canceled when the user cancelled, otherwise superseded. */
+  const interruptedOutcome = (): BatchCopyMoveOutcome =>
+    ports.isCancelled?.() && ports.isCurrent()
+      ? outcome("canceled", input, completedCount, skippedCount, failures)
+      : outcome("superseded", input, completedCount, skippedCount, failures);
+
   for (const target of input.targets) {
     if (!ports.isCurrent()) {
       return outcome("superseded", input, completedCount, skippedCount, failures);
     }
     if (ports.isCancelled?.()) {
-      skippedCount += input.targets.length - completedCount - failures.length;
-      return outcome("canceled", input, completedCount, skippedCount, failures);
+      return canceledOutcome();
     }
 
     if (target.mode === "merge") {
@@ -231,8 +264,7 @@ export async function executeBatchCopyMove(
         return outcome("sessionTerminated", input, completedCount, skippedCount, failures);
       }
       if (merge.terminal === "canceled") {
-        skippedCount += input.targets.length - completedCount - failures.length;
-        return outcome("canceled", input, completedCount, skippedCount, failures);
+        return canceledOutcome();
       }
       const children = merge.children!;
       skippedCount += children.skippedCount;
@@ -264,6 +296,9 @@ export async function executeBatchCopyMove(
       return outcome("superseded", input, completedCount, skippedCount, failures);
     }
 
+    if (result.kind === "interrupted") {
+      return ports.isCancelled?.() ? canceledOutcome() : interruptedOutcome();
+    }
     if (result.kind === "sessionTerminated") {
       return outcome("sessionTerminated", input, completedCount, skippedCount, failures);
     }
@@ -292,9 +327,15 @@ export async function executeBatchCopyMove(
   if (!ports.isCurrent()) {
     return outcome("superseded", input, completedCount, skippedCount, failures);
   }
+  if (ports.isCancelled?.()) {
+    return canceledOutcome();
+  }
   const refreshResult = await ports.refreshFolder();
   if (!ports.isCurrent()) {
     return outcome("superseded", input, completedCount, skippedCount, failures);
+  }
+  if (refreshResult.kind === "interrupted") {
+    return interruptedOutcome();
   }
   if (refreshResult.kind === "sessionTerminated") {
     return outcome("sessionTerminated", input, completedCount, skippedCount, failures);

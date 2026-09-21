@@ -40,13 +40,12 @@ export interface UseCopyMoveInput {
   getBatchSelectionEntries(): readonly FileEntry[];
   getCurrentPath(): string;
   getAccountName(): string;
+  getAccountId(): string | undefined;
   workflow: {
     hasSurface(): boolean;
     beginAttempt(intent: OperationIntent): MutationAttemptToken | undefined;
-    isAttemptCurrent(attempt: MutationAttemptToken): boolean;
-    failAttempt(attempt: MutationAttemptToken, error: string): void;
-    reportPartial(attempt: MutationAttemptToken, error: string, failedEntries: readonly FileEntry[]): void;
     completeDestination(attempt: MutationAttemptToken, context: OperationContextToken): boolean;
+    failAttempt(attempt: MutationAttemptToken, error: string): void;
   };
   ports: CopyMovePorts;
 }
@@ -54,7 +53,6 @@ export interface UseCopyMoveInput {
 export function useCopyMove(input: UseCopyMoveInput) {
   const inputRef = useRef(input);
   inputRef.current = input;
-  const submittingRef = useRef(false);
 
   const openMove = useCallback(() => {
     const current = inputRef.current;
@@ -109,7 +107,7 @@ export function useCopyMove(input: UseCopyMoveInput) {
     ));
   }, []);
 
-  const runSubmit = useCallback(async (
+  const runSubmit = useCallback((
     current: UseCopyMoveInput,
     operation: DestinationOperation,
     picker: CopyMovePickerSnapshot,
@@ -120,20 +118,18 @@ export function useCopyMove(input: UseCopyMoveInput) {
     current.ports.submit.presentation.setActionError(undefined);
     const attempt = current.workflow.beginAttempt({ kind: operation, count: picker.sourceEntries.length });
     if (!attempt) return;
-    await runCopyMoveSubmitOrchestration({
+    runCopyMoveSubmitOrchestration({
       operation,
       picker,
       destinationPath,
       targets: resolved.targets,
       skipped: resolved.skipped,
       applySizeRule,
+      accountId: current.getAccountId(),
       accountName: current.getAccountName(),
-      ownerPath: current.getCurrentPath(),
       attempt,
-      isAttemptCurrent: current.workflow.isAttemptCurrent,
-      failAttempt: current.workflow.failAttempt,
-      reportPartial: current.workflow.reportPartial,
-      completeDestination: current.workflow.completeDestination
+      completeDestination: current.workflow.completeDestination,
+      failAttempt: current.workflow.failAttempt
     }, current.ports.submit);
   }, []);
 
@@ -172,23 +168,15 @@ export function useCopyMove(input: UseCopyMoveInput) {
       return;
     }
 
-    if (submittingRef.current) {
-      return;
-    }
-    submittingRef.current = true;
-    try {
-      await runSubmit(current, operation, picker, destinationPlan.destinationPath, {
-        targets: destinationPlan.targets.map((target) => ({
-          source: target.source,
-          destinationPath: target.destinationPath,
-          overwrite: false,
-          merge: false
-        })),
-        skipped: []
-      }, true);
-    } finally {
-      submittingRef.current = false;
-    }
+    runSubmit(current, operation, picker, destinationPlan.destinationPath, {
+      targets: destinationPlan.targets.map((target) => ({
+        source: target.source,
+        destinationPath: target.destinationPath,
+        overwrite: false,
+        merge: false
+      })),
+      skipped: []
+    }, true);
   }, [runSubmit]);
 
   const updateConflictDecision = useCallback((sourcePath: string, decision: DestinationConflictDecision) => {
@@ -233,19 +221,11 @@ export function useCopyMove(input: UseCopyMoveInput) {
     if (!current.ports.submit.context.isContextAllowed(picker.context, intent)) {
       return;
     }
-    if (submittingRef.current) {
-      return;
-    }
-    submittingRef.current = true;
-    try {
-      const resolved = resolveConflictDecisions(review, picker.entries);
-      current.setDestinationPicker((previous) => previous?.conflictReview
-        ? { ...previous, conflictReview: undefined }
-        : previous);
-      await runSubmit(current, review.operation, picker, review.destinationPath, resolved, review.applySizeRule);
-    } finally {
-      submittingRef.current = false;
-    }
+    const resolved = resolveConflictDecisions(review, picker.entries);
+    current.setDestinationPicker((previous) => previous?.conflictReview
+      ? { ...previous, conflictReview: undefined }
+      : previous);
+    runSubmit(current, review.operation, picker, review.destinationPath, resolved, review.applySizeRule);
   }, [runSubmit]);
 
   return {

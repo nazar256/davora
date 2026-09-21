@@ -13,11 +13,23 @@ export function transferKindLabel(kind: TransferKind): string {
   if (kind === "upload") {
     return "Upload";
   }
+  if (kind === "copy") {
+    return "Copy";
+  }
+  if (kind === "move") {
+    return "Move";
+  }
   return kind === "sync" ? "Offline sync" : "Download";
 }
 
 export function transferPhaseLabel(phase: TransferPhase, kind: TransferKind): string {
   if (phase === "transferring") {
+    if (kind === "copy") {
+      return "Copying";
+    }
+    if (kind === "move") {
+      return "Moving";
+    }
     return transferKindLabel(kind);
   }
   if (phase === "preparing") {
@@ -32,7 +44,20 @@ export function transferPhaseLabel(phase: TransferPhase, kind: TransferKind): st
   if (phase === "partial") {
     return "Partial";
   }
+  if (phase === "canceled") {
+    return "Canceled";
+  }
   return "Error";
+}
+
+export function formatTransferItemProgress(task: Pick<TransferTask, "settledItems" | "totalItems">): string | undefined {
+  if (task.settledItems === undefined && task.totalItems === undefined) {
+    return undefined;
+  }
+  const settled = task.settledItems ?? 0;
+  return task.totalItems === undefined
+    ? `${settled} items settled`
+    : `${settled} of ${task.totalItems} items`;
 }
 
 export interface TransferTraySummary {

@@ -162,7 +162,7 @@ describe("executeBatchCopyMove", () => {
 
     expect(result).toEqual({ kind: "canceled", completedCount: 1, skippedCount: 2, totalCount: 3, failures: [] });
     expect(adapter.executeTarget).toHaveBeenCalledTimes(1);
-    expect(adapter.refreshFolder).not.toHaveBeenCalled();
+    expect(adapter.refreshFolder).toHaveBeenCalledTimes(1);
   });
 
   it("reports terminal refresh after all target results", async () => {
@@ -376,6 +376,27 @@ describe("executeBatchCopyMove", () => {
       await executeBatchCopyMove({ ...input([mergeTarget("Src")], { applySizeRule: true }), operation: "move" }, adapter);
 
       expect(adapter.deleteFolder).not.toHaveBeenCalled();
+    });
+
+    it("refreshes the visible folder when a merge is cancelled mid-run", async () => {
+      let cancelled = false;
+      const adapter = ports({
+        isCancelled: () => cancelled,
+        listChildren: vi.fn(async (path: string): Promise<FolderListResult> => ({
+          kind: "completed",
+          entries: path === "Src" ? [file("Src/a.txt"), file("Src/b.txt")] : []
+        })),
+        executeTarget: vi.fn(async () => {
+          cancelled = true;
+          return { kind: "completed" } as const;
+        })
+      });
+
+      const result = await executeBatchCopyMove(input([mergeTarget("Src")]), adapter);
+
+      expect(adapter.executeTarget).toHaveBeenCalledTimes(1);
+      expect(adapter.refreshFolder).toHaveBeenCalledTimes(1);
+      expect(result.kind).toBe("canceled");
     });
 
     it("recurses into nested folder conflicts", async () => {

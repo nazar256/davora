@@ -51,6 +51,13 @@ const taskDraftArb: fc.Arbitrary<TransferTaskDraft> = fc.oneof(
   fc.record({
     id: idArb,
     accountId: accountArb,
+    kind: fc.constantFrom<"copy" | "move">("copy", "move"),
+    label: labelArb,
+    totalItems: fc.integer({ min: 0, max: 100 })
+  }),
+  fc.record({
+    id: idArb,
+    accountId: accountArb,
     kind: fc.constant("sync" as const),
     label: labelArb,
     dedupeKey: labelArb,
@@ -98,6 +105,22 @@ const perIdEventArb: fc.Arbitrary<TransferEvent> = fc.oneof(
     id,
     failure
   })),
+  fc.record({
+    id: idArb,
+    settledItems: fc.integer({ min: 0, max: 100 }),
+    totalItems: fc.option(fc.integer({ min: 0, max: 100 }), { nil: undefined })
+  }).map(({ id, settledItems, totalItems }) => ({
+    type: "itemsProgressed" as const,
+    id,
+    settledItems,
+    totalItems
+  })),
+  fc.record({ id: idArb, at: atArb, message: fc.option(messageArb, { nil: undefined }) }).map(({ id, at, message }) => ({
+    type: "canceled" as const,
+    id,
+    at,
+    message
+  })),
   fc.record({ id: idArb, at: atArb, label: labelArb, loadedBytes: loadedBytesArb, totalBytes: fc.integer({ min: 0, max: 10_000 }) }).map((event) => ({
     type: "completed" as const,
     ...event
@@ -130,7 +153,7 @@ const transferEventArb: fc.Arbitrary<TransferEvent> = fc.oneof(
   fc.record({
     accountId: accountArb,
     at: atArb,
-    message: fc.record({ upload: messageArb, download: messageArb, sync: messageArb })
+    message: fc.record({ upload: messageArb, download: messageArb, sync: messageArb, copy: messageArb, move: messageArb })
   }).map((event) => ({
     type: "activeAccountFailed" as const,
     ...event
@@ -369,7 +392,7 @@ describe("transfer ledger property characterization", () => {
   });
 
   it("fails only active tasks in the selected account and chooses the kind-specific message", () => {
-    const messages = { upload: "upload-failure", download: "download-failure", sync: "sync-failure" } as const;
+    const messages = { upload: "upload-failure", download: "download-failure", sync: "sync-failure", copy: "copy-failure", move: "move-failure" } as const;
     fc.assert(fc.property(fc.array(taskPhaseSpecArb, { minLength: 1, maxLength: 18 }), accountArb, (specs, accountId) => {
       const before = ledgerFromSpecs(specs);
       const after = reduceTransferLedger(before, { type: "activeAccountFailed", accountId, at: "account-failed", message: messages });
@@ -546,7 +569,7 @@ describe("transfer ledger property characterization", () => {
         expect(selectRecentTransfers(ledger.tasks, limit)).toEqual(ledger.tasks.slice(0, limit));
         expect(selectTransferWakeLockReasons(ledger.tasks)).toEqual(
           (["download", "transferQueue", "offlineSync"] as const).filter((reason) => active.some((task) => (
-            reason === "download" ? task.kind === "download" : reason === "offlineSync" ? task.kind === "sync" : task.kind === "upload"
+            reason === "download" ? task.kind === "download" : reason === "offlineSync" ? task.kind === "sync" : task.kind !== "download" && task.kind !== "sync"
           )))
         );
 

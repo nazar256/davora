@@ -329,7 +329,9 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
           transfers.failActiveForAccount(target.id, {
             download: "Account removal stopped active downloads.",
             sync: "Account removal stopped active offline sync.",
-            upload: "Account removal stopped active uploads."
+            upload: "Account removal stopped active uploads.",
+            copy: "Account removal stopped active copies.",
+            move: "Account removal stopped active moves."
           });
         }
       },

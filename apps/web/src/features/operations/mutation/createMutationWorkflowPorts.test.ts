@@ -28,6 +28,7 @@ function createInput(overrides: Partial<CreateMutationWorkflowPortsInput> = {}):
     },
     context: {
       getOperationContextToken: vi.fn(() => createOperationContextToken()),
+      getAccountId: vi.fn(() => "account-1"),
       isOperationContextAllowed: vi.fn(() => true),
       isCurrentOperationContext: vi.fn(() => true)
     },
@@ -76,11 +77,17 @@ function createInput(overrides: Partial<CreateMutationWorkflowPortsInput> = {}):
     transfers: {
       createId: vi.fn(() => "transfer-1"),
       enqueueUpload: vi.fn(),
+      enqueueCopyMove: vi.fn(),
       beginPreparation: vi.fn(),
       reportPreparationProgress: vi.fn(),
       beginTransfer: vi.fn(),
       reportUploadProgress: vi.fn(),
+      reportItemProgress: vi.fn(),
+      reportItemFailure: vi.fn(),
       complete: vi.fn(),
+      completePartial: vi.fn(),
+      fail: vi.fn(),
+      markCanceled: vi.fn(),
       failActive: vi.fn()
     },
     api: {
@@ -104,6 +111,13 @@ function createInput(overrides: Partial<CreateMutationWorkflowPortsInput> = {}):
       getActiveDeleteWorkflowId: vi.fn(() => createBatchDeleteWorkflow(1, [{ path: "notes.txt", confirmName: "notes.txt" }]).id),
       isAttemptCurrent: vi.fn(() => true),
       updateDeleteDialog: vi.fn(() => true)
+    },
+    time: { wait: vi.fn(async () => {}) },
+    request: {
+      createAbortHandle: vi.fn(() => {
+        const controller = new AbortController();
+        return { signal: controller.signal, abort: () => controller.abort() };
+      })
     },
     ...overrides
   };
@@ -205,5 +219,66 @@ describe("createMutationWorkflowPorts", () => {
       { kind: "delete", count: 1 },
       () => true
     )).resolves.toEqual({ kind: "sessionTerminated" });
+  });
+
+  it("does not reset the replacement session when a superseded task's listChildren gets a 401", async () => {
+    const input = createInput({
+      context: {
+        getOperationContextToken: vi.fn(() => createOperationContextToken()),
+        getAccountId: vi.fn(() => "account-1"),
+        isOperationContextAllowed: vi.fn(() => true),
+        isCurrentOperationContext: vi.fn(() => false)
+      },
+      api: {
+        createFolder: vi.fn(),
+        deleteFile: vi.fn(),
+        uploadFileWithProgress: vi.fn(),
+        runCopyOrMove: vi.fn(),
+        listChildren: vi.fn(async () => {
+          throw new ApiRequestError("expired", 401);
+        })
+      }
+    });
+    const ports = createMutationOrchestrationPorts(input, {
+      beginMutation: vi.fn(),
+      finishMutation: vi.fn(),
+      executeMutation: vi.fn(),
+      syncSelectionWithMutation: vi.fn()
+    });
+
+    const result = await ports.copyMoveTasks.batch.listChildren("Docs", createOperationContextToken());
+
+    expect(result).toEqual({ kind: "failed", message: "This action was superseded." });
+    expect(input.session.resetActiveSession).not.toHaveBeenCalled();
+  });
+
+  it("forwards the registry scope signal and request abort handle into copyMove task ports", () => {
+    const scopeSignal = new AbortController().signal;
+    const input = createInput({
+      registry: {
+        acquire: vi.fn(() => ({
+          signal: scopeSignal,
+          isCurrent: () => true,
+          release: vi.fn()
+        }))
+      }
+    });
+    const ports = createMutationOrchestrationPorts(input, {
+      beginMutation: vi.fn(),
+      finishMutation: vi.fn(),
+      executeMutation: vi.fn(),
+      syncSelectionWithMutation: vi.fn()
+    });
+
+    const scope = ports.copyMoveTasks.registry.acquire({
+      context: createOperationContextToken(),
+      intent: { kind: "copy", count: 1 }
+    });
+    const handle = ports.copyMoveTasks.createAbortHandle();
+
+    expect(scope?.signal).toBe(scopeSignal);
+    expect(handle.signal.aborted).toBe(false);
+    handle.abort();
+    expect(handle.signal.aborted).toBe(true);
   });
 });

@@ -24,7 +24,9 @@ export function explicitOfflineStorageFailureStatus(reason: "corrupt" | "unavail
 export const EXPLICIT_OFFLINE_TRANSFER_TERMINAL_MESSAGE: ExplicitOfflineTransferTerminalMessage = Object.freeze({
   download: "Download stopped because its account or connection context changed.",
   sync: "Offline sync stopped because its account or connection context changed.",
-  upload: "Upload stopped because its account or connection context changed."
+  upload: "Upload stopped because its account or connection context changed.",
+  copy: "Copy stopped because its account or connection context changed.",
+  move: "Move stopped because its account or connection context changed."
 });
 
 export type ExplicitOfflineModeTransitionResult =

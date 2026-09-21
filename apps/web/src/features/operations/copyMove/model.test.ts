@@ -3,18 +3,13 @@ import { describe, expect, it } from "vitest";
 
 import { createOperationContextToken } from "../policy";
 import {
-  buildBatchCopyMovePartialActionError,
   buildBatchCopyMovePartialStatus,
   buildBatchCopyMovePickerInitialState,
   buildBatchCopyMoveSuccessStatus,
   buildCopyMoveOperationLabel,
   buildDestinationPlanFromPicker,
   buildMovePickerInitialState,
-  buildSingleCopyMovePickerInitialState,
-  deriveRetainedFailedEntries,
-  shouldCloseDestinationPickerAfterSubmit,
-  shouldRetainDestinationPickerAfterPartialBatch,
-  type BatchCopyMoveFailure
+  buildSingleCopyMovePickerInitialState
 } from "./model";
 
 function entry(path: string, isFolder = false): FileEntry {
@@ -32,25 +27,6 @@ describe("copyMove model helpers", () => {
       .toBe("Copied 2 selected items to /Archive in Workspace.");
     expect(buildBatchCopyMovePartialStatus("Moved", 1, 2, 1, "Workspace"))
       .toBe("Moved 1 of 2 selected items; 1 failed in Workspace.");
-    expect(buildBatchCopyMovePartialActionError("Copied", 1, 2, [
-      { entry: entry("notes.txt"), message: "rejected" }
-    ])).toBe("Copied 1 of 2 selected items; 1 failed. notes.txt: rejected");
-  });
-
-  it("derives retained failed entries and picker decisions", () => {
-    const sourceEntriesByPath = new Map([
-      ["a.txt", entry("a.txt")],
-      ["b.txt", entry("b.txt")]
-    ]);
-    const failures: BatchCopyMoveFailure[] = [
-      { sourcePath: "b.txt", message: "failed" }
-    ];
-    expect(deriveRetainedFailedEntries(sourceEntriesByPath, failures)).toEqual([
-      { entry: entry("b.txt"), message: "failed" }
-    ]);
-    expect(shouldCloseDestinationPickerAfterSubmit(true)).toBe(true);
-    expect(shouldCloseDestinationPickerAfterSubmit(false)).toBe(false);
-    expect(shouldRetainDestinationPickerAfterPartialBatch()).toBe(true);
   });
 
   it("builds initial picker states", () => {

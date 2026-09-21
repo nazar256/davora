@@ -23,7 +23,7 @@ import type {
   DiagnosticsWorkspaceInput
 } from "./ports";
 
-const TERMINAL_TRANSFER_PHASES = new Set(["done", "partial", "error"]);
+const TERMINAL_TRANSFER_PHASES = new Set(["done", "partial", "error", "canceled"]);
 
 const CHROME_SURFACE_KEY_LIST = Object.values(CHROME_SURFACE_KEYS);
 
@@ -37,7 +37,7 @@ const formatBytesApprox = (bytes: number): string => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const isTerminalTransferPhase = (phase: TransferTask["phase"]): phase is "done" | "partial" | "error" =>
+const isTerminalTransferPhase = (phase: TransferTask["phase"]): phase is "done" | "partial" | "error" | "canceled" =>
   TERMINAL_TRANSFER_PHASES.has(phase);
 
 const errorKindOf = (error: unknown): string =>

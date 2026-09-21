@@ -128,7 +128,7 @@ function createSelectionFixture(): AppServices {
     },
     download: { prepareDownloadFile: async () => ({ blob: new Blob(), filename: "fixture" }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "fixture" }), listFiles: async () => ({ path: "", items: [] }), triggerBrowserDownload: () => undefined, saveDownload: () => undefined },
     batch: { downloadSelectionAsZip: async () => ({ blob: new Blob(), plan: { archiveName: "fixture", selectedCount: 0, selectedFileCount: 0, selectedDirectoryCount: 0, directories: [], files: [], failedFiles: [] } }) },
-    preview: { createFileStreamUrl: async () => "" }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) },
+    preview: { createFileStreamUrl: async () => "" }, time: { wait: async () => {} }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) },
     isUnauthorized: (error) => error instanceof ApiRequestError && error.status === 401,
     isReconnectRequired: () => false,
     toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback

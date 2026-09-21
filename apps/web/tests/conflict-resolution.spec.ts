@@ -14,12 +14,15 @@ interface CopyRequestBody {
 }
 
 async function openCopyMovePicker(page: Page, actionsName: RegExp): Promise<Locator> {
-  const closeButton = page.getByRole("button", { name: /Close item actions/i });
-  if (await closeButton.isVisible().catch(() => false)) {
-    await closeButton.click();
-  }
-  await page.getByRole("button", { name: actionsName }).click();
-  await page.getByRole("region", { name: /Details for/i }).getByRole("button", { name: /Copy or move/i }).click();
+  const openButton = page.getByRole("button", { name: actionsName });
+  const details = page.getByRole("region", { name: /Details for/i });
+  await expect(async () => {
+    if (await openButton.isVisible().catch(() => false)) {
+      await openButton.click();
+    }
+    await expect(details.getByRole("button", { name: /Copy or move/i })).toBeVisible({ timeout: 3000 });
+  }).toPass();
+  await details.getByRole("button", { name: /Copy or move/i }).click();
   return page.getByRole("dialog", { name: /Copy or move item/i });
 }
 
@@ -59,7 +62,7 @@ test("conflict review resolves file collisions with keep both, replace, and skip
   await expect(conflictDialog).toHaveCount(0);
   await expect.poll(() => copyRequests.length).toBe(1);
   expect(copyRequests[0]).toEqual({ path: "Projects/roadmap.txt", destinationPath: "Archive/guide (1).pdf", overwrite: false });
-  await expect(page.locator(".browse-status-note")).toContainText(/copy completed for \/Archive\/guide \(1\)\.pdf/i);
+  await expect(page.locator(".browse-status-note")).toContainText(/Copied 1 selected item to \/Archive\/guide\.pdf/i);
 
   await page.getByRole("navigation", { name: "Breadcrumbs" }).getByRole("button", { name: /Go to home folder/i }).click();
   await page.getByRole("button", { name: /Open folder Projects/i }).click();
@@ -98,10 +101,9 @@ test("conflict review merges a folder into an existing destination folder", asyn
   await connectAccount(page, "Folder merge workspace");
   const firstPicker = await openCopyMovePicker(page, /Open actions for Design/i);
   await submitCopyAt(firstPicker, "Archive/Design");
-  await expect(page.locator(".browse-status-note")).toContainText(/copy completed for \/Archive\/Design/i);
+  await expect(page.locator(".browse-status-note")).toContainText(/Copied 1 selected item to \/Archive\/Design/i);
   await expect.poll(() => copyRequests.length).toBe(1);
 
-  await page.getByRole("navigation", { name: "Breadcrumbs" }).getByRole("button", { name: /Go to home folder/i }).click();
   const secondPicker = await openCopyMovePicker(page, /Open actions for Design/i);
   await submitCopyAt(secondPicker, "Archive/Design");
 

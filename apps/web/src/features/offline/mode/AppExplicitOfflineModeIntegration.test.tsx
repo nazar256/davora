@@ -233,7 +233,7 @@ function createFixture(): ExplicitOfflineModeFixture {
     mutation: { createFolder: async () => ({ action: "createFolder", parentPath: "", path: "" }), deleteFile: async () => ({ action: "delete", parentPath: "", path: "" }), uploadFile: async () => ({ action: "upload", parentPath: "", path: "" }), copyOrMove: async () => ({ action: "copy", parentPath: "", path: "" }), listDestination: async (path) => listFiles(path) },
     download: { prepareDownloadFile: vi.fn(), fetchDownloadBlob: vi.fn(), listFiles: async (path, token, signal) => listFiles(path, token, signal), triggerBrowserDownload: calls.browserSave, saveDownload: calls.browserSave },
     batch: { downloadSelectionAsZip: vi.fn() },
-    preview: { createFileStreamUrl: async () => "" }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) },
+    preview: { createFileStreamUrl: async () => "" }, time: { wait: async () => {} }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) },
     isUnauthorized: () => false,
     isReconnectRequired: () => false,
     toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback

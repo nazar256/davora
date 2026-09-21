@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createTransferLedger, reduceTransferLedger, type TransferEvent } from "../model";
 import {
   buildTransferTraySummary,
+  formatTransferItemProgress,
   formatTransferPercent,
   transferKindLabel,
   transferPhaseLabel
@@ -15,9 +16,20 @@ describe("transfer tray presentation", () => {
     expect(transferKindLabel("upload")).toBe("Upload");
     expect(transferKindLabel("download")).toBe("Download");
     expect(transferKindLabel("sync")).toBe("Offline sync");
+    expect(transferKindLabel("copy")).toBe("Copy");
+    expect(transferKindLabel("move")).toBe("Move");
     expect(transferPhaseLabel("preparing", "upload")).toBe("Preparing");
     expect(transferPhaseLabel("transferring", "sync")).toBe("Offline sync");
+    expect(transferPhaseLabel("transferring", "copy")).toBe("Copying");
+    expect(transferPhaseLabel("transferring", "move")).toBe("Moving");
     expect(transferPhaseLabel("partial", "download")).toBe("Partial");
+    expect(transferPhaseLabel("canceled", "copy")).toBe("Canceled");
+  });
+
+  it("formats item progress for copy and move tasks", () => {
+    expect(formatTransferItemProgress({ settledItems: 3, totalItems: 10 })).toBe("3 of 10 items");
+    expect(formatTransferItemProgress({ settledItems: 3 })).toBe("3 items settled");
+    expect(formatTransferItemProgress({})).toBeUndefined();
   });
 
   it("builds active count and primary summary from account-filtered tasks", () => {

@@ -45,13 +45,14 @@ export function useOperationExecutionWorkspace(input: OperationExecutionWorkspac
       workflow: {
         session: input.coordination.session,
         refresh: input.coordination.refresh,
+        wait: input.runtime.time.wait,
+        createAbortHandle: input.runtime.request.createAbortHandle,
         registry: {
           acquire: ({ context, basePath, intent }) => {
             const scope = operationContext.registry.acquire({
               context,
-              path: basePath,
               intent,
-              ownership: { checkPath: basePath },
+              ...(basePath === undefined ? {} : { path: basePath, ownership: { checkPath: basePath } }),
               rejectUnlessImmediateOwner: true
             });
             return scope ? { signal: scope.signal, isCurrent: scope.isCurrent, release: scope.release } : undefined;
@@ -60,11 +61,17 @@ export function useOperationExecutionWorkspace(input: OperationExecutionWorkspac
         transfers: {
           createId: input.runtime.request.createTransferId,
           enqueueUpload: ({ id, accountId, label, totalBytes }) => input.coordination.transfers.enqueue({ id, accountId, kind: "upload", label, loadedBytes: 0, totalBytes }),
+          enqueueCopyMove: ({ id, accountId, kind, label, totalItems }) => input.coordination.transfers.enqueue({ id, accountId, kind, label, loadedBytes: 0, totalItems }),
           beginPreparation: (id, totalBytes) => input.coordination.transfers.beginPreparation(id, { loadedBytes: 0, totalBytes }),
           reportPreparationProgress: (id, loadedBytes, totalBytes) => input.coordination.transfers.reportProgress(id, "preparing", loadedBytes, totalBytes),
           beginTransfer: (id) => input.coordination.transfers.beginTransfer(id, { loadedBytes: 0, totalBytes: null }),
           reportUploadProgress: (id, loadedBytes, totalBytes) => input.coordination.transfers.reportProgress(id, "transferring", loadedBytes, totalBytes),
+          reportItemProgress: input.coordination.transfers.reportItemProgress,
+          reportItemFailure: input.coordination.transfers.reportFailure,
           complete: input.coordination.transfers.complete,
+          completePartial: input.coordination.transfers.completePartial,
+          fail: input.coordination.transfers.fail,
+          markCanceled: input.coordination.transfers.markCanceled,
           failActive: input.coordination.transfers.failActiveTasks
         },
         api: {
@@ -238,7 +245,13 @@ export function useOperationExecutionWorkspace(input: OperationExecutionWorkspac
   };
   return {
     authority: operationContext,
-    mutation: { state: mutationState, bridge: mutationWorkspace.bridge, stage },
+    mutation: {
+      state: mutationState,
+      bridge: mutationWorkspace.bridge,
+      stage,
+      cancelTransferTask: mutationWorkspace.commands.cancelTransferTask,
+      retryTransferTask: mutationWorkspace.commands.retryTransferTask
+    },
     download,
     upload,
     capabilities,

@@ -240,7 +240,7 @@ function createWakeLockFixture(): AppServices {
       saveDownload: mockedApi.triggerBrowserDownload
     },
     batch: { downloadSelectionAsZip: vi.fn() },
-    preview: { createFileStreamUrl: async () => "" }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) },
+    preview: { createFileStreamUrl: async () => "" }, time: { wait: async () => {} }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) },
     isUnauthorized: (error) => error instanceof ApiRequestError && error.status === 401,
     isReconnectRequired: () => false,
     toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback

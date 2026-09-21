@@ -6,6 +6,8 @@ import { ApiRequestError } from "../../../lib/api";
 import type { DestinationOperation } from "../destination";
 import type { ActionDialogOrchestrationPorts } from "../delete/orchestrationPorts";
 import type { CopyMoveOrchestrationPorts } from "../copyMove/orchestrationPorts";
+import type { CopyMoveTaskPorts } from "../copyMove/tasks";
+import type { TransferFailure } from "../../transfers";
 import type { UploadOrchestrationPorts, UploadMutationResult } from "../upload/orchestrationPorts";
 import type { UploadRefreshResult } from "../upload/ports";
 import type { OperationContextToken, OperationIntent } from "../policy";
@@ -33,7 +35,7 @@ import {
 export interface MutationRegistrySource {
   acquire(input: {
     readonly context: OperationContextToken;
-    readonly basePath: string;
+    readonly basePath?: string;
     readonly intent: OperationIntent;
   }): {
     readonly signal: AbortSignal;
@@ -59,11 +61,23 @@ export interface MutationTransferSource {
     readonly label: string;
     readonly totalBytes: number;
   }): void;
+  enqueueCopyMove(input: {
+    readonly id: string;
+    readonly accountId: string;
+    readonly kind: "copy" | "move";
+    readonly label: string;
+    readonly totalItems: number;
+  }): void;
   beginPreparation(id: string, totalBytes: number): void;
   reportPreparationProgress(id: string, loadedBytes: number, totalBytes: number): void;
   beginTransfer(id: string): void;
   reportUploadProgress(id: string, loadedBytes: number, totalBytes: number): void;
+  reportItemProgress(id: string, settledItems: number, totalItems: number): void;
+  reportItemFailure(id: string, failure: TransferFailure): void;
   complete(id: string): void;
+  completePartial(id: string, failures: readonly TransferFailure[], message: string): void;
+  fail(id: string, message: string): void;
+  markCanceled(id: string, message?: string): void;
   failActive(ids: ReadonlySet<string>, message: string): void;
 }
 
@@ -151,6 +165,7 @@ export interface CreateMutationWorkflowPortsInput {
   };
   readonly context: {
     getOperationContextToken(): OperationContextToken;
+    getAccountId(): string | undefined;
     isOperationContextAllowed(context: OperationContextToken, intent: OperationIntent): boolean;
     isCurrentOperationContext(context: OperationContextToken): boolean;
   };
@@ -167,6 +182,12 @@ export interface CreateMutationWorkflowPortsInput {
   readonly transfers: MutationTransferSource;
   readonly api: MutationApiSources;
   readonly deleteWorkflow: MutationDeleteWorkflowSources;
+  readonly time: {
+    wait(delayMs: number): Promise<void>;
+  };
+  readonly request: {
+    createAbortHandle(): { readonly signal: AbortSignal; abort(): void };
+  };
 }
 
 export interface MutationRunnerCallbacks {
@@ -182,10 +203,8 @@ export interface MutationWorkflowOrchestrationPorts {
     ActionDialogOrchestrationPorts,
     "context" | "session" | "mutations" | "mutation" | "api" | "batch"
   >;
-  readonly copyMoveSubmit: Pick<
-    CopyMoveOrchestrationPorts,
-    "context" | "session" | "mutations" | "mutation" | "api" | "batch"
-  >;
+  readonly copyMoveSubmit: Pick<CopyMoveOrchestrationPorts, "context">;
+  readonly copyMoveTasks: CopyMoveTaskPorts;
 }
 
 function createSessionErrorApi(token: string | undefined) {
@@ -453,18 +472,52 @@ export function createMutationOrchestrationPorts(
       }
     },
     copyMoveSubmit: {
-      ...shared,
-      api: {
-        runCopyOrMove: (operation, sourcePath, destinationPath, overwrite) => {
-          return Promise.resolve(input.api.runCopyOrMove(
-            operation,
-            sourcePath,
-            destinationPath,
-            sessionApi.getToken(),
-            overwrite
-          ));
+      context: shared.context
+    },
+    copyMoveTasks: {
+      registry: {
+        acquire: ({ context, intent }) => {
+          const scope = input.registry.acquire({ context, intent });
+          if (!scope) {
+            return undefined;
+          }
+          return {
+            signal: scope.signal,
+            isCurrent: () => scope.isCurrent(),
+            release: () => {
+              scope.release();
+            }
+          };
         }
       },
+      transfers: {
+        createId: () => input.transfers.createId(),
+        enqueueCopyMove: (enqueueInput) => {
+          input.transfers.enqueueCopyMove(enqueueInput);
+        },
+        beginTransfer: (id) => {
+          input.transfers.beginTransfer(id);
+        },
+        reportItemProgress: (id, settledItems, totalItems) => {
+          input.transfers.reportItemProgress(id, settledItems, totalItems);
+        },
+        reportItemFailure: (id, failure) => {
+          input.transfers.reportItemFailure(id, failure);
+        },
+        complete: (id) => {
+          input.transfers.complete(id);
+        },
+        completePartial: (id, failures, message) => {
+          input.transfers.completePartial(id, failures, message);
+        },
+        fail: (id, message) => {
+          input.transfers.fail(id, message);
+        },
+        markCanceled: (id, message) => {
+          input.transfers.markCanceled(id, message);
+        }
+      },
+      createAbortHandle: () => input.request.createAbortHandle(),
       batch: {
         executeCopyMoveTarget: async (operation: BatchCopyMoveOperation, sourcePath, destinationPath, overwrite, context, intent, isAttemptCurrent) => {
           return executeBatchMutationTarget(
@@ -488,6 +541,9 @@ export function createMutationOrchestrationPorts(
             }
             return { kind: "completed", entries: listing.items };
           } catch (error) {
+            if (!input.context.isCurrentOperationContext(context)) {
+              return { kind: "failed", message: "This action was superseded." };
+            }
             if (isMutationUnauthorized(error)) {
               input.session.resetActiveSession("Session expired. Create a fresh session for this account.");
               return { kind: "sessionTerminated" };
@@ -520,7 +576,25 @@ export function createMutationOrchestrationPorts(
           });
           return mapFolderLoadResult(result);
         }
-      }
+      },
+      folder: {
+        getCurrentPath: input.folder.getCurrentPath
+      },
+      selection: {
+        removeDeletedPath: input.selection.batchSelection.removeDeleted,
+        removeDeletedFocusedPath: input.selection.removeDeletedFocused
+      },
+      presentation: {
+        setStatus: input.presentation.setStatus
+      },
+      labels: {
+        toDisplayPath: input.presentation.toDisplayPath
+      },
+      context: {
+        getOperationContextToken: input.context.getOperationContextToken,
+        getAccountId: input.context.getAccountId
+      },
+      wait: (delayMs) => input.time.wait(delayMs)
     }
   };
 }

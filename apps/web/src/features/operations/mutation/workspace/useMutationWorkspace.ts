@@ -9,6 +9,7 @@ import {
 } from "../../destination";
 import {
   useCopyMove,
+  useCopyMoveTaskRunner,
   type CopyMovePorts
 } from "../../copyMove";
 import {
@@ -52,6 +53,7 @@ function createMutationWorkflowPortsInput(
     },
     context: {
       getOperationContextToken: () => input.context.operationContextToken,
+      getAccountId: () => input.context.accountId,
       isOperationContextAllowed: (context, intent) =>
         isCurrentContext(input, context) && input.policy.isOperationAllowed(intent),
       isCurrentOperationContext: (context) => isCurrentContext(input, context)
@@ -85,6 +87,8 @@ function createMutationWorkflowPortsInput(
     registry: ports.workflow.registry,
     transfers: ports.workflow.transfers,
     api: ports.workflow.api,
+    time: { wait: ports.workflow.wait },
+    request: { createAbortHandle: ports.workflow.createAbortHandle },
     deleteWorkflow: {
       getActiveDeleteWorkflowId: lifecycle.getActiveDeleteWorkflowId,
       isAttemptCurrent: lifecycle.isAttemptCurrent,
@@ -155,6 +159,7 @@ export function useMutationWorkspace(input: MutationWorkspaceInput): MutationWor
     } satisfies ActionDialogPorts
   });
 
+  const copyMoveTasks = useCopyMoveTaskRunner(workflow.orchestrationPorts.copyMoveTasks);
   const copyMove = useCopyMove({
     isCurrentOperationHandler: input.context.isCurrentOperationHandler,
     hasSession: input.context.hasSession,
@@ -167,6 +172,7 @@ export function useMutationWorkspace(input: MutationWorkspaceInput): MutationWor
     getBatchSelectionEntries: () => input.context.batchSelectionEntries,
     getCurrentPath: () => input.context.currentPath,
     getAccountName: input.ports.presentation.getAccountName,
+    getAccountId: () => input.context.accountId,
     workflow: lifecycle,
     ports: {
       opener: {
@@ -175,19 +181,13 @@ export function useMutationWorkspace(input: MutationWorkspaceInput): MutationWor
         openDestinationPicker: lifecycle.setDestinationPicker
       },
       submit: {
-        ...workflow.orchestrationPorts.copyMoveSubmit,
-        selection: {
-          retainFailedPaths: input.ports.selection.batchSelection.retain,
-          clear: input.ports.selection.clear
-        },
-        destinationPicker: { closeIfCurrent: destination.closeIfCurrent },
+        context: workflow.orchestrationPorts.copyMoveSubmit.context,
         presentation: {
           setActionError: setMutationActionError,
-          setStatus: input.ports.presentation.setStatus,
-          closeMobileDetails: input.ports.navigation.closeMobileDetails,
-          clearFocused: input.ports.selection.clearFocused
+          setStatus: input.ports.presentation.setStatus
         },
-        labels: { toDisplayPath: input.ports.presentation.toDisplayPath }
+        labels: { toDisplayPath: input.ports.presentation.toDisplayPath },
+        tasks: { enqueue: copyMoveTasks.enqueue }
       }
     } satisfies CopyMovePorts
   });
@@ -244,7 +244,9 @@ export function useMutationWorkspace(input: MutationWorkspaceInput): MutationWor
     applyConflictDecisionToAll: copyMove.applyConflictDecisionToAll,
     updateConflictApplySizeRule: copyMove.updateConflictApplySizeRule,
     dismissConflictReview: copyMove.dismissConflictReview,
-    confirmConflictReview: copyMove.confirmConflictReview
+    confirmConflictReview: copyMove.confirmConflictReview,
+    cancelTransferTask: copyMoveTasks.cancelTask,
+    retryTransferTask: copyMoveTasks.retryTask
   };
 
   const currentOwnerRef = useRef<{

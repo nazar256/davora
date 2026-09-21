@@ -1,9 +1,11 @@
-import { ArrowDownToLine, ArrowUpFromLine, HardDriveDownload, RefreshCw, Trash2, X } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Copy, FolderInput, HardDriveDownload, RefreshCw, Trash2, X, XCircle } from "lucide-react";
 
 import type { TransferTask } from "../model";
+import { isActiveTransferTask } from "../model";
 import { selectRecentTransfers } from "../selectors";
 import {
   buildTransferTraySummary,
+  formatTransferItemProgress,
   formatTransferPercent,
   transferPhaseLabel
 } from "./presentation";
@@ -14,6 +16,8 @@ export interface TransferTrayStageProps {
   readonly onToggleOpen: () => void;
   readonly onClearFinished: () => void;
   readonly onRetryFailedSync?: (task: TransferTask) => void;
+  readonly onCancelTransfer?: (task: TransferTask) => void;
+  readonly onRetryTransfer?: (task: TransferTask) => void;
 }
 
 export function TransferTrayStage(props: TransferTrayStageProps) {
@@ -51,16 +55,34 @@ export function TransferTrayStage(props: TransferTrayStageProps) {
             <ul className="transfer-tray-list">
               {recent.map((task) => {
                 const taskPercent = formatTransferPercent(task.loadedBytes, task.totalBytes);
+                const itemProgress = formatTransferItemProgress(task);
                 const phaseLabel = transferPhaseLabel(task.phase, task.kind);
+                const cancellable = isActiveTransferTask(task)
+                  && (task.kind === "copy" || task.kind === "move")
+                  && Boolean(props.onCancelTransfer);
                 return (
                   <li key={task.id} className={`transfer-tray-item transfer-tray-item-${task.phase}`}>
                     <div className="transfer-tray-item-row">
-                      <span className="transfer-tray-item-kind">{task.kind === "upload" ? <ArrowUpFromLine aria-hidden="true" /> : task.kind === "sync" ? <HardDriveDownload aria-hidden="true" /> : <ArrowDownToLine aria-hidden="true" />}</span>
+                      <span className="transfer-tray-item-kind">{task.kind === "upload" ? <ArrowUpFromLine aria-hidden="true" /> : task.kind === "sync" ? <HardDriveDownload aria-hidden="true" /> : task.kind === "copy" ? <Copy aria-hidden="true" /> : task.kind === "move" ? <FolderInput aria-hidden="true" /> : <ArrowDownToLine aria-hidden="true" />}</span>
                       <div className="transfer-tray-item-body">
                         <div className="transfer-tray-item-title">
                           <strong>{task.label}</strong>
                           <span className="status transfer-tray-item-phase">{phaseLabel}{taskPercent ? ` • ${taskPercent}` : ""}</span>
+                          {cancellable ? (
+                            <button
+                              aria-label={`Cancel ${task.label}`}
+                              className="icon-button quiet-button transfer-tray-item-cancel"
+                              onClick={() => props.onCancelTransfer?.(task)}
+                              title="Cancel"
+                              type="button"
+                            >
+                              <XCircle aria-hidden="true" />
+                            </button>
+                          ) : null}
                         </div>
+                        {itemProgress ? (
+                          <p className="status transfer-tray-item-progress">{itemProgress}</p>
+                        ) : null}
                         {task.totalBytes ? (
                           <div className="transfer-tray-meter">
                             <div className="transfer-tray-meter-bar" style={{ width: `${Math.max(0, Math.min(100, (task.loadedBytes / task.totalBytes) * 100))}%` }} />
@@ -88,6 +110,13 @@ export function TransferTrayStage(props: TransferTrayStageProps) {
                             ) : null}
                           </>
                         ) : null}
+                        {(task.kind === "copy" || task.kind === "move")
+                          && (task.phase === "error" || task.phase === "partial" || task.phase === "canceled")
+                          && props.onRetryTransfer ? (
+                            <button className="quiet-button button-with-icon" onClick={() => props.onRetryTransfer?.(task)} type="button">
+                              <RefreshCw aria-hidden="true" />Retry
+                            </button>
+                          ) : null}
                       </div>
                     </div>
                   </li>

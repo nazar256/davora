@@ -1,6 +1,6 @@
-export type TransferKind = "upload" | "download" | "sync";
+export type TransferKind = "upload" | "download" | "sync" | "copy" | "move";
 export type ActiveTransferPhase = "queued" | "preparing" | "transferring";
-export type TerminalTransferPhase = "done" | "partial" | "error";
+export type TerminalTransferPhase = "done" | "partial" | "error" | "canceled";
 export type TransferPhase = ActiveTransferPhase | TerminalTransferPhase;
 
 export interface TransferFailure {
@@ -20,11 +20,14 @@ interface TransferTaskBase {
   readonly label: string;
   readonly loadedBytes: number;
   readonly totalBytes?: number;
+  /** Item-count progress for copy/move tasks (byte progress is unavailable server-side). */
+  readonly settledItems?: number;
+  readonly totalItems?: number;
   readonly startedAt: string;
 }
 
 type TransferIdentity =
-  | { readonly kind: "upload" | "download"; readonly dedupeKey?: never; readonly syncRootEntries?: never }
+  | { readonly kind: "upload" | "download" | "copy" | "move"; readonly dedupeKey?: never; readonly syncRootEntries?: never }
   | { readonly kind: "sync"; readonly dedupeKey: string; readonly syncRootEntries: readonly TransferSyncRootEntry[] };
 
 type ActiveTransferState = {
@@ -55,11 +58,19 @@ type ErrorTransferState = {
   readonly failedFiles?: readonly TransferFailure[];
 };
 
+type CanceledTransferState = {
+  readonly phase: "canceled";
+  readonly finishedAt: string;
+  readonly errorMessage?: string;
+  readonly failedFiles?: readonly TransferFailure[];
+};
+
 export type TransferTask = TransferTaskBase & TransferIdentity & (
   | ActiveTransferState
   | DoneTransferState
   | PartialTransferState
   | ErrorTransferState
+  | CanceledTransferState
 );
 
 type ActiveTransferTask = TransferTaskBase & TransferIdentity & ActiveTransferState;
@@ -70,10 +81,11 @@ interface TransferTaskDraftBase {
   readonly label: string;
   readonly loadedBytes?: number;
   readonly totalBytes?: number;
+  readonly totalItems?: number;
 }
 
 export type TransferTaskDraft = TransferTaskDraftBase & (
-  | { readonly kind: "upload" | "download"; readonly dedupeKey?: never; readonly syncRootEntries?: never }
+  | { readonly kind: "upload" | "download" | "copy" | "move"; readonly dedupeKey?: never; readonly syncRootEntries?: never }
   | { readonly kind: "sync"; readonly dedupeKey: string; readonly syncRootEntries: readonly TransferSyncRootEntry[] }
 );
 
@@ -89,10 +101,12 @@ export type TransferEvent =
   | { readonly type: "preparationStarted"; readonly id: string; readonly loadedBytes?: number; readonly totalBytes?: number | null }
   | { readonly type: "transferStarted"; readonly id: string; readonly label?: string; readonly loadedBytes?: number; readonly totalBytes?: number | null }
   | { readonly type: "progressReported"; readonly id: string; readonly stage: "preparing" | "transferring"; readonly loadedBytes: number; readonly totalBytes?: number | null }
+  | { readonly type: "itemsProgressed"; readonly id: string; readonly settledItems: number; readonly totalItems?: number | null }
   | { readonly type: "nonterminalFailureReported"; readonly id: string; readonly failure: TransferFailure }
   | { readonly type: "completed"; readonly id: string; readonly at: string; readonly label?: string; readonly loadedBytes?: number; readonly totalBytes?: number }
   | { readonly type: "partiallyCompleted"; readonly id: string; readonly at: string; readonly failures: readonly TransferFailure[]; readonly message: string; readonly label?: string; readonly loadedBytes?: number; readonly totalBytes?: number }
   | { readonly type: "failed"; readonly id: string; readonly at: string; readonly message: string }
+  | { readonly type: "canceled"; readonly id: string; readonly at: string; readonly message?: string }
   | { readonly type: "activeAccountFailed"; readonly accountId: string; readonly at: string; readonly message: TransferFailureMessage }
   | { readonly type: "activeTasksFailed"; readonly ids: ReadonlySet<string>; readonly at: string; readonly message: string }
   | { readonly type: "accountHistoryCleared"; readonly accountId: string };
@@ -129,9 +143,11 @@ export function isValidTransferTaskDraft(task: unknown): task is TransferTaskDra
       && Array.isArray(task.syncRootEntries)
       && task.syncRootEntries.every(isSyncRootEntry);
   }
-  return (task.kind === "upload" || task.kind === "download")
+  return (task.kind === "upload" || task.kind === "download" || task.kind === "copy" || task.kind === "move")
     && task.dedupeKey === undefined
-    && task.syncRootEntries === undefined;
+    && task.syncRootEntries === undefined
+    && (task.totalItems === undefined
+      || (typeof task.totalItems === "number" && Number.isFinite(task.totalItems) && task.totalItems >= 0));
 }
 
 function retainHistory(tasks: readonly TransferTask[], maxTerminal: number): readonly TransferTask[] {
@@ -242,6 +258,22 @@ export function reduceTransferLedger(ledger: TransferLedger, event: TransferEven
       phase: event.stage,
       loadedBytes: event.loadedBytes
     }, event.totalBytes));
+  }
+  if (event.type === "itemsProgressed") {
+    return replaceActive(ledger, event.id, (task) => ({
+      ...task,
+      phase: task.phase === "queued" ? "transferring" : task.phase,
+      settledItems: event.settledItems,
+      ...(event.totalItems === undefined ? {} : { totalItems: event.totalItems ?? undefined })
+    }));
+  }
+  if (event.type === "canceled") {
+    return replaceActive(ledger, event.id, (task) => ({
+      ...task,
+      phase: "canceled",
+      finishedAt: event.at,
+      ...(event.message ? { errorMessage: event.message } : {})
+    }));
   }
   if (event.type === "nonterminalFailureReported") {
     return replaceActive(ledger, event.id, (task) => ({

@@ -38,6 +38,9 @@ export interface OperationRuntimePort {
   readonly preview: {
     createFileStreamUrl(path: string, token: string, signal?: AbortSignal): Promise<string>;
   };
+  readonly time: {
+    wait(delayMs: number): Promise<void>;
+  };
   readonly uploadFiles: UploadFileContentPort;
   isUnauthorized(error: unknown): boolean;
   isReconnectRequired(error: unknown): boolean;
@@ -188,6 +191,8 @@ export interface OperationExecutionWorkspaceOutput {
     readonly state: MutationWorkspaceOutput["state"];
     readonly bridge: MutationWorkspaceOutput["bridge"];
     readonly stage: import("../mutation/MutationWorkflowStage").MutationWorkflowStageProps;
+    readonly cancelTransferTask: (taskId: string) => void;
+    readonly retryTransferTask: (taskId: string) => void;
   };
   readonly download: DownloadWorkspaceCommands;
   readonly upload: UploadInteraction;

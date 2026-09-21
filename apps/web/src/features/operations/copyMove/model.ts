@@ -57,11 +57,6 @@ export type CopyMovePickerSnapshot = DestinationPickerSnapshot;
 
 export type CopyMoveDestinationPickerInitialState = DestinationPickerInitialState;
 
-export interface CopyMovePartialFailure {
-  readonly entry: FileEntry;
-  readonly message: string;
-}
-
 function pluralize(count: number, singular: string, plural = `${singular}s`): string {
   return `${count} ${count === 1 ? singular : plural}`;
 }
@@ -155,13 +150,31 @@ export function buildCopyMoveSkippedStatus(
   return `Nothing ${operationLabel.toLowerCase()} — ${pluralize(skippedCount, "item")} skipped in ${accountName}.`;
 }
 
-export function buildBatchCopyMovePartialActionError(
-  operationLabel: "Copied" | "Moved",
+export function buildCopyMoveQueuedStatus(
+  operation: DestinationOperation,
+  targetCount: number,
+  destinationPath: string,
+  accountName: string,
+  toDisplayPath: (path: string) => string
+): string {
+  const verb = operation === "move" ? "Moving" : "Copying";
+  return `${verb} ${pluralize(targetCount, "item")} to ${toDisplayPath(destinationPath)} in ${accountName}…`;
+}
+
+export function buildBatchCopyMoveCanceledStatus(
+  operation: DestinationOperation,
   completedCount: number,
   totalCount: number,
-  failures: readonly CopyMovePartialFailure[]
+  accountName: string
 ): string {
-  return `${operationLabel} ${completedCount} of ${totalCount} selected items; ${failures.length} failed. ${failures.map((failure) => `${failure.entry.path}: ${failure.message}`).join("; ")}`;
+  const noun = operation === "move" ? "Move" : "Copy";
+  return `${noun} canceled after ${completedCount} of ${pluralize(totalCount, "item")} in ${accountName}.`;
+}
+
+export function buildCopyMoveTaskLabel(
+  sources: readonly Pick<FileEntry, "name">[]
+): string {
+  return sources.length === 1 ? sources[0]?.name ?? "item" : pluralize(sources.length, "item");
 }
 
 export function buildBatchCopyMovePartialStatus(
@@ -172,29 +185,6 @@ export function buildBatchCopyMovePartialStatus(
   accountName: string
 ): string {
   return `${operationLabel} ${completedCount} of ${totalCount} selected items; ${failureCount} failed in ${accountName}.`;
-}
-
-export function deriveRetainedFailedEntries(
-  sourceEntriesByPath: ReadonlyMap<string, FileEntry>,
-  failures: readonly BatchCopyMoveFailure[]
-): CopyMovePartialFailure[] {
-  return failures.map((failure) => {
-    const entry = sourceEntriesByPath.get(failure.sourcePath);
-    if (!entry) {
-      throw new Error("Batch copy/move outcome referenced an unknown source.");
-    }
-    return { entry, message: failure.message };
-  });
-}
-
-export function shouldCloseDestinationPickerAfterSubmit(
-  pickerStillCurrent: boolean
-): boolean {
-  return pickerStillCurrent;
-}
-
-export function shouldRetainDestinationPickerAfterPartialBatch(): boolean {
-  return true;
 }
 
 export function mapResolvedTargets(

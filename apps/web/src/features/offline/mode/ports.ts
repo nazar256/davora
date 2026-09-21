@@ -38,6 +38,8 @@ export interface ExplicitOfflineTransferTerminalMessage {
   readonly download: string;
   readonly sync: string;
   readonly upload: string;
+  readonly copy: string;
+  readonly move: string;
 }
 
 export interface ExplicitOfflineModeEntryPorts {

@@ -1,4 +1,4 @@
-import type { FileEntry, MutationResult } from "@davora/shared";
+import type { FileEntry } from "@davora/shared";
 import { act, renderHook } from "@testing-library/react";
 import type { Dispatch, SetStateAction } from "react";
 import { describe, expect, it, vi, type Mock } from "vitest";
@@ -14,21 +14,12 @@ import { issueMutationAttemptToken } from "../mutation/attempt";
 function workflow(context: ReturnType<typeof createOperationContextToken>) {
   const attempt = issueMutationAttemptToken({ workflowIdentity: 1, context, path: "Archive", pathGeneration: 0,
     ownershipGeneration: 0, mountGeneration: 1, domainIdentity: "test", intent: { kind: "copy", count: 1 } });
-  return { hasSurface: () => false, beginAttempt: vi.fn(() => attempt), isAttemptCurrent: vi.fn(() => true),
-    failAttempt: vi.fn(), reportPartial: vi.fn(), completeDestination: vi.fn(() => true) };
+  return { hasSurface: () => false, beginAttempt: vi.fn(() => attempt),
+    completeDestination: vi.fn(() => true), failAttempt: vi.fn() };
 }
 
 function entry(path: string): FileEntry {
   return { path, name: path.split("/").pop() ?? path, isFolder: false };
-}
-
-function mutationResult(path: string, destinationPath: string): MutationResult {
-  return {
-    action: "copy",
-    parentPath: "",
-    path,
-    destinationPath
-  };
 }
 
 function createPorts(): CopyMovePorts {
@@ -44,42 +35,15 @@ function createPorts(): CopyMovePorts {
       isCurrentOperationContext: vi.fn(() => true),
       isContextAllowed: vi.fn(() => true)
     },
-    session: {
-      hasSession: vi.fn(() => true),
-      isUnauthorized: vi.fn(() => false),
-      isReconnectRequired: vi.fn(() => false)
-    },
-    mutations: {
-      begin: vi.fn(),
-      finish: vi.fn()
-    },
-    mutation: {
-      execute: vi.fn(async () => mutationResult("notes.txt", "Archive/notes.txt"))
-    },
-    api: {
-      runCopyOrMove: vi.fn(async () => mutationResult("notes.txt", "Archive/notes.txt"))
-    },
-    batch: {
-      executeCopyMoveTarget: vi.fn(async () => ({ kind: "completed" } as const)),
-      listChildren: vi.fn(async () => ({ kind: "completed", entries: [] } as const)),
-      deleteFolder: vi.fn(async () => ({ kind: "completed" } as const)),
-      refreshFolder: vi.fn(async () => ({ kind: "completed" } as const))
-    },
-    selection: {
-      retainFailedPaths: vi.fn(),
-      clear: vi.fn()
-    },
-    destinationPicker: {
-      closeIfCurrent: vi.fn()
-    },
     presentation: {
       setActionError: vi.fn(),
-      setStatus: vi.fn(),
-      closeMobileDetails: vi.fn(),
-      clearFocused: vi.fn()
+      setStatus: vi.fn()
     },
     labels: {
       toDisplayPath: (path: string) => `/${path}`
+    },
+    tasks: {
+      enqueue: vi.fn(() => "task-1")
     }
   };
   return { opener, submit };
@@ -101,6 +65,7 @@ describe("useCopyMove", () => {
       getBatchSelectionEntries: () => [selected],
       getCurrentPath: () => "Archive",
       getAccountName: () => "Workspace",
+      getAccountId: () => "account-1",
       setDestinationPicker: vi.fn(),
       workflow: workflow(context),
       ports
@@ -144,6 +109,7 @@ describe("useCopyMove", () => {
       getBatchSelectionEntries: () => [],
       getCurrentPath: () => "Archive",
       getAccountName: () => "Workspace",
+      getAccountId: () => "account-1",
       setDestinationPicker: vi.fn(),
       workflow: workflow(context),
       ports
@@ -153,7 +119,7 @@ describe("useCopyMove", () => {
       await result.current.submitDestinationPicker("copy");
     });
 
-    expect(ports.submit.mutation.execute).not.toHaveBeenCalled();
+    expect(ports.submit.tasks.enqueue).not.toHaveBeenCalled();
   });
 
   it("does not submit an open picker after capability removal", async () => {
@@ -176,6 +142,7 @@ describe("useCopyMove", () => {
           getBatchSelectionEntries: () => [selected],
           getCurrentPath: () => "Archive",
           getAccountName: () => "Workspace",
+      getAccountId: () => "account-1",
           setDestinationPicker: vi.fn(),
           workflow: workflow(context),
           ports: latestPorts
@@ -188,8 +155,7 @@ describe("useCopyMove", () => {
       await result.current.submitDestinationPicker("copy");
     });
 
-    expect(latestPorts.submit.mutation.execute).not.toHaveBeenCalled();
-    expect(latestPorts.submit.api.runCopyOrMove).not.toHaveBeenCalled();
+    expect(latestPorts.submit.tasks.enqueue).not.toHaveBeenCalled();
   });
 
   it("uses the latest owner for retained batch commands and snapshots ordered entries", () => {
@@ -211,6 +177,7 @@ describe("useCopyMove", () => {
       getBatchSelectionEntries: () => entries,
       getCurrentPath: () => path,
       getAccountName: () => "Workspace",
+      getAccountId: () => "account-1",
       setDestinationPicker: vi.fn(),
       workflow: workflow(context),
       ports
@@ -258,6 +225,7 @@ describe("useCopyMove", () => {
       getBatchSelectionEntries: () => [selected],
       getCurrentPath: () => "Projects",
       getAccountName: () => "Workspace",
+      getAccountId: () => "account-1",
       setDestinationPicker: vi.fn(),
       workflow: workflow(context),
       ports
@@ -304,6 +272,7 @@ describe("useCopyMove", () => {
         getBatchSelectionEntries: () => entries,
         getCurrentPath: () => "Projects",
         getAccountName: () => "Workspace",
+      getAccountId: () => "account-1",
         setDestinationPicker: vi.fn(),
         workflow: workflow(context),
         ports
@@ -381,6 +350,7 @@ describe("useCopyMove", () => {
       getBatchSelectionEntries: () => [],
       getCurrentPath: () => "Archive",
       getAccountName: () => "Workspace",
+      getAccountId: () => "account-1",
       setDestinationPicker,
       workflow: workflow(context),
       ports
@@ -390,9 +360,7 @@ describe("useCopyMove", () => {
       await result.current.submitDestinationPicker("copy");
     });
 
-    expect(ports.submit.mutation.execute).not.toHaveBeenCalled();
-    expect(ports.submit.api.runCopyOrMove).not.toHaveBeenCalled();
-    expect(ports.submit.batch.executeCopyMoveTarget).not.toHaveBeenCalled();
+    expect(ports.submit.tasks.enqueue).not.toHaveBeenCalled();
     const reviewed = applyPickerUpdate(setDestinationPicker, picker);
     expect(reviewed?.conflictReview?.operation).toBe("copy");
     expect(reviewed?.conflictReview?.items).toHaveLength(1);
@@ -415,6 +383,7 @@ describe("useCopyMove", () => {
       getBatchSelectionEntries: () => [],
       getCurrentPath: () => "Archive",
       getAccountName: () => "Workspace",
+      getAccountId: () => "account-1",
       setDestinationPicker,
       workflow: workflow(context),
       ports
@@ -425,8 +394,7 @@ describe("useCopyMove", () => {
     });
 
     expect(setDestinationPicker).not.toHaveBeenCalled();
-    expect(ports.submit.mutation.execute).not.toHaveBeenCalled();
-    expect(ports.submit.api.runCopyOrMove).not.toHaveBeenCalled();
+    expect(ports.submit.tasks.enqueue).not.toHaveBeenCalled();
   });
 
   it("ignores submit while a conflict review is open", async () => {
@@ -455,6 +423,7 @@ describe("useCopyMove", () => {
       getBatchSelectionEntries: () => [],
       getCurrentPath: () => "Archive",
       getAccountName: () => "Workspace",
+      getAccountId: () => "account-1",
       setDestinationPicker,
       workflow: workflow(context),
       ports
@@ -465,12 +434,11 @@ describe("useCopyMove", () => {
     });
 
     expect(setDestinationPicker).not.toHaveBeenCalled();
-    expect(ports.submit.mutation.execute).not.toHaveBeenCalled();
+    expect(ports.submit.tasks.enqueue).not.toHaveBeenCalled();
   });
 
-  it("confirms a conflict review and executes the resolved replace with overwrite", async () => {
+  it("confirms a conflict review and enqueues the resolved replace with overwrite", async () => {
     const ports = createPorts();
-    ports.submit.mutation.execute = vi.fn(async (run: () => Promise<MutationResult>) => run());
     const context = createOperationContextToken();
     const flow = workflow(context);
     const source = { ...entry("notes.txt"), size: 100 };
@@ -497,6 +465,7 @@ describe("useCopyMove", () => {
       getBatchSelectionEntries: () => [],
       getCurrentPath: () => "Archive",
       getAccountName: () => "Workspace",
+      getAccountId: () => "account-1",
       setDestinationPicker: vi.fn(),
       workflow: flow,
       ports
@@ -506,11 +475,19 @@ describe("useCopyMove", () => {
       await result.current.confirmConflictReview();
     });
 
-    expect(ports.submit.api.runCopyOrMove).toHaveBeenCalledWith("copy", "notes.txt", "Archive/notes.txt", true);
+    expect(ports.submit.tasks.enqueue).toHaveBeenCalledTimes(1);
+    const spec = vi.mocked(ports.submit.tasks.enqueue).mock.calls[0]?.[0];
+    expect(spec).toMatchObject({
+      operation: "copy",
+      destinationPath: "Archive",
+      accountId: "account-1",
+      targets: [{ source, destinationPath: "Archive/notes.txt", mode: "overwrite" }],
+      skipped: []
+    });
     expect(flow.completeDestination).toHaveBeenCalledTimes(1);
   });
 
-  it("reports skips without executing when every conflict is skipped", async () => {
+  it("enqueues a task that only carries skipped entries when every conflict is skipped", async () => {
     const ports = createPorts();
     const context = createOperationContextToken();
     const flow = workflow(context);
@@ -537,6 +514,7 @@ describe("useCopyMove", () => {
       getBatchSelectionEntries: () => [],
       getCurrentPath: () => "Archive",
       getAccountName: () => "Workspace",
+      getAccountId: () => "account-1",
       setDestinationPicker: vi.fn(),
       workflow: flow,
       ports
@@ -546,13 +524,14 @@ describe("useCopyMove", () => {
       await result.current.confirmConflictReview();
     });
 
-    expect(ports.submit.mutation.execute).not.toHaveBeenCalled();
-    expect(ports.submit.api.runCopyOrMove).not.toHaveBeenCalled();
-    expect(ports.submit.presentation.setStatus).toHaveBeenCalledWith(expect.stringContaining("skipped"));
+    expect(ports.submit.tasks.enqueue).toHaveBeenCalledTimes(1);
+    const spec = vi.mocked(ports.submit.tasks.enqueue).mock.calls[0]?.[0];
+    expect(spec?.targets).toEqual([]);
+    expect(spec?.skipped.map((item) => item.path)).toEqual(["notes.txt"]);
     expect(flow.completeDestination).toHaveBeenCalledTimes(1);
   });
 
-  it("routes a merge decision through the batch executor for a single folder", async () => {
+  it("enqueues a merge-mode task for a single folder conflict", async () => {
     const ports = createPorts();
     const context = createOperationContextToken();
     const flow = workflow(context);
@@ -585,6 +564,7 @@ describe("useCopyMove", () => {
       getBatchSelectionEntries: () => [],
       getCurrentPath: () => "Archive",
       getAccountName: () => "Workspace",
+      getAccountId: () => "account-1",
       setDestinationPicker: vi.fn(),
       workflow: flow,
       ports
@@ -594,11 +574,13 @@ describe("useCopyMove", () => {
       await result.current.confirmConflictReview();
     });
 
-    expect(ports.submit.batch.listChildren).toHaveBeenCalledWith("Docs", context);
-    expect(ports.submit.batch.listChildren).toHaveBeenCalledWith("Archive/Docs", context);
-    expect(ports.submit.batch.deleteFolder).toHaveBeenCalledWith("Docs", "Docs", context, { kind: "move", count: 1 }, expect.any(Function));
-    expect(ports.submit.mutation.execute).not.toHaveBeenCalled();
-    expect(ports.submit.api.runCopyOrMove).not.toHaveBeenCalled();
+    expect(ports.submit.tasks.enqueue).toHaveBeenCalledTimes(1);
+    const spec = vi.mocked(ports.submit.tasks.enqueue).mock.calls[0]?.[0];
+    expect(spec).toMatchObject({
+      operation: "move",
+      destinationPath: "Archive",
+      targets: [{ source, destinationPath: "Archive/Docs", mode: "merge" }]
+    });
     expect(flow.completeDestination).toHaveBeenCalledTimes(1);
   });
 
@@ -628,6 +610,7 @@ describe("useCopyMove", () => {
       getBatchSelectionEntries: () => [],
       getCurrentPath: () => "Archive",
       getAccountName: () => "Workspace",
+      getAccountId: () => "account-1",
       setDestinationPicker,
       workflow: workflow(context),
       ports

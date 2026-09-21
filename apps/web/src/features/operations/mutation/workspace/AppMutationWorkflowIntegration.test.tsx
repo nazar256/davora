@@ -150,7 +150,7 @@ function createMutationServices(): AppServices {
     },
     download: { prepareDownloadFile: async () => ({ blob: new Blob(), filename: "download.bin" }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "download.bin" }), listFiles, triggerBrowserDownload: () => undefined, saveDownload: () => undefined },
     batch: { downloadSelectionAsZip: async () => ({ blob: new Blob(), plan: { archiveName: "download.zip", selectedCount: 0, selectedFileCount: 0, selectedDirectoryCount: 0, directories: [], files: [], failedFiles: [] } }) },
-    preview: { createFileStreamUrl: async () => "" }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) },
+    preview: { createFileStreamUrl: async () => "" }, time: { wait: async () => {} }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) },
     isUnauthorized: (error) => error instanceof ApiRequestError && error.status === 401,
     isReconnectRequired: (error) => error instanceof ApiRequestError && error.code === "account_reconnect_required",
     toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback
@@ -782,7 +782,7 @@ describe("mutation workflow App integration", () => {
     });
     mutationApi.copyFile.mockImplementation(async ({ path, destinationPath }) => {
       if (path === "notes.txt") {
-        throw new Error("Destination rejected notes.txt");
+        throw new ApiRequestError("Destination rejected notes.txt", 409, "conflict");
       }
       return { result: { action: "copy", parentPath: dirname(destinationPath), path, destinationPath } };
     });
@@ -794,7 +794,7 @@ describe("mutation workflow App integration", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /Select notes.txt file/i }));
     fireEvent.click(screen.getAllByRole("button", { name: /^Copy or move selected$/i })[0]!);
 
-    let dialog = await screen.findByRole("dialog", { name: /Copy or move 2 items/i });
+    const dialog = await screen.findByRole("dialog", { name: /Copy or move 2 items/i });
     fireEvent.click(within(dialog).getByRole("button", { name: /Open destination folder Projects/i }));
     expect(await within(dialog).findByText(/selected folders cannot be moved or copied into themselves or their descendants/i)).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: /^Move here$/i })).toBeDisabled();
@@ -805,11 +805,12 @@ describe("mutation workflow App integration", () => {
     await waitFor(() => expect(copyButton).toBeEnabled());
     fireEvent.click(copyButton);
 
-    dialog = await screen.findByRole("dialog", { name: /Copy or move 1 item/i });
-    expect(within(dialog).getByText(/Copied 1 of 2 selected items; 1 failed/i)).toBeInTheDocument();
-    expect(within(dialog).getByText(/notes\.txt: Destination rejected notes\.txt/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Copy or move/i })).not.toBeInTheDocument());
+    expect(await screen.findByText(/Copied 1 of 2 selected items; 1 failed in Batch partial workspace\./i)).toBeInTheDocument();
     expect(await screen.findByText(/1 item selected \(1 file\)/i)).toBeInTheDocument();
-    expect(mutationApi.copyFile).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(mutationApi.copyFile).toHaveBeenCalledTimes(2));
+    expect(mutationApi.copyFile).toHaveBeenNthCalledWith(1, { path: "Projects", destinationPath: "Archive/Projects" }, "token-alpha");
+    expect(mutationApi.copyFile).toHaveBeenNthCalledWith(2, { path: "notes.txt", destinationPath: "Archive/notes.txt" }, "token-alpha");
   });
 
   it("moves every item in a valid mixed selection and clears selection after success", async () => {

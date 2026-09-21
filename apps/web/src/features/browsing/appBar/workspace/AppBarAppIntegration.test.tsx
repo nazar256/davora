@@ -559,9 +559,9 @@ describe("AppBar App integration", () => {
       expect(serializedTrayProps).not.toContain(requestHeaderSentinel);
       expect(serializedTrayProps).not.toContain(blobContentSentinel);
       expect(serializedTrayProps).not.toContain(apiObjectSentinel);
-      expect(Object.keys(trayProps).sort()).toEqual(["onClearFinished", "onRetryFailedSync", "onToggleOpen", "open", "tasks"].sort());
+      expect(Object.keys(trayProps).sort()).toEqual(["onCancelTransfer", "onClearFinished", "onRetryFailedSync", "onRetryTransfer", "onToggleOpen", "open", "tasks"].sort());
       const trayCallableKeys = Object.entries(trayProps).filter(([, value]) => typeof value === "function").map(([key]) => key).sort();
-      expect(trayCallableKeys).toEqual(["onClearFinished", "onRetryFailedSync", "onToggleOpen"]);
+      expect(trayCallableKeys).toEqual(["onCancelTransfer", "onClearFinished", "onRetryFailedSync", "onRetryTransfer", "onToggleOpen"]);
       expect(trayCallableKeys.some((key) => /delete|webdav|nextcloud/i.test(key))).toBe(false);
     }
     const appBarCallableKeys = Object.keys(workspace.common.appBar).filter((key) => typeof workspace.common.appBar[key as keyof typeof workspace.common.appBar] === "function").sort();
@@ -695,7 +695,8 @@ describe("AppBar App integration", () => {
       "sortPanel.reset.cancel", "sortPanel.reset.confirm", "sortPanel.reset.request",
       "onOpenNavigationDrawer",
       "onSearchQueryChange", "onCloseMobileSearch", "onNavigateUp", "onOpenMobileSearch", "onOpenSettings",
-      "transferTray.props.onClearFinished", "transferTray.props.onRetryFailedSync", "transferTray.props.onToggleOpen"
+      "transferTray.props.onCancelTransfer", "transferTray.props.onClearFinished",
+      "transferTray.props.onRetryFailedSync", "transferTray.props.onRetryTransfer", "transferTray.props.onToggleOpen"
     ].sort());
     expect(typeof appBar.hasSession).toBe("boolean");
     expect(appBar.hasSession).toBe(true);
@@ -707,7 +708,7 @@ describe("AppBar App integration", () => {
     const transferTray = appBar.transferTray;
     if (!isValidElement(transferTray)) throw new Error("Expected actual transfer tray element");
     const trayProps = transferTray.props as Record<string, unknown>;
-    expect(Object.keys(trayProps).sort()).toEqual(["onClearFinished", "onRetryFailedSync", "onToggleOpen", "open", "tasks"].sort());
+    expect(Object.keys(trayProps).sort()).toEqual(["onCancelTransfer", "onClearFinished", "onRetryFailedSync", "onRetryTransfer", "onToggleOpen", "open", "tasks"].sort());
     const capturedTasks = trayProps.tasks as readonly TransferTask[];
     const taskContainsCallable = (value: unknown, seen = new Set<object>()): boolean => {
       if (typeof value === "function") return true;

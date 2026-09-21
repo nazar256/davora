@@ -49,6 +49,10 @@ export interface AppBarWorkspaceOwners {
     readonly clearAccountHistory: (accountId: string) => void;
   };
   readonly offlineSync: { readonly commands: { readonly retry: (task: TransferTask) => void | Promise<void> } };
+  readonly operation: {
+    readonly cancelTransferTask: (taskId: string) => void;
+    readonly retryTransferTask: (taskId: string) => void;
+  };
 }
 
 export interface AppBarWorkspaceInput {
@@ -73,11 +77,14 @@ export function useAppBarWorkspace({ owners }: AppBarWorkspaceInput): AppBarWork
         clearAccountHistory: owners.transfers.clearAccountHistory
       },
       accountId: owners.account.operationalActiveAccount?.id,
-      onRetryFailedSync: owners.offlineSync.commands.retry
+      onRetryFailedSync: owners.offlineSync.commands.retry,
+      onCancelTransfer: (task: TransferTask) => owners.operation.cancelTransferTask(task.id),
+      onRetryTransfer: (task: TransferTask) => owners.operation.retryTransferTask(task.id)
     }), [
       owners.account.operationalActiveAccount?.id,
       owners.navigation,
       owners.offlineSync.commands.retry,
+      owners.operation,
       owners.transfers
     ])
   });

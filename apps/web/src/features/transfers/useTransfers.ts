@@ -24,6 +24,9 @@ export function useTransfers(clock: TransferClock) {
   const reportProgress = useCallback((id: string, stage: "preparing" | "transferring", loadedBytes: number, totalBytes?: number | null) => {
     dispatch({ type: "progressReported", id, stage, loadedBytes, ...(totalBytes === undefined ? {} : { totalBytes }) });
   }, []);
+  const reportItemProgress = useCallback((id: string, settledItems: number, totalItems?: number | null) => {
+    dispatch({ type: "itemsProgressed", id, settledItems, ...(totalItems === undefined ? {} : { totalItems }) });
+  }, []);
   const reportFailure = useCallback((id: string, failure: TransferFailure) => {
     dispatch({ type: "nonterminalFailureReported", id, failure });
   }, []);
@@ -35,6 +38,9 @@ export function useTransfers(clock: TransferClock) {
   }, [clock]);
   const fail = useCallback((id: string, message: string) => {
     dispatch({ type: "failed", id, at: clock.nowIso(), message });
+  }, [clock]);
+  const markCanceled = useCallback((id: string, message?: string) => {
+    dispatch({ type: "canceled", id, at: clock.nowIso(), ...(message ? { message } : {}) });
   }, [clock]);
   const failActiveForAccount = useCallback((accountId: string, message: TransferFailureMessage) => {
     dispatch({ type: "activeAccountFailed", accountId, at: clock.nowIso(), message });
@@ -52,10 +58,12 @@ export function useTransfers(clock: TransferClock) {
     beginPreparation,
     beginTransfer,
     reportProgress,
+    reportItemProgress,
     reportFailure,
     complete,
     completePartial,
     fail,
+    markCanceled,
     failActiveForAccount,
     failActiveTasks,
     clearAccountHistory

@@ -15,6 +15,7 @@ import {
 } from "../../lib/api";
 import { downloadSelectionAsZip } from "../../lib/batchDownload";
 import { createBrowserUploadFileContent } from "../upload/browserUploadFileContent";
+import { createBrowserDelay } from "../time/browserDelay";
 
 export interface OperationRuntimePort {
   readonly request: {
@@ -38,6 +39,9 @@ export interface OperationRuntimePort {
   readonly batch: { readonly downloadSelectionAsZip: typeof downloadSelectionAsZip };
   readonly preview: {
     readonly createFileStreamUrl: (path: string, token: string, signal?: AbortSignal) => Promise<string>;
+  };
+  readonly time: {
+    readonly wait: (delayMs: number) => Promise<void>;
   };
   readonly uploadFiles: ReturnType<typeof createBrowserUploadFileContent>;
   isUnauthorized(error: unknown): boolean;
@@ -101,6 +105,7 @@ export function createBrowserOperationRuntime(
     },
     batch: { downloadSelectionAsZip: dependencies.downloadSelectionAsZip },
     preview: { createFileStreamUrl: createStreamingFileUrl },
+    time: { wait: createBrowserDelay() },
     uploadFiles: dependencies.createBrowserUploadFileContent(),
     isUnauthorized: (error) => error instanceof ApiRequestError && error.status === 401,
     isReconnectRequired: (error) => error instanceof ApiRequestError && error.code === "account_reconnect_required",

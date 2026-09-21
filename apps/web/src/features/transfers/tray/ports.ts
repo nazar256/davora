@@ -16,4 +16,6 @@ export interface TransferTrayPorts {
   readonly transfers: TransferTrayTransferPort;
   readonly accountId: string | undefined;
   readonly onRetryFailedSync?: (task: TransferTask) => void;
+  readonly onCancelTransfer?: (task: TransferTask) => void;
+  readonly onRetryTransfer?: (task: TransferTask) => void;
 }

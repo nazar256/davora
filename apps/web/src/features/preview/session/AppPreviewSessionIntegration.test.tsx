@@ -127,7 +127,7 @@ const operationRuntime: OperationRuntimePort = {
   mutation: { createFolder: async () => ({ action: "createFolder", parentPath: "", path: "" } satisfies MutationResult), deleteFile: async () => ({ action: "delete", parentPath: "", path: "" } satisfies MutationResult), uploadFile: async () => ({ action: "upload", parentPath: "", path: "" } satisfies MutationResult), copyOrMove: async () => ({ action: "copy", parentPath: "", path: "" } satisfies MutationResult), listDestination: async () => ({ items: [] }) },
   download: { prepareDownloadFile: async () => ({ blob: new Blob(), filename: "file" }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "file" }), listFiles: async (path, token, signal) => { const result = await mockedApi.listFiles(path, token, signal); return { items: result.items }; }, triggerBrowserDownload: () => undefined, saveDownload: () => undefined },
   batch: { downloadSelectionAsZip: async () => { throw new Error("batch download not used by preview contracts"); } },
-  preview: { createFileStreamUrl: async () => "" }, uploadFiles: { prepare: async () => ({ kind: "failed", message: "upload not used by preview contracts" }) },
+  preview: { createFileStreamUrl: async () => "" }, time: { wait: async () => {} }, uploadFiles: { prepare: async () => ({ kind: "failed", message: "upload not used by preview contracts" }) },
   isUnauthorized: (error) => error instanceof ApiRequestError && error.status === 401,
   isReconnectRequired: (error) => error instanceof ApiRequestError && error.code === "account_reconnect_required",
   toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback

@@ -136,8 +136,8 @@ export type DiagnosticEvent =
   | {
       readonly kind: "transfer.finished";
       readonly at: string;
-      readonly transferKind: "upload" | "download" | "sync";
-      readonly phase: "done" | "partial" | "error";
+      readonly transferKind: "upload" | "download" | "sync" | "copy" | "move";
+      readonly phase: "done" | "partial" | "error" | "canceled";
       readonly itemCount?: number;
       readonly bytes?: number;
     }
@@ -318,8 +318,8 @@ export const isDiagnosticEvent = (value: unknown): value is DiagnosticEvent => {
         && isOptionalFiniteNumber(value.durationMs)
         && isOptionalString(value.errorKind);
     case "transfer.finished":
-      return (value.transferKind === "upload" || value.transferKind === "download" || value.transferKind === "sync")
-        && (value.phase === "done" || value.phase === "partial" || value.phase === "error")
+      return (value.transferKind === "upload" || value.transferKind === "download" || value.transferKind === "sync" || value.transferKind === "copy" || value.transferKind === "move")
+        && (value.phase === "done" || value.phase === "partial" || value.phase === "error" || value.phase === "canceled")
         && isOptionalFiniteNumber(value.itemCount)
         && isOptionalFiniteNumber(value.bytes);
     case "network.request":

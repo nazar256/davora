@@ -2,13 +2,13 @@ import type { MutationResult } from "@davora/shared";
 
 import type { OperationContextToken, OperationIntent } from "../policy";
 import type { MutationExecuteOptions } from "./ports";
-import { isMutationSessionTerminated } from "./sessionErrors";
+import { isMutationSessionTerminated, isRetryableMutationError } from "./sessionErrors";
 
 export type FolderLoadResult = "session-terminated" | undefined;
 
 export type MutationExecutionResult =
   | { readonly kind: "completed" }
-  | { readonly kind: "failed"; readonly message: string }
+  | { readonly kind: "failed"; readonly message: string; readonly retryable?: boolean }
   | { readonly kind: "sessionTerminated" };
 
 export type MutationRefreshResult =
@@ -69,6 +69,9 @@ export async function executeBatchMutationTarget(
     });
     return { kind: "completed" };
   } catch (error) {
-    return mapMutationExecutionError(error, fallbackMessage);
+    const mapped = mapMutationExecutionError(error, fallbackMessage);
+    return mapped.kind === "failed"
+      ? { ...mapped, retryable: isRetryableMutationError(error) }
+      : mapped;
   }
 }

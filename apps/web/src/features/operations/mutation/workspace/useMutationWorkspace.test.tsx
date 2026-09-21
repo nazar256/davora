@@ -30,12 +30,14 @@ const mockedChildren = vi.hoisted<{
   workflow: ReturnType<typeof vi.fn<(input: UseMutationWorkflowInput) => WorkflowChild>>;
   actionDialog: ReturnType<typeof vi.fn<(input: UseActionDialogInput) => ActionChild>>;
   copyMove: ReturnType<typeof vi.fn<(input: UseCopyMoveInput) => CopyMoveChild>>;
+  copyMoveTasks: ReturnType<typeof vi.fn<() => CopyMoveTaskRunnerChild>>;
 }>(() => ({
   lifecycle: vi.fn<(input: UseMutationWorkflowLifecycleInput) => LifecycleChild>(),
   destination: vi.fn<(input: UseDestinationPickerInput) => DestinationChild>(),
   workflow: vi.fn<(input: UseMutationWorkflowInput) => WorkflowChild>(),
   actionDialog: vi.fn<(input: UseActionDialogInput) => ActionChild>(),
-  copyMove: vi.fn<(input: UseCopyMoveInput) => CopyMoveChild>()
+  copyMove: vi.fn<(input: UseCopyMoveInput) => CopyMoveChild>(),
+  copyMoveTasks: vi.fn<() => CopyMoveTaskRunnerChild>()
 }));
 
 vi.mock("../useMutationWorkflowLifecycle", () => ({
@@ -51,9 +53,10 @@ vi.mock("../../delete", async () => {
   const actual = await vi.importActual<typeof import("../../delete")>("../../delete");
   return { ...actual, useActionDialog: mockedChildren.actionDialog };
 });
-vi.mock("../../copyMove", () => ({
-  useCopyMove: mockedChildren.copyMove
-}));
+vi.mock("../../copyMove", async () => {
+  const actual = await vi.importActual<typeof import("../../copyMove")>("../../copyMove");
+  return { ...actual, useCopyMove: mockedChildren.copyMove, useCopyMoveTaskRunner: mockedChildren.copyMoveTasks };
+});
 
 type LifecycleChild = Pick<
   ReturnType<typeof useMutationWorkflowLifecycle>,
@@ -83,6 +86,7 @@ type WorkflowChild = Pick<
 
 type ActionChild = ReturnType<typeof useActionDialog>;
 type CopyMoveChild = ReturnType<typeof useCopyMove>;
+type CopyMoveTaskRunnerChild = ReturnType<typeof import("../../copyMove/tasks").useCopyMoveTaskRunner>;
 
 type InputCall<T> = {
   readonly mock: {
@@ -210,21 +214,43 @@ function createOrchestrationPorts(): MutationWorkflowOrchestrationPorts {
       context: {
         isCurrentOperationContext: vi.fn(),
         isContextAllowed: vi.fn()
+      }
+    },
+    copyMoveTasks: {
+      registry: { acquire: vi.fn() },
+      transfers: {
+        createId: vi.fn(() => "transfer-task-1"),
+        enqueueCopyMove: vi.fn(),
+        beginTransfer: vi.fn(),
+        reportItemProgress: vi.fn(),
+        reportItemFailure: vi.fn(),
+        complete: vi.fn(),
+        completePartial: vi.fn(),
+        fail: vi.fn(),
+        markCanceled: vi.fn()
       },
-      session: {
-        hasSession: vi.fn(),
-        isUnauthorized: vi.fn(),
-        isReconnectRequired: vi.fn()
-      },
-      mutations: { begin: vi.fn(), finish: vi.fn() },
-      mutation: { execute: vi.fn() },
-      api: { runCopyOrMove: vi.fn() },
       batch: {
         executeCopyMoveTarget: vi.fn(),
         listChildren: vi.fn(),
         deleteFolder: vi.fn(),
         refreshFolder: vi.fn()
-      }
+      },
+      folder: { getCurrentPath: vi.fn(() => "Projects") },
+      selection: {
+        removeDeletedPath: vi.fn(),
+        removeDeletedFocusedPath: vi.fn()
+      },
+      presentation: { setStatus: vi.fn() },
+      labels: { toDisplayPath: vi.fn((path: string) => path) },
+      context: {
+        getOperationContextToken: vi.fn(() => createOperationContextToken()),
+        getAccountId: vi.fn(() => "alpha")
+      },
+      wait: vi.fn(async () => {}),
+      createAbortHandle: vi.fn(() => {
+        const controller = new AbortController();
+        return { signal: controller.signal, abort: () => controller.abort() };
+      })
     }
   };
 }
@@ -271,13 +297,24 @@ function createWorkflowPorts() {
     transfers: {
       createId: vi.fn(() => "transfer-1"),
       enqueueUpload: vi.fn(),
+      enqueueCopyMove: vi.fn(),
       beginPreparation: vi.fn(),
       reportPreparationProgress: vi.fn(),
       beginTransfer: vi.fn(),
       reportUploadProgress: vi.fn(),
+      reportItemProgress: vi.fn(),
+      reportItemFailure: vi.fn(),
       complete: vi.fn(),
+      completePartial: vi.fn(),
+      fail: vi.fn(),
+      markCanceled: vi.fn(),
       failActive: vi.fn()
     },
+    wait: vi.fn(async () => {}),
+    createAbortHandle: vi.fn(() => {
+      const controller = new AbortController();
+      return { signal: controller.signal, abort: () => controller.abort() };
+    }),
     session: {
       resetActiveSession: vi.fn()
     },
@@ -417,12 +454,18 @@ function createChildren(inputContext: OperationContextToken, surface: "action" |
     dismissConflictReview: vi.fn(),
     confirmConflictReview: vi.fn(async () => {})
   };
+  const copyMoveTasks: CopyMoveTaskRunnerChild = {
+    enqueue: vi.fn(() => "copy-move-task-1"),
+    cancelTask: vi.fn(),
+    retryTask: vi.fn()
+  };
   mockedChildren.lifecycle.mockReturnValue(lifecycle);
   mockedChildren.destination.mockReturnValue(destination);
   mockedChildren.workflow.mockReturnValue(workflow);
   mockedChildren.actionDialog.mockReturnValue(action);
   mockedChildren.copyMove.mockReturnValue(copyMove);
-  return { order, lifecycle, destination, workflow, action, copyMove, actionDialog, picker };
+  mockedChildren.copyMoveTasks.mockReturnValue(copyMoveTasks);
+  return { order, lifecycle, destination, workflow, action, copyMove, copyMoveTasks, actionDialog, picker };
 }
 
 interface InputOverrides {

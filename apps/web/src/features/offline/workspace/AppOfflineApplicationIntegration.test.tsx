@@ -153,7 +153,7 @@ function createAccountFixture(): AppServices {
     },
     download: { prepareDownloadFile: mockedApi.prepareDownloadFile, fetchDownloadBlob: mockedApi.fetchDownloadBlob, listFiles: listFilesForRuntime, triggerBrowserDownload: mockedApi.triggerBrowserDownload, saveDownload: vi.fn() },
     batch: { downloadSelectionAsZip: vi.fn() },
-    preview: { createFileStreamUrl: async () => "" }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) },
+    preview: { createFileStreamUrl: async () => "" }, time: { wait: async () => {} }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) },
     isUnauthorized: () => false,
     isReconnectRequired: () => false,
     toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback

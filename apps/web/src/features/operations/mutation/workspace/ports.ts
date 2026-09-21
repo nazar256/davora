@@ -59,6 +59,8 @@ export interface MutationWorkspaceWorkflowPorts {
   };
   readonly registry: MutationRegistrySource;
   readonly transfers: MutationTransferSource;
+  readonly wait: (delayMs: number) => Promise<void>;
+  readonly createAbortHandle: () => { readonly signal: AbortSignal; abort(): void };
   readonly session: {
     resetActiveSession(message: string, reconnectRequired?: boolean): void;
   };
@@ -158,6 +160,8 @@ export interface MutationWorkspaceCommands {
   updateConflictApplySizeRule(checked: boolean): void;
   dismissConflictReview(): void;
   confirmConflictReview(): Promise<void>;
+  cancelTransferTask(taskId: string): void;
+  retryTransferTask(taskId: string): void;
 }
 
 export interface MutationWorkspaceOutput {
