@@ -91,6 +91,12 @@ export function useSelectionStateWorkspace(
       toggleBatch: (entry, origin) => {
         if (isCurrentEpoch()) batch.toggle(entry, origin);
       },
+      selectAllBatch: (entries, origin) => {
+        if (isCurrentEpoch()) batch.selectAll(entries, origin);
+      },
+      deselectBatchPaths: (paths) => {
+        if (isCurrentEpoch()) batch.deselectPaths(paths);
+      },
       clearBatch: () => {
         if (isCurrentEpoch()) batch.clear();
       },

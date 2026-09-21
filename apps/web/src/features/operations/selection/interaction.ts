@@ -16,6 +16,8 @@ export interface SelectionInteractionPlan {
   readonly focused: readonly FocusedSelectionAction[];
   readonly chrome: readonly SelectionChromeAction[];
   readonly batchToggle?: { readonly entry: FileEntry; readonly origin: SelectionOrigin };
+  readonly batchSelectAll?: { readonly entries: readonly FileEntry[]; readonly origin: SelectionOrigin };
+  readonly batchDeselectPaths?: { readonly paths: readonly string[] };
   readonly batchClear?: true;
 }
 
@@ -78,6 +80,34 @@ export function planBatchSelectionToggle(input: {
     focused,
     chrome,
     batchToggle: { entry: input.entry, origin }
+  };
+}
+
+export function planSelectAllEntries(input: {
+  entries: readonly FileEntry[];
+  allSelected: boolean;
+  selectedEntryPath?: string;
+  hasSelectedPreview: boolean;
+  currentPath: string;
+}): SelectionInteractionPlan {
+  if (input.allSelected) {
+    const paths = input.entries.map((entry) => entry.path);
+    const focused: FocusedSelectionAction[] = [];
+    const chrome: SelectionChromeAction[] = [];
+    if (input.selectedEntryPath && paths.includes(input.selectedEntryPath) && !input.hasSelectedPreview) {
+      focused.push({ kind: "clear" });
+      chrome.push({ kind: "closeMobileDetails" });
+    }
+    return { focused, chrome, batchDeselectPaths: { paths } };
+  }
+
+  return {
+    focused: [],
+    chrome: [],
+    batchSelectAll: {
+      entries: input.entries,
+      origin: { kind: "browse", folderPath: input.currentPath }
+    }
   };
 }
 

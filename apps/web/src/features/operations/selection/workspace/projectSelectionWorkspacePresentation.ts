@@ -5,6 +5,7 @@ import type { SelectionDetailsStageProps } from "../SelectionDetailsStage";
 import {
   buildSelectionDetailsContent,
   buildSelectionSummaryLabel,
+  resolveSelectAllState,
   resolveSelectedDetails
 } from "../presentation";
 
@@ -40,6 +41,11 @@ export function projectSelectionWorkspacePresentation(
   const favouriteActionLabel = input.favourite.selected
     ? "Remove from Favourites"
     : "Add to Favourites";
+  const selectAllState = resolveSelectAllState(input.selection.selectAllItems, input.selection.isBatchSelected);
+  const canSelectAll = input.capabilities.canMarkForBatchDownload
+    && !input.workspace.searchActive
+    && input.selection.selectAllItems.length > 0;
+  const canDeselectAll = !input.workspace.searchActive && selectAllState === "all";
   const content = buildSelectionDetailsContent({
     selectedEntry: input.selection.focusedEntry,
     selected: input.preview.selected,
@@ -71,6 +77,10 @@ export function projectSelectionWorkspacePresentation(
     canSyncBatchOffline: input.capabilities.canSyncBatchOffline,
     canCopyMoveBatchSelection: input.capabilities.canCopyMoveBatchSelection,
     canDeleteBatchSelection: input.capabilities.canDeleteBatchSelection,
+    selectAllState,
+    canSelectAll,
+    canDeselectAll,
+    onToggleSelectAll: input.commands.toggleSelectAll,
     onOpenSelected: () => {
       const focusedEntry = input.selection.focusedEntry;
       if (!focusedEntry) {

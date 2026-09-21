@@ -6,10 +6,12 @@ import {
   clearBatchSelection,
   createBatchSelectionState,
   rebindBatchSelection,
+  removeBatchSelectionPaths,
   removeCapturedSelection,
   removeDeletedPath,
   replaceBatchSelectionAccount,
   retainBatchSelectionPaths,
+  selectAllBatchEntries,
   toggleBatchSelection,
   type BatchSelectionCapture,
   type BatchSelectionMembership,
@@ -24,6 +26,8 @@ export interface BatchSelectionController {
   readonly summary: ReturnType<typeof selectBatchSelectionSummary>;
   isSelected(path: string): boolean;
   toggle(entry: FileEntry, origin: SelectionOrigin): void;
+  selectAll(entries: readonly FileEntry[], origin: SelectionOrigin): void;
+  deselectPaths(paths: readonly string[]): void;
   clear(): void;
   rebind(sourcePath: string, entry: FileEntry): void;
   removeDeleted(path: string): void;
@@ -58,6 +62,12 @@ export function useBatchSelection(accountId: string | undefined): BatchSelection
     },
     toggle(entry, origin) {
       update((current) => toggleBatchSelection(current, activeAccountId, entry, origin).state);
+    },
+    selectAll(entries, origin) {
+      update((current) => selectAllBatchEntries(current, activeAccountId, entries, origin));
+    },
+    deselectPaths(paths) {
+      update((current) => removeBatchSelectionPaths(current, activeAccountId, paths));
     },
     clear,
     rebind(sourcePath, entry) {

@@ -36,6 +36,10 @@ function buildProps(overrides: Partial<ComponentProps<typeof FileListStage>> = {
     showRetryFolderButton: false,
     canMarkForBatchDownload: true,
     selectionModeActive: false,
+    selectAllState: "none" as const,
+    canSelectAll: true,
+    canDeselectAll: false,
+    onToggleSelectAll: vi.fn(),
     fileSizeDisplayMode: "human" as const,
     suppressNarrowScreenContextMenu: false,
     isItemBatchSelected: () => false,
@@ -233,6 +237,40 @@ describe("FileListStage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Open folder Projects/i }));
     expect(onRowOpenClick).not.toHaveBeenCalled();
     expect(clearRowOpenSuppression).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders an accessible select-all checkbox in the list header and routes toggles", () => {
+    const onToggleSelectAll = vi.fn();
+    render(<FileListStage {...buildProps({ selectAllState: "none", onToggleSelectAll })} />);
+
+    const selectAll = screen.getByRole("checkbox", { name: /Select all items in this folder/i });
+    expect(selectAll).toBeEnabled();
+    expect(selectAll).not.toBeChecked();
+
+    fireEvent.click(selectAll);
+    expect(onToggleSelectAll).toHaveBeenCalledTimes(1);
+  });
+
+  it("exposes mixed state for partial selections and checked state for complete selections", () => {
+    const { unmount } = render(<FileListStage {...buildProps({ selectAllState: "partial" })} />);
+    const mixed = screen.getByRole("checkbox", { name: /Select all items in this folder/i });
+    expect(mixed).toHaveAttribute("aria-checked", "mixed");
+    expect((mixed as HTMLInputElement).indeterminate).toBe(true);
+    unmount();
+
+    render(<FileListStage {...buildProps({ selectAllState: "all" })} />);
+    const complete = screen.getByRole("checkbox", { name: /Deselect all items in this folder/i });
+    expect(complete).toBeChecked();
+  });
+
+  it("disables select-all when the capability is unavailable", () => {
+    render(<FileListStage {...buildProps({ canSelectAll: false })} />);
+    expect(screen.getByRole("checkbox", { name: /Select all items in this folder/i })).toBeDisabled();
+  });
+
+  it("keeps the header checkbox enabled for deselect-all when marking is unavailable", () => {
+    render(<FileListStage {...buildProps({ canSelectAll: false, canDeselectAll: true, selectAllState: "all" })} />);
+    expect(screen.getByRole("checkbox", { name: /Deselect all items in this folder/i })).toBeEnabled();
   });
 
   it("disables batch checkbox when marking is unavailable", () => {

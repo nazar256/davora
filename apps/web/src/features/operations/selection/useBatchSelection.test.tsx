@@ -66,4 +66,40 @@ describe("useBatchSelection", () => {
 
     expect(result.current.entries).toEqual([]);
   });
+
+  it("selects all entries in one update and dedupes already-selected paths", () => {
+    const { result } = renderHook(() => useBatchSelection("alpha"));
+    act(() => result.current.toggle(file("one.txt"), origin));
+
+    act(() => result.current.selectAll([file("one.txt"), file("two.txt"), file("Docs")], origin));
+
+    expect(result.current.entries.map((entry) => entry.path)).toEqual(["one.txt", "two.txt", "Docs"]);
+    expect(result.current.memberships.map((membership) => membership.membershipVersion)).toEqual([1, 2, 3]);
+    expect(result.current.summary.count).toBe(3);
+  });
+
+  it("deselects only the listed paths while preserving other memberships", () => {
+    const { result } = renderHook(() => useBatchSelection("alpha"));
+    act(() => result.current.selectAll([file("one.txt"), file("Other/keep.txt"), file("two.txt")], origin));
+
+    act(() => result.current.deselectPaths(["one.txt", "two.txt"]));
+
+    expect(result.current.entries.map((entry) => entry.path)).toEqual(["Other/keep.txt"]);
+    expect(result.current.memberships[0]?.membershipVersion).toBe(2);
+  });
+
+  it("ignores select-all and scoped deselect issued against a replaced account", () => {
+    const { result, rerender } = renderHook(({ accountId }) => useBatchSelection(accountId), {
+      initialProps: { accountId: "alpha" }
+    });
+    const alphaController = result.current;
+
+    rerender({ accountId: "beta" });
+    act(() => {
+      alphaController.selectAll([file("stale.txt")], origin);
+      alphaController.deselectPaths(["stale.txt"]);
+    });
+
+    expect(result.current.entries).toEqual([]);
+  });
 });

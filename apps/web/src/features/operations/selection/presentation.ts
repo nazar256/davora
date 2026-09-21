@@ -70,6 +70,24 @@ export function resolveMatchedSelectedPreview(
   return selectedEntry && selected && selectedEntry.path === selected.path ? selected : undefined;
 }
 
+export type SelectAllState = "none" | "partial" | "all";
+
+export function resolveSelectAllState(
+  items: readonly { readonly path: string }[],
+  isSelected: (path: string) => boolean
+): SelectAllState {
+  if (items.length === 0) {
+    return "none";
+  }
+  let selectedCount = 0;
+  for (const item of items) {
+    if (isSelected(item.path)) {
+      selectedCount += 1;
+    }
+  }
+  return selectedCount === 0 ? "none" : selectedCount === items.length ? "all" : "partial";
+}
+
 export function resolveSelectedDetails(
   batchSelectionCount: number,
   selectedEntry: FileEntry | undefined,

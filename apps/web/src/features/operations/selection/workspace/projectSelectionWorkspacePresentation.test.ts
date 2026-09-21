@@ -21,6 +21,7 @@ function batchSummary(overrides: Partial<SelectionWorkspacePresentationInput["se
 
 function capabilities(overrides: Partial<SelectionActionCapabilities> = {}): SelectionActionCapabilities {
   return {
+    canMarkForBatchDownload: true,
     canDownloadSelected: true,
     canSyncSelectedOffline: true,
     canMoveSelected: true,
@@ -40,6 +41,7 @@ function buildInput(
   const commands = {
     clearFocused: vi.fn(),
     clearBatch: vi.fn(),
+    toggleSelectAll: vi.fn(),
     showMobileActions: vi.fn(),
     showMobileDetails: vi.fn(),
     closeMobileDetails: vi.fn(),
@@ -61,7 +63,8 @@ function buildInput(
       focusedEntry: undefined,
       focusedMobileSubview: "actions",
       batchSummary: batchSummary(),
-      isBatchSelected: () => false
+      isBatchSelected: () => false,
+      selectAllItems: []
     },
     preview: { selected: undefined },
     workspace: {
@@ -99,7 +102,8 @@ describe("projectSelectionWorkspacePresentation", () => {
         focusedEntry: entry,
         focusedMobileSubview: "details",
         batchSummary: batchSummary({ count: 2, fileCount: 2, knownFileSizeBytes: 1024 }),
-        isBatchSelected: (path) => path === entry.path
+        isBatchSelected: (path) => path === entry.path,
+        selectAllItems: [entry]
       },
       preview: { selected: buildFilePreview(entry.path, { viewer: "pdf" }) },
       view: {
@@ -166,7 +170,8 @@ describe("projectSelectionWorkspacePresentation", () => {
         focusedEntry: entry,
         focusedMobileSubview: "actions",
         batchSummary: batchSummary(),
-        isBatchSelected: () => false
+        isBatchSelected: () => false,
+        selectAllItems: [entry]
       },
       capabilities: mixedCapabilities,
       view: { fileSizeDisplayMode: "human", isNarrowScreen: false, mobileDetailsOpen: false, mutationBusy: false }
@@ -175,7 +180,8 @@ describe("projectSelectionWorkspacePresentation", () => {
     expect(result.showDetailsRail).toBe(true);
     expect(result.showMobileSelectionSheet).toBe(false);
     expect(result.showMobileBatchBar).toBe(false);
-    expect(result.detailsStage).toMatchObject(mixedCapabilities);
+    const { canMarkForBatchDownload: _markCapability, ...stageCapabilities } = mixedCapabilities;
+    expect(result.detailsStage).toMatchObject(stageCapabilities);
   });
 
   it("routes focused, batch, favourite, and mobile commands without requiring an App-shaped content object", () => {
@@ -184,6 +190,7 @@ describe("projectSelectionWorkspacePresentation", () => {
     const commands = {
       clearFocused: vi.fn(() => calls.push("clear-focused")),
       clearBatch: vi.fn(() => calls.push("clear-batch")),
+      toggleSelectAll: vi.fn(() => calls.push("toggle-select-all")),
       showMobileActions: vi.fn(() => calls.push("mobile-actions")),
       showMobileDetails: vi.fn(() => calls.push("mobile-details")),
       closeMobileDetails: vi.fn(() => calls.push("close-mobile-details")),
@@ -205,7 +212,8 @@ describe("projectSelectionWorkspacePresentation", () => {
         focusedEntry: entry,
         focusedMobileSubview: "actions",
         batchSummary: batchSummary(),
-        isBatchSelected: () => false
+        isBatchSelected: () => false,
+        selectAllItems: [entry]
       },
       view: { fileSizeDisplayMode: "human", isNarrowScreen: true, mobileDetailsOpen: true, mutationBusy: false },
       commands,
@@ -226,6 +234,7 @@ describe("projectSelectionWorkspacePresentation", () => {
     result.detailsStage.onRenameSelected();
     result.detailsStage.onCopyMoveSelected();
     result.detailsStage.onDeleteSelected();
+    result.detailsStage.onToggleSelectAll();
     result.detailsStage.onCloseMobileSelectionSheet();
 
     expect(commands.openFile).toHaveBeenCalledWith(entry);
@@ -241,6 +250,7 @@ describe("projectSelectionWorkspacePresentation", () => {
       "rename-focused",
       "copy-move-focused",
       "delete-focused",
+      "toggle-select-all",
       "clear-focused",
       "close-mobile-details",
       "mobile-actions"
@@ -251,7 +261,8 @@ describe("projectSelectionWorkspacePresentation", () => {
         focusedEntry: entry,
         focusedMobileSubview: "details",
         batchSummary: batchSummary({ count: 1, fileCount: 1 }),
-        isBatchSelected: () => true
+        isBatchSelected: () => true,
+        selectAllItems: [entry]
       },
       commands,
       view: { fileSizeDisplayMode: "human", isNarrowScreen: false, mobileDetailsOpen: false, mutationBusy: false }
@@ -280,7 +291,8 @@ describe("projectSelectionWorkspacePresentation", () => {
         focusedEntry: folder,
         focusedMobileSubview: "details",
         batchSummary: batchSummary(),
-        isBatchSelected: () => false
+        isBatchSelected: () => false,
+        selectAllItems: [folder]
       },
       workspace: {
         folderLabel: "Plans",
@@ -313,5 +325,65 @@ describe("projectSelectionWorkspacePresentation", () => {
       mutationBusy: true,
       canMoveSelected: false
     });
+  });
+
+  it("projects select-all state against the folder set and gates it on marking and search", () => {
+    const first = buildFileEntry("Projects/a.txt");
+    const second = buildFileEntry("Projects/b.txt");
+    const items = [first, second];
+
+    const partial = projectSelectionWorkspacePresentation(buildInput({
+      selection: {
+        focusedMobileSubview: "actions",
+        batchSummary: batchSummary({ count: 1, fileCount: 1 }),
+        isBatchSelected: (path) => path === first.path,
+        selectAllItems: items
+      }
+    }));
+    expect(partial.detailsStage.selectAllState).toBe("partial");
+    expect(partial.detailsStage.canSelectAll).toBe(true);
+    expect(partial.detailsStage.canDeselectAll).toBe(false);
+
+    const complete = projectSelectionWorkspacePresentation(buildInput({
+      selection: {
+        focusedMobileSubview: "actions",
+        batchSummary: batchSummary({ count: 3, fileCount: 3 }),
+        isBatchSelected: () => true,
+        selectAllItems: items
+      }
+    }));
+    expect(complete.detailsStage.selectAllState).toBe("all");
+    expect(complete.detailsStage.canSelectAll).toBe(true);
+    expect(complete.detailsStage.canDeselectAll).toBe(true);
+
+    const completeWithoutMarking = projectSelectionWorkspacePresentation(buildInput({
+      capabilities: capabilities({ canMarkForBatchDownload: false }),
+      selection: {
+        focusedMobileSubview: "actions",
+        batchSummary: batchSummary({ count: 3, fileCount: 3 }),
+        isBatchSelected: () => true,
+        selectAllItems: items
+      }
+    }));
+    expect(completeWithoutMarking.detailsStage.canSelectAll).toBe(false);
+    expect(completeWithoutMarking.detailsStage.canDeselectAll).toBe(true);
+
+    for (const override of [
+      { capabilities: capabilities({ canMarkForBatchDownload: false }) },
+      { workspace: { ...buildInput().workspace, searchActive: true } },
+      { selection: { focusedMobileSubview: "actions" as const, batchSummary: batchSummary(), isBatchSelected: () => false, selectAllItems: [] } }
+    ]) {
+      const result = projectSelectionWorkspacePresentation(buildInput({
+        selection: {
+          focusedMobileSubview: "actions",
+          batchSummary: batchSummary(),
+          isBatchSelected: () => false,
+          selectAllItems: items
+        },
+        ...override
+      }));
+      expect(result.detailsStage.canSelectAll).toBe(false);
+      expect(result.detailsStage.canDeselectAll).toBe(false);
+    }
   });
 });

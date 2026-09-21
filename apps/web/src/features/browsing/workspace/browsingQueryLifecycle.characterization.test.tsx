@@ -151,6 +151,10 @@ function buildSurfaceInput(raw: string, active: boolean, set: (value: string) =>
         fileList: {
           batchModeActive: false,
           selectionModeActive: false,
+          selectAllState: "none",
+          canSelectAll: false,
+          canDeselectAll: false,
+          onToggleSelectAll: vi.fn(),
           isItemBatchSelected: () => false,
           isItemSelected: () => false,
           clearRowOpenSuppression: vi.fn(),

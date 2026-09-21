@@ -38,6 +38,10 @@ function buildProps(overrides: Partial<ComponentProps<typeof SelectionDetailsSta
     canSyncBatchOffline: false,
     canCopyMoveBatchSelection: false,
     canDeleteBatchSelection: false,
+    selectAllState: "none" as const,
+    canSelectAll: true,
+    canDeselectAll: false,
+    onToggleSelectAll: vi.fn(),
     onOpenSelected: vi.fn(),
     onDownloadSelected: vi.fn(),
     onKeepOfflineSelected: vi.fn(),
@@ -243,6 +247,83 @@ describe("SelectionDetailsStage", () => {
     expect(within(toolbar).getByText("2 items selected")).toBeInTheDocument();
     expect(within(toolbar).getByRole("button", { name: /Download/i })).toBeEnabled();
     expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
+  });
+
+  it("renders a state-aware select-all action in the mobile batch bar", () => {
+    const onToggleSelectAll = vi.fn();
+    const batchContent = {
+      kind: "batch" as const,
+      batch: {
+        count: 2,
+        countLabel: "2 items selected",
+        selectionLabel: "2 files",
+        fileCount: 2,
+        folderCount: 0,
+        sizeLabel: "1.0 MB known",
+        ariaLabel: "Selection details for 2 items"
+      }
+    };
+    const { rerender } = render(
+      <SelectionDetailsStage
+        {...buildProps({
+          visible: false,
+          showMobileBatchBar: true,
+          content: batchContent,
+          selectAllState: "partial",
+          onToggleSelectAll
+        })}
+      />
+    );
+
+    const toolbar = screen.getByRole("toolbar", { name: /Selection actions/i });
+    const selectAll = within(toolbar).getByRole("button", { name: /^Select all$/i });
+    expect(selectAll).toBeEnabled();
+    expect(selectAll).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(selectAll);
+    expect(onToggleSelectAll).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <SelectionDetailsStage
+        {...buildProps({
+          visible: false,
+          showMobileBatchBar: true,
+          content: batchContent,
+          selectAllState: "all",
+          onToggleSelectAll
+        })}
+      />
+    );
+    const deselectAll = within(toolbar).getByRole("button", { name: /^Deselect all$/i });
+    expect(deselectAll).toHaveAttribute("aria-pressed", "true");
+
+    rerender(
+      <SelectionDetailsStage
+        {...buildProps({
+          visible: false,
+          showMobileBatchBar: true,
+          content: batchContent,
+          selectAllState: "partial",
+          canSelectAll: false,
+          onToggleSelectAll
+        })}
+      />
+    );
+    expect(within(toolbar).getByRole("button", { name: /^Select all$/i })).toBeDisabled();
+
+    rerender(
+      <SelectionDetailsStage
+        {...buildProps({
+          visible: false,
+          showMobileBatchBar: true,
+          content: batchContent,
+          selectAllState: "all",
+          canSelectAll: false,
+          canDeselectAll: true,
+          onToggleSelectAll
+        })}
+      />
+    );
+    expect(within(toolbar).getByRole("button", { name: /^Deselect all$/i })).toBeEnabled();
   });
 
   it("projects mobile sheet classes, backdrop, and details toggle from props", () => {

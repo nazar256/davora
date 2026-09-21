@@ -6,10 +6,12 @@ import {
   clearBatchSelection,
   createBatchSelectionState,
   rebindBatchSelection,
+  removeBatchSelectionPaths,
   removeCapturedSelection,
   removeDeletedPath,
   replaceBatchSelectionAccount,
   retainBatchSelectionPaths,
+  selectAllBatchEntries,
   toggleBatchSelection
 } from "./model";
 
@@ -99,6 +101,65 @@ describe("batch selection model", () => {
 
     state = removeDeletedPath(state, "alpha", "Docs");
     expect(state.memberships.map((item) => item.descriptor.path)).toEqual(["Docs-old/c.txt"]);
+  });
+
+  it("selects all entries in display order with consecutive membership versions", () => {
+    let state = createBatchSelectionState("alpha");
+    state = selectAllBatchEntries(state, "alpha", [file("a.txt"), file("Docs", { isFolder: true }), file("b.txt")], browseOrigin);
+
+    expect(state.memberships.map((item) => [item.descriptor.path, item.membershipVersion])).toEqual([
+      ["a.txt", 1],
+      ["Docs", 2],
+      ["b.txt", 3]
+    ]);
+    expect(state.memberships.every((item) => item.origin.kind === "browse" && item.origin.folderPath === browseOrigin.folderPath)).toBe(true);
+  });
+
+  it("adds only missing entries and keeps existing membership identity, version and origin", () => {
+    let state = createBatchSelectionState("alpha");
+    state = toggleBatchSelection(state, "alpha", file("b.txt"), searchOrigin).state;
+    state = toggleBatchSelection(state, "alpha", file("other.txt"), searchOrigin).state;
+
+    const next = selectAllBatchEntries(state, "alpha", [file("a.txt"), file("b.txt"), file("c.txt")], browseOrigin);
+    expect(next.memberships.map((item) => [item.descriptor.path, item.membershipVersion, item.origin.kind])).toEqual([
+      ["b.txt", 1, "search"],
+      ["other.txt", 2, "search"],
+      ["a.txt", 3, "browse"],
+      ["c.txt", 4, "browse"]
+    ]);
+  });
+
+  it("returns the same state when every entry is already selected or no valid entry is given", () => {
+    let state = createBatchSelectionState("alpha");
+    state = selectAllBatchEntries(state, "alpha", [file("a.txt"), file("b.txt")], browseOrigin);
+
+    expect(selectAllBatchEntries(state, "alpha", [file("a.txt"), file("b.txt")], browseOrigin)).toBe(state);
+    expect(selectAllBatchEntries(state, "alpha", [], browseOrigin)).toBe(state);
+    expect(selectAllBatchEntries(state, "alpha", [file("")], browseOrigin)).toBe(state);
+  });
+
+  it("rejects select-all for a different account or invalid origin", () => {
+    const state = createBatchSelectionState("alpha");
+    expect(selectAllBatchEntries(state, "beta", [file("a.txt")], browseOrigin)).toBe(state);
+    expect(selectAllBatchEntries(state, "alpha", [file("a.txt")], { kind: "folder", folderPath: "/" } as never)).toBe(state);
+  });
+
+  it("removes only the listed paths and preserves other selections in order", () => {
+    let state = createBatchSelectionState("alpha");
+    state = selectAllBatchEntries(state, "alpha", [file("a.txt"), file("b.txt"), file("Docs", { isFolder: true }), file("c.txt")], browseOrigin);
+    state = toggleBatchSelection(state, "alpha", file("other/x.txt"), browseOrigin).state;
+
+    const next = removeBatchSelectionPaths(state, "alpha", ["/b.txt", "Docs", "missing.txt"]);
+    expect(next.memberships.map((item) => item.descriptor.path)).toEqual(["a.txt", "c.txt", "other/x.txt"]);
+  });
+
+  it("returns the same state when removal targets no membership, the account differs, or no paths are given", () => {
+    let state = createBatchSelectionState("alpha");
+    state = toggleBatchSelection(state, "alpha", file("a.txt"), browseOrigin).state;
+
+    expect(removeBatchSelectionPaths(state, "alpha", ["missing.txt"])).toBe(state);
+    expect(removeBatchSelectionPaths(state, "beta", ["a.txt"])).toBe(state);
+    expect(removeBatchSelectionPaths(state, "alpha", [])).toBe(state);
   });
 
   it("retains failed paths in their prior order with their original membership identity", () => {

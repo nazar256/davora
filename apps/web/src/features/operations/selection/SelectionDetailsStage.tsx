@@ -1,6 +1,6 @@
-import { Copy, Download, HardDriveDownload, Trash2, X } from "lucide-react";
+import { Copy, Download, HardDriveDownload, ListChecks, ListX, Trash2, X } from "lucide-react";
 
-import type { SelectionDetailsContent } from "./presentation";
+import type { SelectAllState, SelectionDetailsContent } from "./presentation";
 
 export type {
   SelectionDetailsBatchSummary,
@@ -28,6 +28,9 @@ export interface SelectionDetailsStageProps {
   readonly canSyncBatchOffline: boolean;
   readonly canCopyMoveBatchSelection: boolean;
   readonly canDeleteBatchSelection: boolean;
+  readonly selectAllState: SelectAllState;
+  readonly canSelectAll: boolean;
+  readonly canDeselectAll: boolean;
   readonly onOpenSelected: () => void;
   readonly onDownloadSelected: () => void;
   readonly onKeepOfflineSelected: () => void;
@@ -42,6 +45,7 @@ export interface SelectionDetailsStageProps {
   readonly onCopyMoveBatchSelection: () => void;
   readonly onDeleteBatchSelection: () => void;
   readonly onClearBatchSelection: () => void;
+  readonly onToggleSelectAll: () => void;
   readonly onCloseMobileSelectionSheet: () => void;
   readonly onCollapseMobileSheetDetails: () => void;
 }
@@ -210,6 +214,7 @@ function MobileBatchBar(props: SelectionDetailsStageProps) {
   return (
     <div aria-label="Selection actions" className="mobile-batch-bar" role="toolbar">
       <span className="mobile-batch-summary">{props.content.batch.countLabel}</span>
+      <button aria-pressed={props.selectAllState === "all"} className="mobile-batch-action" disabled={!props.canSelectAll && !props.canDeselectAll} onClick={props.onToggleSelectAll} type="button">{props.selectAllState === "all" ? <ListX aria-hidden="true" /> : <ListChecks aria-hidden="true" />}<span>{props.selectAllState === "all" ? "Deselect all" : "Select all"}</span></button>
       <button className="mobile-batch-action" disabled={!props.canDownloadBatchSelection} onClick={props.onDownloadBatchSelection} type="button"><Download aria-hidden="true" /><span>Download</span></button>
       <button className="mobile-batch-action" disabled={!props.canSyncBatchOffline} onClick={props.onKeepOfflineBatchSelection} type="button"><HardDriveDownload aria-hidden="true" /><span>Keep offline</span></button>
       <button aria-label="Copy or move selected" className="mobile-batch-action" disabled={!props.canCopyMoveBatchSelection || props.mutationBusy} onClick={props.onCopyMoveBatchSelection} type="button"><Copy aria-hidden="true" /><span>Copy/move</span></button>

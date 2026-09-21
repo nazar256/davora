@@ -65,6 +65,8 @@ function createInput(overrides: Partial<SelectionInteractionWorkspaceInput> = {}
       batch: {
         isSelected: () => false,
         toggle: batchToggle,
+        selectAll: vi.fn(),
+        deselectPaths: vi.fn(),
         clear: vi.fn()
       }
   };

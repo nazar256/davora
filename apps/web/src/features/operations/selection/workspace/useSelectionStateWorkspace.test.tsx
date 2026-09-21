@@ -177,6 +177,45 @@ describe("useSelectionStateWorkspace", () => {
     expect(result.current.snapshot.focused.selectedEntry).toBeUndefined();
   });
 
+  it("applies select-all and scoped deselect through epoch-guarded commands", () => {
+    const { result, rerender } = renderHook(
+      ({ accountId }: { accountId: string | undefined }) => useSelectionStateWorkspace({ accountId }),
+      { initialProps: { accountId: "alpha" } }
+    );
+
+    act(() => {
+      result.current.commands.selectAllBatch(
+        [file("Projects/a.txt"), file("Projects/Docs", { isFolder: true }), file("Projects/b.txt")],
+        { kind: "browse", folderPath: "Projects" }
+      );
+    });
+
+    expect(result.current.snapshot.batch.entries.map((entry) => entry.path)).toEqual([
+      "Projects/a.txt",
+      "Projects/Docs",
+      "Projects/b.txt"
+    ]);
+    expect(result.current.snapshot.batch.memberships.map((membership) => membership.membershipVersion)).toEqual([1, 2, 3]);
+
+    const staleCommands = result.current.commands;
+    rerender({ accountId: "beta" });
+    act(() => {
+      staleCommands.selectAllBatch([file("stale.txt")], { kind: "browse", folderPath: "" });
+      staleCommands.deselectBatchPaths(["stale.txt"]);
+    });
+    expect(result.current.snapshot.batch.entries).toEqual([]);
+
+    rerender({ accountId: "alpha" });
+    act(() => {
+      result.current.commands.selectAllBatch(
+        [file("Projects/a.txt"), file("Other/keep.txt")],
+        { kind: "browse", folderPath: "Projects" }
+      );
+      result.current.commands.deselectBatchPaths(["Projects/a.txt", "Projects/missing.txt"]);
+    });
+    expect(result.current.snapshot.batch.entries.map((entry) => entry.path)).toEqual(["Other/keep.txt"]);
+  });
+
   it("preserves selection across path/query replacement while recording the replacement in later interaction scope", () => {
     const { result } = renderHook(() => useSelectionStateWorkspace({ accountId: "alpha" }));
 

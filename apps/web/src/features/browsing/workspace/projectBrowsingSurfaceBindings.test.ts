@@ -35,7 +35,7 @@ function buildInput(): BrowsingSurfaceInput {
       },
       selection: {
         fileList: {
-          batchModeActive: false, selectionModeActive: false, isItemBatchSelected: () => false, isItemSelected: () => false,
+          batchModeActive: false, selectionModeActive: false, selectAllState: "none", canSelectAll: false, canDeselectAll: false, onToggleSelectAll: vi.fn(), isItemBatchSelected: () => false, isItemSelected: () => false,
           clearRowOpenSuppression: vi.fn(), getRowOpenSuppressed: () => false, onRowPointerCancel: vi.fn(), onRowPointerDown: vi.fn(), onRowPointerLeave: vi.fn(), onRowPointerUp: vi.fn(), onToggleBatchSelection: vi.fn(), onToggleEntrySelection: vi.fn(), suppressNarrowScreenContextMenu: false
         },
         presentation: { selectionSummaryLabel: "2 items selected" }, interaction: { clearBatchSelection: vi.fn() },

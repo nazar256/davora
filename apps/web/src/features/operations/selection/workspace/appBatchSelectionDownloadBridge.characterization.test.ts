@@ -172,7 +172,7 @@ function summary(countValue: number, fileCount: number, folderCount: number) {
 
 function capabilities(overrides: Partial<SelectionActionCapabilities> = {}): SelectionActionCapabilities {
   return {
-    canDownloadSelected: true, canSyncSelectedOffline: true, canMoveSelected: true, canCopySelected: true,
+    canMarkForBatchDownload: true, canDownloadSelected: true, canSyncSelectedOffline: true, canMoveSelected: true, canCopySelected: true,
     canDeleteSelected: true, canDownloadBatchSelection: true, canSyncBatchOffline: true,
     canCopyMoveBatchSelection: true, canDeleteBatchSelection: true, ...overrides
   };
@@ -189,14 +189,14 @@ type InputOverrides = {
 
 function buildInput(overrides: InputOverrides = {}): SelectionWorkspacePresentationInput {
   return {
-    selection: { focusedEntry: undefined, focusedMobileSubview: "actions", batchSummary: summary(0, 0, 0), isBatchSelected: () => false, ...overrides.selection },
+    selection: { focusedEntry: undefined, focusedMobileSubview: "actions", batchSummary: summary(0, 0, 0), isBatchSelected: () => false, selectAllItems: [], ...overrides.selection },
     preview: { selected: undefined, ...overrides.preview },
     workspace: { folderLabel: "Projects", locationLabel: "/Projects", visibleItemCount: 2, searchActive: false, searchQuery: "", explicitOfflineMode: false, offline: false, workerUnavailable: false, folderCachedAt: undefined, ...overrides.workspace },
     view: { fileSizeDisplayMode: "human", isNarrowScreen: false, mobileDetailsOpen: false, mutationBusy: false, ...overrides.view },
     capabilities: capabilities(overrides.capabilities),
     favourite: { selected: false, toggle: vi.fn() },
     commands: {
-      clearFocused: vi.fn(), clearBatch: vi.fn(), showMobileActions: vi.fn(), showMobileDetails: vi.fn(), closeMobileDetails: vi.fn(), navigateToFolder: vi.fn(), openFile: vi.fn(), openFolderShortcut: vi.fn(), downloadFocused: vi.fn(), downloadBatch: vi.fn(), keepOfflineFocused: vi.fn(), keepOfflineBatch: vi.fn(), renameFocused: vi.fn(), copyMoveFocused: vi.fn(), copyMoveBatch: vi.fn(), deleteFocused: vi.fn(), deleteBatch: vi.fn(), ...overrides.commands
+      clearFocused: vi.fn(), clearBatch: vi.fn(), toggleSelectAll: vi.fn(), showMobileActions: vi.fn(), showMobileDetails: vi.fn(), closeMobileDetails: vi.fn(), navigateToFolder: vi.fn(), openFile: vi.fn(), openFolderShortcut: vi.fn(), downloadFocused: vi.fn(), downloadBatch: vi.fn(), keepOfflineFocused: vi.fn(), keepOfflineBatch: vi.fn(), renameFocused: vi.fn(), copyMoveFocused: vi.fn(), copyMoveBatch: vi.fn(), deleteFocused: vi.fn(), deleteBatch: vi.fn(), ...overrides.commands
     }
   };
 }
@@ -207,6 +207,7 @@ function stageProps(overrides: Partial<ComponentProps<typeof SelectionDetailsSta
     showMobileBatchBar: false, showMobileSelectionSheet: false, mobileSheetDetailsExpanded: false, offline: false, mutationBusy: false,
     canDownloadSelected: false, canSyncSelectedOffline: false, selectedIsFavourite: false, selectedFavouriteActionLabel: "Add to Favourites", canMoveSelected: false, canCopySelected: false, canDeleteSelected: false,
     canDownloadBatchSelection: false, canSyncBatchOffline: false, canCopyMoveBatchSelection: false, canDeleteBatchSelection: false,
+    selectAllState: "none", canSelectAll: false, canDeselectAll: false, onToggleSelectAll: vi.fn(),
     onOpenSelected: vi.fn(), onDownloadSelected: vi.fn(), onKeepOfflineSelected: vi.fn(), onToggleFavourite: vi.fn(), onFolderShortcut: vi.fn(), onToggleMobileSheetDetails: vi.fn(), onRenameSelected: vi.fn(), onCopyMoveSelected: vi.fn(), onDeleteSelected: vi.fn(), onDownloadBatchSelection: vi.fn(), onKeepOfflineBatchSelection: vi.fn(), onCopyMoveBatchSelection: vi.fn(), onDeleteBatchSelection: vi.fn(), onClearBatchSelection: vi.fn(), onCloseMobileSelectionSheet: vi.fn(), onCollapseMobileSheetDetails: vi.fn(), ...overrides
   };
 }

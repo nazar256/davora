@@ -28,7 +28,7 @@ function workspace(): {
   const commands = {
     selectFocused: vi.fn(), toggleFocused: vi.fn(), clearFocused: vi.fn(), clearFocusedIfCurrent: vi.fn(),
     rebindFocusedIfCurrent: vi.fn(), removeDeletedFocused: vi.fn(), showMobileActions: vi.fn(), showMobileDetails: vi.fn(),
-    toggleBatch: vi.fn(), clearBatch: vi.fn(), rebindBatch: vi.fn(), removeDeletedBatch: vi.fn(), retainBatch: vi.fn(), removeCapturedBatch: vi.fn()
+    toggleBatch: vi.fn(), selectAllBatch: vi.fn(), deselectBatchPaths: vi.fn(), clearBatch: vi.fn(), rebindBatch: vi.fn(), removeDeletedBatch: vi.fn(), retainBatch: vi.fn(), removeCapturedBatch: vi.fn()
   } satisfies SelectionStateWorkspaceCommands;
   const captures = {
     focused: vi.fn(() => ({ identity: { accountId: "alpha", path: focused.path }, version: 1 })),
@@ -82,6 +82,8 @@ describe("projectSelectionStateBindings", () => {
     expect(bindings.batch.summary).toBe(output.snapshot.batch.summary);
     expect(bindings.batch.memberships).toBe(output.snapshot.batch.memberships);
     expect(bindings.batch.toggle).toBe(commands.toggleBatch);
+    expect(bindings.batch.selectAll).toBe(commands.selectAllBatch);
+    expect(bindings.batch.deselectPaths).toBe(commands.deselectBatchPaths);
     expect(bindings.batch.clear).toBe(commands.clearBatch);
     expect(bindings.batch.removeDeleted).toBe(commands.removeDeletedBatch);
     expect(bindings.batch.rebind).toBe(commands.rebindBatch);

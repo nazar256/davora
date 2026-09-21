@@ -6,6 +6,7 @@ import {
   planBatchSelectionToggle,
   planClearBatchSelection,
   planEntrySelectionToggle,
+  planSelectAllEntries,
   resolveBatchSelectionOrigin
 } from "./interaction";
 
@@ -164,6 +165,75 @@ describe("planBatchSelectionToggle", () => {
         entry: item,
         origin: { kind: "browse", folderPath: "Projects" }
       }
+    });
+  });
+});
+
+describe("planSelectAllEntries", () => {
+  it("selects every entry with a browse origin without touching focused selection", () => {
+    const entries = [entry("Projects/a.txt"), entry("Projects/Docs", { isFolder: true })];
+
+    expect(planSelectAllEntries({
+      entries,
+      allSelected: false,
+      selectedEntryPath: "Projects/a.txt",
+      hasSelectedPreview: false,
+      currentPath: "Projects"
+    })).toEqual({
+      focused: [],
+      chrome: [],
+      batchSelectAll: {
+        entries,
+        origin: { kind: "browse", folderPath: "Projects" }
+      }
+    });
+  });
+
+  it("deselects the listed paths and clears a focused member when all are selected", () => {
+    const entries = [entry("Projects/a.txt"), entry("Projects/b.txt")];
+
+    expect(planSelectAllEntries({
+      entries,
+      allSelected: true,
+      selectedEntryPath: "Projects/a.txt",
+      hasSelectedPreview: false,
+      currentPath: "Projects"
+    })).toEqual({
+      focused: [{ kind: "clear" }],
+      chrome: [{ kind: "closeMobileDetails" }],
+      batchDeselectPaths: { paths: ["Projects/a.txt", "Projects/b.txt"] }
+    });
+  });
+
+  it("keeps a focused selection outside the deselected paths", () => {
+    const entries = [entry("Projects/a.txt")];
+
+    expect(planSelectAllEntries({
+      entries,
+      allSelected: true,
+      selectedEntryPath: "Other/focused.txt",
+      hasSelectedPreview: false,
+      currentPath: "Projects"
+    })).toEqual({
+      focused: [],
+      chrome: [],
+      batchDeselectPaths: { paths: ["Projects/a.txt"] }
+    });
+  });
+
+  it("keeps the focused member while a selected preview is open", () => {
+    const entries = [entry("Projects/a.txt")];
+
+    expect(planSelectAllEntries({
+      entries,
+      allSelected: true,
+      selectedEntryPath: "Projects/a.txt",
+      hasSelectedPreview: true,
+      currentPath: "Projects"
+    })).toEqual({
+      focused: [],
+      chrome: [],
+      batchDeselectPaths: { paths: ["Projects/a.txt"] }
     });
   });
 });

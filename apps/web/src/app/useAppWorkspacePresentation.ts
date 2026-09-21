@@ -1,10 +1,12 @@
 import type { ConnectedAccount } from "@davora/shared";
+import { useMemo } from "react";
 
 import type { AppServices } from "./AppServices";
 import type { AppShellProps } from "./AppShell";
 import { projectAppShellComposition } from "./projectAppShellComposition";
 import {
   projectBrowsingSurfaceBindings,
+  selectVisibleItems,
   useAppBarWorkspace,
   useNavigationDrawerWorkspace,
   useQuickActionsWorkspace,
@@ -104,19 +106,30 @@ export function useAppWorkspacePresentation(input: AppWorkspacePresentationInput
       directoryUploadInputRef: ports.directoryUploadInputRef
     }
   });
+  const selectAllItems = useMemo(() => selectVisibleItems({
+    browseEntries: browsingWorkspace.folder.items,
+    searchActive: false,
+    searchResults: [],
+    showHiddenFiles: settings.preferences.showHiddenFiles,
+    sortMode: browsingWorkspace.sort.mode
+  }), [browsingWorkspace.folder.items, browsingWorkspace.sort.mode, settings.preferences.showHiddenFiles]);
   const fileListSelectionBindings = projectFileListSelectionBindings({
     focusedEntry: focusedSelection.selectedEntry,
     batchCount: batchSelection.summary.count,
     isBatchSelected: batchSelection.isSelected,
     interaction: selectionInteraction,
-    isNarrowScreen: viewport.isNarrowScreen
+    isNarrowScreen: viewport.isNarrowScreen,
+    selectAllItems,
+    searchActive: browsingWorkspace.query.active,
+    canMarkForBatchDownload: operationWorkspace.capabilities.canMarkForBatchDownload
   });
   const selectionPresentation = projectSelectionWorkspacePresentation({
     selection: {
       focusedEntry: focusedSelection.selectedEntry,
       focusedMobileSubview: focusedSelection.mobileSubview,
       batchSummary: batchSelection.summary,
-      isBatchSelected: batchSelection.isSelected
+      isBatchSelected: batchSelection.isSelected,
+      selectAllItems
     },
     preview: { selected: preview.bridge.snapshot().modal.selected },
     workspace: {
@@ -144,6 +157,7 @@ export function useAppWorkspacePresentation(input: AppWorkspacePresentationInput
     commands: {
       clearFocused: focusedSelection.clear,
       clearBatch: batchSelection.clear,
+      toggleSelectAll: () => { selectionInteraction.toggleSelectAllEntries(selectAllItems); },
       showMobileActions: focusedSelection.showMobileActions,
       showMobileDetails: focusedSelection.showMobileDetails,
       closeMobileDetails: () => workspaceNavigation.closeChrome("mobile-details"),

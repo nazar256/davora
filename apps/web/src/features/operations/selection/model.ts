@@ -323,6 +323,63 @@ export function clearBatchSelection(state: BatchSelectionState, accountId: strin
     : state;
 }
 
+export function selectAllBatchEntries(
+  state: BatchSelectionState,
+  accountId: string,
+  entries: readonly FileEntry[],
+  origin: SelectionOrigin
+): BatchSelectionState {
+  const normalizedOrigin = normalizeOrigin(origin);
+  if (!accountId || state.accountId !== accountId || !normalizedOrigin || entries.length === 0) {
+    return state;
+  }
+  const selectedPaths = new Set(state.memberships.map((membership) => membership.identity.path));
+  const additions: BatchSelectionMembership[] = [];
+  for (const entry of entries) {
+    const descriptor = normalizeDescriptor(entry);
+    if (!descriptor || selectedPaths.has(descriptor.path)) {
+      continue;
+    }
+    selectedPaths.add(descriptor.path);
+    additions.push({
+      identity: { accountId, path: descriptor.path },
+      descriptor,
+      origin: normalizedOrigin,
+      membershipVersion: state.nextMembershipVersion + additions.length
+    });
+  }
+  return additions.length === 0
+    ? state
+    : {
+      ...state,
+      memberships: [...state.memberships, ...additions],
+      nextMembershipVersion: state.nextMembershipVersion + additions.length
+    };
+}
+
+export function removeBatchSelectionPaths(
+  state: BatchSelectionState,
+  accountId: string,
+  paths: readonly string[]
+): BatchSelectionState {
+  if (state.accountId !== accountId || paths.length === 0) {
+    return state;
+  }
+  const removed = new Set<NormalizedPath>();
+  for (const path of paths) {
+    try {
+      const parsed = parseNormalizedPath(path);
+      if (parsed.length > 0) {
+        removed.add(parsed);
+      }
+    } catch {
+      // Non-normalizable input can never match a canonical membership path.
+    }
+  }
+  const memberships = state.memberships.filter((membership) => !removed.has(membership.identity.path));
+  return memberships.length === state.memberships.length ? state : { ...state, memberships };
+}
+
 export function rebindBatchSelection(
   state: BatchSelectionState,
   accountId: string,

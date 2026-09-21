@@ -23,6 +23,8 @@ export interface SelectionStateBindings {
     readonly memberships: SelectionStateWorkspaceOutput["snapshot"]["batch"]["memberships"];
     readonly isSelected: SelectionStateWorkspaceOutput["captures"]["isBatchSelected"];
     readonly toggle: SelectionStateWorkspaceOutput["commands"]["toggleBatch"];
+    readonly selectAll: SelectionStateWorkspaceOutput["commands"]["selectAllBatch"];
+    readonly deselectPaths: SelectionStateWorkspaceOutput["commands"]["deselectBatchPaths"];
     readonly clear: SelectionStateWorkspaceOutput["commands"]["clearBatch"];
     readonly removeDeleted: SelectionStateWorkspaceOutput["commands"]["removeDeletedBatch"];
     readonly rebind: SelectionStateWorkspaceOutput["commands"]["rebindBatch"];
@@ -60,6 +62,8 @@ export function projectSelectionStateBindings(
       memberships: snapshot.batch.memberships,
       isSelected: captures.isBatchSelected,
       toggle: commands.toggleBatch,
+      selectAll: commands.selectAllBatch,
+      deselectPaths: commands.deselectBatchPaths,
       clear: commands.clearBatch,
       removeDeleted: commands.removeDeletedBatch,
       rebind: commands.rebindBatch,

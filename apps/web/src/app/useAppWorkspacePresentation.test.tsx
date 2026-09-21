@@ -16,7 +16,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("./projectAppShellComposition", () => ({ projectAppShellComposition: mocks.projectAppShellComposition }));
-vi.mock("../features/browsing", () => ({
+vi.mock("../features/browsing", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../features/browsing")>()),
   projectBrowsingSurfaceBindings: mocks.projectBrowsingSurfaceBindings,
   useAppBarWorkspace: mocks.useAppBarWorkspace,
   useNavigationDrawerWorkspace: mocks.useNavigationDrawerWorkspace,
@@ -88,7 +89,9 @@ describe("useAppWorkspacePresentation", () => {
       },
       browsing: {
         workspace: {
+          folder: { items: [selectedEntry] },
           list: { items: [selectedEntry] },
+          sort: { mode: "name-asc" },
           presentation: { folderLabel: "Photos", locationLabel: "Cloud / Photos", folderCachedAt: "today", inlineBanner: { marker: "banner" } },
           query: { active: false, raw: "" }
         },
@@ -105,7 +108,7 @@ describe("useAppWorkspacePresentation", () => {
       },
       operation: {
         workspace: {
-          capabilities: { canDownloadSelected: true },
+          capabilities: { canDownloadSelected: true, canMarkForBatchDownload: true },
           commands: { openCopyMove: vi.fn(), openCopyMoveSelection: vi.fn(), openDelete: vi.fn(), openDeleteSelection: vi.fn(), openMove: vi.fn() },
           download: { downloadBatch: vi.fn(), downloadFocused: vi.fn() },
           mutation: { stage: { marker: "mutation" }, state: { busy: false, surface: { kind: "none" } } }
@@ -126,7 +129,7 @@ describe("useAppWorkspacePresentation", () => {
         modal: { previewOpen: false },
         stage: { marker: "preview" }
       },
-      settings: { preferences: { fileSizeDisplayMode: "binary" }, commands: { marker: "settings-commands" } },
+      settings: { preferences: { fileSizeDisplayMode: "binary", showHiddenFiles: true }, commands: { marker: "settings-commands" } },
       diagnostics: {
         settingsSection: { marker: "diagnostics-settings" },
         reportStage: { marker: "report-stage" }

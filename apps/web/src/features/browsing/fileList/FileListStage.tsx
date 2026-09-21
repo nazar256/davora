@@ -27,6 +27,10 @@ export interface FileListStageProps {
   readonly showRetryFolderButton: boolean;
   readonly canMarkForBatchDownload: boolean;
   readonly selectionModeActive: boolean;
+  readonly selectAllState: "none" | "partial" | "all";
+  readonly canSelectAll: boolean;
+  readonly canDeselectAll: boolean;
+  readonly onToggleSelectAll: () => void;
   readonly fileSizeDisplayMode: FileSizeDisplayMode;
   readonly suppressNarrowScreenContextMenu: boolean;
   readonly isItemBatchSelected: (item: FileEntry | SearchResult) => boolean;
@@ -135,12 +139,29 @@ export const FileListStage = forwardRef<HTMLElement, FileListStageProps>(functio
       onDragOver={props.onDragOver}
       onDrop={props.onDrop}
     >
-      <div aria-hidden="true" className="list-head">
-        <span className="list-head-spacer" />
-        <span>Name</span>
-        <span>Modified</span>
-        <span>Size</span>
-        <span>Actions</span>
+      <div className="list-head">
+        <span className="list-head-select-all">
+          <label className="item-batch-control">
+            <input
+              aria-checked={props.selectAllState === "partial" ? "mixed" : props.selectAllState === "all"}
+              aria-label={props.selectAllState === "all" ? "Deselect all items in this folder" : "Select all items in this folder"}
+              checked={props.selectAllState === "all"}
+              className="item-batch-checkbox"
+              disabled={!props.canSelectAll && !props.canDeselectAll}
+              onChange={props.onToggleSelectAll}
+              ref={(element) => {
+                if (element) {
+                  element.indeterminate = props.selectAllState === "partial";
+                }
+              }}
+              type="checkbox"
+            />
+          </label>
+        </span>
+        <span aria-hidden="true">Name</span>
+        <span aria-hidden="true">Modified</span>
+        <span aria-hidden="true">Size</span>
+        <span aria-hidden="true">Actions</span>
       </div>
 
       <ul className="file-list-items">

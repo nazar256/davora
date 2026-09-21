@@ -25,6 +25,8 @@ export interface SelectionFocusedPorts {
 export interface SelectionBatchPorts {
   isSelected(path: string): boolean;
   toggle(entry: FileEntry, origin: SelectionOrigin): void;
+  selectAll(entries: readonly FileEntry[], origin: SelectionOrigin): void;
+  deselectPaths(paths: readonly string[]): void;
   clear(): void;
 }
 

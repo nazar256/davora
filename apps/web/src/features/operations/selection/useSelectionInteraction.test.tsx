@@ -36,6 +36,8 @@ function createTimerPorts() {
 function createPorts(overrides: Partial<SelectionInteractionPorts> = {}) {
   const timer = createTimerPorts();
   const batchToggle = vi.fn();
+  const batchSelectAll = vi.fn();
+  const batchDeselectPaths = vi.fn();
   const openMobileDetails = vi.fn();
   const closeMobileDetails = vi.fn();
   let selectedEntry: FileEntry | undefined;
@@ -69,6 +71,8 @@ function createPorts(overrides: Partial<SelectionInteractionPorts> = {}) {
     batch: {
       isSelected: vi.fn(() => false),
       toggle: batchToggle,
+      selectAll: batchSelectAll,
+      deselectPaths: batchDeselectPaths,
       clear: vi.fn()
     },
     scope: {
@@ -82,6 +86,8 @@ function createPorts(overrides: Partial<SelectionInteractionPorts> = {}) {
     ports,
     timer,
     batchToggle,
+    batchSelectAll,
+    batchDeselectPaths,
     openMobileDetails,
     closeMobileDetails,
     currentFocusedSelection: () => selectedEntry,
@@ -418,5 +424,53 @@ describe("useSelectionInteraction", () => {
 
     expect(fixture.ports.focused.current()).toBe(item);
     expect(fixture.openMobileDetails).toHaveBeenCalledWith({ pushHistory: undefined });
+  });
+
+  it("forwards select-all toggles through the batch ports with the current browse origin", () => {
+    const fixture = createPorts();
+    let controller: ReturnType<typeof useSelectionInteraction> | undefined;
+    const entries = [entry("Projects/a.txt"), entry("Projects/b.txt")];
+
+    render(
+      <Harness
+        ports={fixture.ports}
+        onReady={(next) => {
+          controller = next;
+        }}
+      />
+    );
+
+    let accepted: boolean | undefined;
+    act(() => {
+      accepted = controller?.toggleSelectAllEntries(entries);
+    });
+
+    expect(accepted).toBe(true);
+    expect(fixture.batchSelectAll).toHaveBeenCalledWith(entries, { kind: "browse", folderPath: "Projects" });
+    expect(fixture.batchDeselectPaths).not.toHaveBeenCalled();
+  });
+
+  it("rejects select-all toggles when the operation handler is stale", () => {
+    const fixture = createPorts();
+    let controller: ReturnType<typeof useSelectionInteraction> | undefined;
+
+    render(
+      <Harness
+        ports={fixture.ports}
+        isCurrentOperationHandler={false}
+        onReady={(next) => {
+          controller = next;
+        }}
+      />
+    );
+
+    let accepted: boolean | undefined;
+    act(() => {
+      accepted = controller?.toggleSelectAllEntries([entry("Projects/a.txt")]);
+    });
+
+    expect(accepted).toBe(false);
+    expect(fixture.batchSelectAll).not.toHaveBeenCalled();
+    expect(fixture.batchDeselectPaths).not.toHaveBeenCalled();
   });
 });

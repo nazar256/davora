@@ -6,7 +6,8 @@ import {
   applySelectionInteractionPlan,
   clearBatchSelection,
   toggleBatchSelectionEntry,
-  toggleEntrySelection
+  toggleEntrySelection,
+  toggleSelectAllEntries
 } from "./controller";
 import type { SelectionInteractionPorts } from "./ports";
 
@@ -24,12 +25,15 @@ function createPorts(options: {
   searchActive?: boolean;
   currentPath?: string;
   wasBatchSelected?: boolean;
+  selectedPaths?: readonly string[];
   hasSelectedPreview?: boolean;
   initialSelectedEntry?: FileEntry;
 } = {}): SelectionInteractionPorts & {
   selectFocused(next: FileEntry): void;
   setMobileDetailsOpen(next: boolean): void;
   batchToggle: ReturnType<typeof vi.fn>;
+  batchSelectAll: ReturnType<typeof vi.fn>;
+  batchDeselectPaths: ReturnType<typeof vi.fn>;
   batchClear: ReturnType<typeof vi.fn>;
   openMobileDetails: ReturnType<typeof vi.fn>;
   closeMobileDetails: ReturnType<typeof vi.fn>;
@@ -41,10 +45,13 @@ function createPorts(options: {
     narrow: options.narrow ?? true,
     searchActive: options.searchActive ?? false,
     currentPath: options.currentPath ?? "Projects",
-    wasBatchSelected: options.wasBatchSelected ?? false
+    wasBatchSelected: options.wasBatchSelected ?? false,
+    selectedPaths: new Set(options.selectedPaths ?? [])
   };
 
   const batchToggle = vi.fn();
+  const batchSelectAll = vi.fn();
+  const batchDeselectPaths = vi.fn();
   const batchClear = vi.fn();
   const openMobileDetails = vi.fn();
   const closeMobileDetails = vi.fn();
@@ -57,6 +64,8 @@ function createPorts(options: {
       state.mobileDetailsOpen = next;
     },
     batchToggle,
+    batchSelectAll,
+    batchDeselectPaths,
     batchClear,
     openMobileDetails,
     closeMobileDetails,
@@ -80,8 +89,10 @@ function createPorts(options: {
       showMobileActions: vi.fn()
     },
     batch: {
-      isSelected: vi.fn(() => state.wasBatchSelected),
+      isSelected: vi.fn((path: string) => state.selectedPaths.size > 0 ? state.selectedPaths.has(path) : state.wasBatchSelected),
       toggle: batchToggle,
+      selectAll: batchSelectAll,
+      deselectPaths: batchDeselectPaths,
       clear: batchClear
     },
     scope: {
@@ -150,6 +161,8 @@ describe("selection controller", () => {
       batch: {
         isSelected: vi.fn(() => false),
         toggle: vi.fn(),
+        selectAll: vi.fn(),
+        deselectPaths: vi.fn(),
         clear: vi.fn(() => {
           calls.push("batch-clear");
         })
@@ -184,5 +197,123 @@ describe("selection controller", () => {
     }, ports);
 
     expect(calls).toEqual(["batch-clear", "focused-clear", "chrome-close"]);
+  });
+
+  it("selects all entries with a browse origin and does not touch the focused selection", () => {
+    const ports = createPorts({ currentPath: "Projects", initialSelectedEntry: entry("Projects/report.pdf") });
+    const entries = [entry("Projects/a.txt"), entry("Projects/Docs")];
+
+    const toggled = toggleSelectAllEntries(entries, ports, {
+      isCurrentOperationHandler: () => true,
+      isMarkBatchAllowed: () => true
+    });
+
+    expect(toggled).toBe(true);
+    expect(ports.batchSelectAll).toHaveBeenCalledWith(entries, { kind: "browse", folderPath: "Projects" });
+    expect(ports.batchDeselectPaths).not.toHaveBeenCalled();
+    expect(ports.focused.current()).toEqual(entry("Projects/report.pdf"));
+  });
+
+  it("deselects the listed paths when every entry is already selected", () => {
+    const entries = [entry("Projects/a.txt"), entry("Projects/b.txt")];
+    const ports = createPorts({
+      currentPath: "Projects",
+      selectedPaths: ["Projects/a.txt", "Projects/b.txt"],
+      initialSelectedEntry: entry("Projects/a.txt")
+    });
+
+    const toggled = toggleSelectAllEntries(entries, ports, {
+      isCurrentOperationHandler: () => true,
+      isMarkBatchAllowed: () => true
+    });
+
+    expect(toggled).toBe(true);
+    expect(ports.batchDeselectPaths).toHaveBeenCalledWith(["Projects/a.txt", "Projects/b.txt"]);
+    expect(ports.batchSelectAll).not.toHaveBeenCalled();
+    expect(ports.focused.current()).toBeUndefined();
+    expect(ports.closeMobileDetails).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the focused selection on deselect-all when it is not part of the entry set", () => {
+    const entries = [entry("Projects/a.txt")];
+    const ports = createPorts({
+      currentPath: "Projects",
+      selectedPaths: ["Projects/a.txt"],
+      initialSelectedEntry: entry("Other/focused.txt")
+    });
+
+    toggleSelectAllEntries(entries, ports, {
+      isCurrentOperationHandler: () => true,
+      isMarkBatchAllowed: () => true
+    });
+
+    expect(ports.batchDeselectPaths).toHaveBeenCalledWith(["Projects/a.txt"]);
+    expect(ports.focused.current()).toEqual(entry("Other/focused.txt"));
+    expect(ports.closeMobileDetails).not.toHaveBeenCalled();
+  });
+
+  it("keeps the focused selection on deselect-all while a selected preview is open", () => {
+    const entries = [entry("Projects/a.txt")];
+    const ports = createPorts({
+      currentPath: "Projects",
+      selectedPaths: ["Projects/a.txt"],
+      initialSelectedEntry: entry("Projects/a.txt"),
+      hasSelectedPreview: true
+    });
+
+    toggleSelectAllEntries(entries, ports, {
+      isCurrentOperationHandler: () => true,
+      isMarkBatchAllowed: () => true
+    });
+
+    expect(ports.batchDeselectPaths).toHaveBeenCalledTimes(1);
+    expect(ports.focused.current()).toEqual(entry("Projects/a.txt"));
+    expect(ports.closeMobileDetails).not.toHaveBeenCalled();
+  });
+
+  it("rejects select-all while search is active, when marking is unavailable, or without authority", () => {
+    const entries = [entry("Projects/a.txt")];
+
+    const searching = createPorts({ searchActive: true });
+    expect(toggleSelectAllEntries(entries, searching, {
+      isCurrentOperationHandler: () => true,
+      isMarkBatchAllowed: () => true
+    })).toBe(false);
+    expect(searching.batchSelectAll).not.toHaveBeenCalled();
+
+    const unmarkable = createPorts();
+    expect(toggleSelectAllEntries(entries, unmarkable, {
+      isCurrentOperationHandler: () => true,
+      isMarkBatchAllowed: () => false
+    })).toBe(false);
+    expect(unmarkable.batchSelectAll).not.toHaveBeenCalled();
+
+    const unauthorized = createPorts();
+    expect(toggleSelectAllEntries(entries, unauthorized, {
+      isCurrentOperationHandler: () => false,
+      isMarkBatchAllowed: () => true
+    })).toBe(false);
+    expect(unauthorized.batchSelectAll).not.toHaveBeenCalled();
+
+    const empty = createPorts();
+    expect(toggleSelectAllEntries([], empty, {
+      isCurrentOperationHandler: () => true,
+      isMarkBatchAllowed: () => true
+    })).toBe(false);
+    expect(empty.batchSelectAll).not.toHaveBeenCalled();
+    expect(empty.batchDeselectPaths).not.toHaveBeenCalled();
+  });
+
+  it("still allows deselect-all when marking becomes unavailable", () => {
+    const entries = [entry("Projects/a.txt")];
+    const ports = createPorts({ selectedPaths: ["Projects/a.txt"] });
+
+    const toggled = toggleSelectAllEntries(entries, ports, {
+      isCurrentOperationHandler: () => true,
+      isMarkBatchAllowed: () => false
+    });
+
+    expect(toggled).toBe(true);
+    expect(ports.batchDeselectPaths).toHaveBeenCalledWith(["Projects/a.txt"]);
   });
 });

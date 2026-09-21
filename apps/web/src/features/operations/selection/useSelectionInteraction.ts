@@ -5,7 +5,8 @@ import type { FileEntry } from "@davora/shared";
 import {
   clearBatchSelection as clearBatchSelectionController,
   toggleBatchSelectionEntry as toggleBatchSelectionEntryController,
-  toggleEntrySelection as toggleEntrySelectionController
+  toggleEntrySelection as toggleEntrySelectionController,
+  toggleSelectAllEntries as toggleSelectAllEntriesController
 } from "./controller";
 import { ROW_LONG_PRESS_DELAY_MS } from "./interaction";
 import type { SelectionInteractionPorts } from "./ports";
@@ -22,6 +23,7 @@ export interface UseSelectionInteractionInput {
 export interface SelectionInteractionController {
   toggleEntrySelection(entry: FileEntry): void;
   toggleBatchSelectionEntry(entry: FileEntry): void;
+  toggleSelectAllEntries(entries: readonly FileEntry[]): boolean;
   clearBatchSelection(): void;
   startRowLongPressSelection(entry: FileEntry): void;
   clearRowLongPressTimer(): void;
@@ -52,6 +54,13 @@ export function useSelectionInteraction(input: UseSelectionInteractionInput): Se
 
   const toggleBatchSelectionEntry = useCallback((entry: FileEntry) => {
     toggleBatchSelectionEntryController(entry, inputRef.current.ports, {
+      isCurrentOperationHandler: () => inputRef.current.isCurrentOperationHandler(),
+      isMarkBatchAllowed: () => inputRef.current.isMarkBatchAllowed()
+    });
+  }, []);
+
+  const toggleSelectAllEntries = useCallback((entries: readonly FileEntry[]) => {
+    return toggleSelectAllEntriesController(entries, inputRef.current.ports, {
       isCurrentOperationHandler: () => inputRef.current.isCurrentOperationHandler(),
       isMarkBatchAllowed: () => inputRef.current.isMarkBatchAllowed()
     });
@@ -94,6 +103,7 @@ export function useSelectionInteraction(input: UseSelectionInteractionInput): Se
   return {
     toggleEntrySelection,
     toggleBatchSelectionEntry,
+    toggleSelectAllEntries,
     clearBatchSelection,
     startRowLongPressSelection,
     clearRowLongPressTimer,

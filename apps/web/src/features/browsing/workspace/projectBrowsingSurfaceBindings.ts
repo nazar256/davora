@@ -27,7 +27,7 @@ interface BrowsingSurfaceOwners {
     };
   };
   readonly selection: {
-    readonly fileList: Pick<FileListStageProps, "batchModeActive" | "selectionModeActive" | "isItemBatchSelected" | "isItemSelected" | "clearRowOpenSuppression" | "getRowOpenSuppressed" | "onRowPointerCancel" | "onRowPointerDown" | "onRowPointerLeave" | "onRowPointerUp" | "onToggleBatchSelection" | "onToggleEntrySelection" | "suppressNarrowScreenContextMenu">;
+    readonly fileList: Pick<FileListStageProps, "batchModeActive" | "selectionModeActive" | "selectAllState" | "canSelectAll" | "canDeselectAll" | "onToggleSelectAll" | "isItemBatchSelected" | "isItemSelected" | "clearRowOpenSuppression" | "getRowOpenSuppressed" | "onRowPointerCancel" | "onRowPointerDown" | "onRowPointerLeave" | "onRowPointerUp" | "onToggleBatchSelection" | "onToggleEntrySelection" | "suppressNarrowScreenContextMenu">;
     readonly presentation: { readonly selectionSummaryLabel?: string };
     readonly interaction: { readonly clearBatchSelection: () => void };
     readonly batch: {

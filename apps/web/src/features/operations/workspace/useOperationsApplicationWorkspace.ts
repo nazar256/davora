@@ -20,6 +20,8 @@ export function useOperationsApplicationWorkspace(input: OperationsApplicationWo
       batch: {
         isSelected: input.selection.batch.isSelected,
         toggle: input.selection.batch.toggle,
+        selectAll: input.selection.batch.selectAll,
+        deselectPaths: input.selection.batch.deselectPaths,
         clear: input.selection.batch.clear
       }
     },

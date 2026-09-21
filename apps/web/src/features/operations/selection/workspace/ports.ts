@@ -59,6 +59,8 @@ export interface SelectionStateWorkspaceCommands {
   readonly showMobileActions: () => void;
   readonly showMobileDetails: () => void;
   readonly toggleBatch: (entry: FileEntry, origin: SelectionOrigin) => void;
+  readonly selectAllBatch: (entries: readonly FileEntry[], origin: SelectionOrigin) => void;
+  readonly deselectBatchPaths: (paths: readonly string[]) => void;
   readonly clearBatch: () => void;
   readonly rebindBatch: (sourcePath: string, entry: FileEntry) => void;
   readonly removeDeletedBatch: (path: string) => void;
@@ -91,6 +93,8 @@ export interface SelectionInteractionWorkspaceSelection {
   readonly batch: {
     readonly isSelected: (path: string) => boolean;
     readonly toggle: (entry: FileEntry, origin: SelectionOrigin) => void;
+    readonly selectAll: (entries: readonly FileEntry[], origin: SelectionOrigin) => void;
+    readonly deselectPaths: (paths: readonly string[]) => void;
     readonly clear: () => void;
   };
 }
@@ -118,6 +122,7 @@ export interface SelectionInteractionWorkspaceInput {
 export interface SelectionInteractionWorkspaceCommands {
   readonly toggleEntrySelection: (entry: FileEntry) => void;
   readonly toggleBatchSelectionEntry: (entry: FileEntry) => void;
+  readonly toggleSelectAllEntries: (entries: readonly FileEntry[]) => boolean;
   readonly clearBatchSelection: () => void;
   readonly startRowLongPressSelection: (entry: FileEntry) => void;
   readonly clearRowLongPressTimer: () => void;
@@ -130,6 +135,7 @@ export interface SelectionInteractionWorkspaceOutput {
 }
 
 export interface SelectionActionCapabilities {
+  readonly canMarkForBatchDownload: boolean;
   readonly canDownloadSelected: boolean;
   readonly canSyncSelectedOffline: boolean;
   readonly canMoveSelected: boolean;
@@ -147,6 +153,7 @@ export interface SelectionWorkspacePresentationInput {
     readonly focusedMobileSubview: MobileSelectionSubview;
     readonly batchSummary: BatchSelectionSummary;
     readonly isBatchSelected: (path: string) => boolean;
+    readonly selectAllItems: readonly FileEntry[];
   };
   readonly preview: {
     readonly selected?: FilePreview;
@@ -176,6 +183,7 @@ export interface SelectionWorkspacePresentationInput {
   readonly commands: {
     readonly clearFocused: () => void;
     readonly clearBatch: () => void;
+    readonly toggleSelectAll: () => void;
     readonly showMobileActions: () => void;
     readonly showMobileDetails: () => void;
     readonly closeMobileDetails: () => void;

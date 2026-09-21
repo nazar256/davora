@@ -504,11 +504,11 @@ describe("AppBrowsingSurfaceIntegration", () => {
       "selectionSummaryLabel", "showBreadcrumbs", "sortMode", "sortReset", "staleFolder", "status"
     ].sort());
     expect(Object.keys(fileList.props).sort()).toEqual([
-      "batchModeActive", "canMarkForBatchDownload", "clearRowOpenSuppression", "emptyStatus", "emptyTitle", "fileSizeDisplayMode",
+      "batchModeActive", "canDeselectAll", "canMarkForBatchDownload", "canSelectAll", "clearRowOpenSuppression", "emptyStatus", "emptyTitle", "fileSizeDisplayMode",
       "folderDropActive", "getItemSubtitle", "getRowOpenSuppressed", "isItemAvailableOffline", "isItemBatchSelected",
       "isItemSelected", "items", "onClearSearch", "onDragEnter", "onDragLeave", "onDragOver", "onDrop",
       "onRetryFolder", "onRowOpenClick", "onRowPointerCancel", "onRowPointerDown", "onRowPointerLeave",
-      "onRowPointerUp", "onToggleBatchSelection", "onToggleEntrySelection", "selectionModeActive",
+      "onRowPointerUp", "onToggleBatchSelection", "onToggleEntrySelection", "onToggleSelectAll", "selectAllState", "selectionModeActive",
       "showClearSearchButton", "showEmptyState", "showRetryFolderButton", "suppressNarrowScreenContextMenu"
     ].sort());
     expect(browseHeader).toMatchObject({
