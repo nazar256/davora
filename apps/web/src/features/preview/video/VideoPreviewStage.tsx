@@ -12,7 +12,14 @@ export function VideoPreviewStage({ fileName, interaction }: VideoPreviewStagePr
   }
 
   return (
-    <div className="preview-media-stage">
+    <div
+      className="preview-media-stage preview-media-stage-video"
+      onClick={interaction.overlay.notifyActivity}
+      onKeyDown={interaction.overlay.notifyActivity}
+      onPointerDown={interaction.overlay.notifyActivity}
+      onPointerMove={interaction.overlay.notifyActivity}
+      onTouchStart={interaction.overlay.notifyActivity}
+    >
       {stage.autoplayBlocked ? (
         <div className="preview-transient-status">
           <p className="banner-state permission">Autoplay was blocked by the browser. Use Play media to start playback.</p>
@@ -43,13 +50,14 @@ export function VideoPreviewStage({ fileName, interaction }: VideoPreviewStagePr
         className="media-preview media-preview-video"
         controls
         key={stage.effectiveSource}
-        muted
+        muted={stage.muted}
         onCanPlay={stage.onCanPlay}
         onEnded={stage.onEnded}
         onError={stage.onError}
         onPause={stage.onPause}
         onPlay={stage.onPlay}
         onPlaying={stage.onPlaying}
+        onVolumeChange={stage.onVolumeChange}
         onWaiting={stage.onWaiting}
         playsInline
         ref={stage.videoRef}

@@ -378,6 +378,51 @@ it("keeps cached preview visible until the user applies the refreshed version", 
     expect(readyWorkspace.overlays.preview.cacheState).toMatchObject({ source: "live", refreshing: false, updateReady: false });
   })
 
+it("keeps the cached video element mounted when the background refresh verifies identical content", async () => {
+    const account = buildAccount("alpha", { displayName: "Video cache workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+
+    const videoPreview = buildFilePreview("Projects/clip.mp4", {
+      mimeType: "video/mp4",
+      size: 24,
+      viewer: "video",
+      content: "",
+      encoding: "none",
+      bytesRead: 0,
+      requiresOriginalBlob: true
+    });
+    const cachedBlob = new Blob([new Uint8Array(24)], { type: "video/mp4" });
+    seedRetentionSnapshot(account, { normalCache: { itemCount: 1, totalBytes: 24, limitBytes: 24 * 1024 * 1024 }, roots: [], files: [retainedFileFixture(videoPreview.path, { preview: videoPreview, mimeType: "video/mp4", size: 24, blobSize: 24, normalCacheOwnership: "owned", cachedAt: "2026-05-21T10:00:00.000Z", lastAccessedAt: "2026-05-21T10:00:00.000Z" })], memberships: [] });
+    retentionFixture.addBlobs(retentionAccountFor(account), { [videoPreview.path]: cachedBlob });
+
+    const previewRefresh = createDeferred<{ file: FilePreview }>();
+    mockedApi.getFile.mockImplementationOnce(async () => previewRefresh.promise);
+    mockedApi.listFiles.mockResolvedValue({ path: "", items: [buildFileEntry("Projects/clip.mp4", { mimeType: "video/mp4", size: 24 })] });
+
+    render(<App services={createPreviewSessionFixture()} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Open file clip.mp4/i }));
+    const previewDialog = await screen.findByRole("dialog", { name: /Preview clip.mp4/i });
+    const cachedVideo = await within(previewDialog).findByLabelText(/Video preview clip.mp4/i);
+    expect(cachedVideo).toHaveAttribute("src", "blob:preview");
+    // The cached-preview debug banner stays suppressed for video viewers.
+    expect(within(previewDialog).queryByText(/Showing cached preview/i)).not.toBeInTheDocument();
+
+    previewRefresh.resolve({ file: videoPreview });
+    // The refresh still acquires a stream URL for comparison, then verifies.
+    await waitFor(() => expect(mockedApi.createStreamingFileUrl).toHaveBeenCalledWith("Projects/clip.mp4", "token-alpha", expect.anything()));
+    await waitFor(() => {
+      const workspace = [...appShellCapture.history].reverse().find((props) => props.kind === "workspace");
+      if (!workspace || workspace.kind !== "workspace") throw new Error("Expected workspace capture");
+      expect(workspace.overlays.preview.cacheState).toMatchObject({ source: "cache", refreshing: false, stale: false, updateReady: false });
+    });
+
+    const videoAfterRefresh = within(previewDialog).getByLabelText(/Video preview clip.mp4/i);
+    expect(videoAfterRefresh).toBe(cachedVideo);
+    expect(videoAfterRefresh).toHaveAttribute("src", "blob:preview");
+    expect(within(previewDialog).queryByText(/Buffering/i)).not.toBeInTheDocument();
+  })
+
 it("shows a fresh cached preview without a noisy cached-preview notice or remote check", async () => {
     vi.setSystemTime(new Date("2026-05-21T10:00:30.000Z"));
     const account = buildAccount("alpha", { displayName: "Fresh preview workspace" });
@@ -533,7 +578,7 @@ it("keeps beta preview streaming cache publication scoped to the beta compositio
     await waitFor(() => expect([...appShellCapture.history].some((props) => props.kind === "workspace" && props.overlays.preview.file?.path === "Projects/song.mp3")).toBe(true));
     const songWorkspace = [...appShellCapture.history].reverse().find((props) => props.kind === "workspace" && props.overlays.preview.file?.path === "Projects/song.mp3");
     if (!songWorkspace || songWorkspace.kind !== "workspace") throw new Error("Expected song workspace capture");
-    expectCompleteCapturedPreviewStage(songWorkspace.overlays.preview, capturedStageExpectation({ open: true, accountId: "beta", token: "token-beta", entry: expectedStageEntry("Projects/song.mp3", "audio/mpeg", 18), file: expectedStageMediaFile("Projects/song.mp3", "audio/mpeg", "audio", 18), blobUrl: "/api/file/stream?path=Projects%2Fsong.mp3&streamToken=stream-token-alpha", cacheState: { source: "live", refreshing: false, stale: false, updateReady: false }, onPrevious: "defined", onNext: "undefined" }));
+    expectCompleteCapturedPreviewStage(songWorkspace.overlays.preview, capturedStageExpectation({ open: true, accountId: "beta", token: "token-beta", entry: expectedStageEntry("Projects/song.mp3", "audio/mpeg", 18), file: expectedStageMediaFile("Projects/song.mp3", "audio/mpeg", "audio", 18), blobUrl: "/api/file/stream?path=Projects%2Fsong.mp3&streamToken=stream-token-alpha", cacheState: { source: "cache", refreshing: false, stale: false, updateReady: false }, onPrevious: "defined", onNext: "undefined" }));
     expect(songWorkspace.overlays.preview.open).toBe(true);
     expect(songWorkspace.overlays.preview.onNext).toBeUndefined();
     expect(typeof songWorkspace.overlays.preview.onPrevious).toBe("function");

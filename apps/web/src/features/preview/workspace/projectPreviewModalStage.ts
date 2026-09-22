@@ -18,9 +18,11 @@ export interface PreviewModalStageProjectionInput {
   readonly cacheState: PreviewCacheState;
   readonly fileSizeDisplayMode: FileSizeDisplayMode;
   readonly imageFitMode: PreviewModalStageProps["imageFitMode"];
+  readonly videoMuted: PreviewModalStageProps["videoMuted"];
   readonly maxCacheableFileSizeBytes: number;
   readonly ports: PreviewModalRuntimePorts;
   readonly onImageFitModeChange: PreviewModalStageProps["onImageFitModeChange"];
+  readonly onVideoMutedChange: PreviewModalStageProps["onVideoMutedChange"];
   readonly onApplyRefresh?: PreviewModalStageProps["onApplyRefresh"];
   readonly onDownload?: PreviewModalStageProps["onDownload"];
   readonly onPrevious?: PreviewModalStageProps["onPrevious"];
@@ -45,9 +47,11 @@ export function projectPreviewModalStage(input: PreviewModalStageProjectionInput
     cacheState: input.cacheState,
     fileSizeDisplayMode: input.fileSizeDisplayMode,
     imageFitMode: input.imageFitMode,
+    videoMuted: input.videoMuted,
     maxCacheableFileSizeBytes: input.maxCacheableFileSizeBytes,
     ports: input.ports,
     onImageFitModeChange: input.onImageFitModeChange,
+    onVideoMutedChange: input.onVideoMutedChange,
     onApplyRefresh: input.onApplyRefresh,
     onDownload: input.onDownload,
     onPrevious: input.onPrevious,

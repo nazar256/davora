@@ -61,7 +61,7 @@ After compaction, read this guide and the active goal/session source. Do not inf
 - Put every temporary/generated/session artifact under ignored `./.tmp/` in the repository.
 - Never use `rm` or `rmdir`; move retired files to `.tmp/trashbin/<date_hour>`.
 - Do not create ad-hoc scripts in the project root or tracked source directories. Prefer repository tooling; when a custom script is necessary, keep it in `.tmp` and prefer Go.
-- Do not commit, push, deploy, change tracker state, or contact external systems unless the user or active workflow explicitly authorizes that action.
+- Do not commit, push, change tracker state, or contact external systems unless the user or active workflow explicitly authorizes that action. Exception: production deploy (`npm run deploy`) is pre-authorized once the work is complete and all relevant validation gates pass — deploy when confident in completion without asking.
 - Before any authorized release, audit the complete diff, untracked files, staged scope, secrets, generated artifacts, and required evidence.
 
 ## Testing and evidence

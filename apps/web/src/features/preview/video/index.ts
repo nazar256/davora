@@ -3,5 +3,6 @@ export { useVideoPreviewInteraction } from "./useVideoPreviewInteraction";
 export type { VideoPreviewRuntimePorts } from "./ports";
 export type {
   VideoPreviewInteraction,
+  VideoPreviewOverlayBindings,
   VideoPreviewStageBindings
 } from "./useVideoPreviewInteraction";

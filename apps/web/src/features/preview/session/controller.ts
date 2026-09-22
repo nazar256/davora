@@ -196,6 +196,15 @@ export class PreviewSessionController {
       return;
     }
     if (live.snapshot.source === "stream") {
+      if (live.snapshot.fingerprint === current.fingerprint) {
+        this.publish(active, { kind: "cached", key: active.key, current, status: "verified", ...(cachedAt === undefined ? {} : { cachedAt }) });
+        if (current.source === "stream") {
+          // Metadata-only cached entries never held a Blob; persist the
+          // identical live stream so the offline copy still completes.
+          active.background = this.persistStream(active, live);
+        }
+        return;
+      }
       if (this.apply(active, { kind: "live", key: active.key, current: live.snapshot }, live)) {
         active.background = this.persistStream(active, live);
       }

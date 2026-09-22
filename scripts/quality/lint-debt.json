@@ -99,14 +99,6 @@
     },
     {
       "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
-      "path": "apps/web/src/features/preview/video/AppVideoPreviewIntegration.test.tsx",
-      "nodeType": "unknown",
-      "messageId": "unnecessaryAssertion",
-      "source": "within(previewDialog).getByLabelText(/Video preview clip.mp4/i) as HTMLVideoElement",
-      "count": 1
-    },
-    {
-      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
       "path": "apps/web/src/features/transfers/tray/AppTransferTrayIntegration.test.tsx",
       "nodeType": "unknown",
       "messageId": "unnecessaryAssertion",

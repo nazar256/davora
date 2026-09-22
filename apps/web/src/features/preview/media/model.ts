@@ -1,5 +1,7 @@
 export const MEDIA_STREAM_RETRY_DELAYS_MS = [500, 1000, 2000] as const;
 
+export const VIDEO_OVERLAY_AUTO_HIDE_DELAY_MS = 3000;
+
 export type MediaStreamState = "idle" | "buffering" | "retrying" | "failed";
 
 export function buildMediaRetryUrl(source: string, retryKey: number, baseUrl: string): string {

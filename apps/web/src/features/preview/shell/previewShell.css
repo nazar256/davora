@@ -301,6 +301,32 @@
   flex: 1 1 auto;
 }
 
+.preview-modal-video .preview-stage-shell-immersive {
+  padding: 0;
+}
+
+.preview-modal-video .preview-transient-status,
+.preview-modal-video .preview-cache-status {
+  top: calc(var(--touch-target) + var(--space-3) + var(--space-2));
+}
+
+.preview-modal-video .preview-notice {
+  position: absolute;
+  top: calc(var(--touch-target) + var(--space-3) + var(--space-2));
+  left: var(--space-3);
+  right: var(--space-3);
+  z-index: 5;
+  margin: 0 auto;
+  width: fit-content;
+  max-width: min(30rem, 100%);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid rgba(226, 232, 240, 0.2);
+  border-radius: var(--radius-lg);
+  background: rgba(7, 13, 24, 0.72);
+  color: #e2e8f0;
+  backdrop-filter: blur(12px);
+}
+
 .preview-document,
 .preview-text {
   max-width: 82ch;
@@ -553,6 +579,10 @@
 
   .preview-stage-shell-immersive {
     padding: 4rem 0.15rem 4.25rem;
+  }
+
+  .preview-modal-video .preview-stage-shell-immersive {
+    padding: 0;
   }
 
   .preview-media-stage {

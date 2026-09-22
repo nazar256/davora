@@ -50,7 +50,8 @@ let settings: UiSettings = {
   keepAwakeEnabled: true,
   showHiddenFiles: false,
   experimentalHeicPreviewEnabled: false, experimentalFolderAppShortcutsEnabled: false, diagnosticsEnabled: false,
-  sortMode: "name-asc" as const
+  sortMode: "name-asc" as const,
+  videoMuted: false
 };
 
 function publishAccounts(next: AccountSnapshot): void {

@@ -33,7 +33,8 @@ export function useSettingsPreferencesWorkspace(
     handleExperimentalHeicPreviewEnabledChange: uiSettings.handleExperimentalHeicPreviewEnabledChange,
     handleExperimentalFolderAppShortcutsEnabledChange: uiSettings.handleExperimentalFolderAppShortcutsEnabledChange,
     handleDiagnosticsEnabledChange: uiSettings.handleDiagnosticsEnabledChange,
-    handleSortModeChange: uiSettings.handleSortModeChange
+    handleSortModeChange: uiSettings.handleSortModeChange,
+    handleVideoMutedChange: uiSettings.handleVideoMutedChange
   }), [
     uiSettings.handleExperimentalFolderAppShortcutsEnabledChange,
     uiSettings.handleDiagnosticsEnabledChange,
@@ -45,7 +46,8 @@ export function useSettingsPreferencesWorkspace(
     uiSettings.handlePreviewFreshnessIntervalChange,
     uiSettings.handleShowHiddenFilesChange,
     uiSettings.handleSortModeChange,
-    uiSettings.handleThemeModeChange
+    uiSettings.handleThemeModeChange,
+    uiSettings.handleVideoMutedChange
   ]);
 
   return {

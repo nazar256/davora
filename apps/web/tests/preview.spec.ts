@@ -1157,16 +1157,17 @@ test("PER-72 keeps immersive media controls compact and folder audio in place", 
 
   const videoPreview = page.getByRole("dialog", { name: /Preview clip.mp4/i });
   await expect(videoPreview).toBeVisible();
-  await expect(videoPreview.getByRole("button", { name: /Back to files/i })).toHaveText(/Back to Projects/i);
+  await expect(videoPreview.getByRole("button", { name: "Back to files" })).toBeVisible();
   const videoNavigation = videoPreview.getByRole("group", { name: /Video navigation/i });
   await expect(videoNavigation.getByRole("button", { name: /Previous video/i })).toBeDisabled();
   await expect(videoNavigation.getByRole("button", { name: /Next video/i })).toBeDisabled();
   await expect(videoPreview.getByRole("button", { name: /Next media item/i })).toHaveCount(0);
-  await expect(videoPreview.locator(".preview-header-actions-immersive")).toBeVisible();
+  await expect(videoPreview.locator(".preview-video-overlay")).toBeVisible();
+  await expect(videoPreview.locator(".preview-header-actions-immersive")).toHaveCount(0);
   await page.waitForTimeout(300);
   expect(mediaRequests.some((url) => url.includes("song.mp3"))).toBe(false);
 
-  const toolbarGeometry = await videoPreview.locator(".preview-header-actions-immersive").evaluate((element) => {
+  const toolbarGeometry = await videoPreview.locator(".preview-video-overlay").evaluate((element) => {
     const rect = element.getBoundingClientRect();
     return {
       left: rect.left,
@@ -1267,28 +1268,43 @@ test("PER-65 video navigation stays video-only with clear toolbar boundaries", a
   await page.getByRole("button", { name: /Open file clip.mp4/i }).click();
 
   const firstPreview = page.getByRole("dialog", { name: /Preview clip.mp4/i });
+  const revealVideoOverlay = async () => {
+    await firstPreview.locator(".preview-media-stage").evaluate((element) =>
+      element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
+    );
+  };
   const firstNavigation = firstPreview.getByRole("group", { name: /Video navigation/i });
+  // Playback hides the overlay by default; touching the stage reveals it.
+  await revealVideoOverlay();
   await expect(firstNavigation.getByRole("button", { name: /Previous video/i })).toBeDisabled();
   await expect(firstNavigation.getByRole("button", { name: /Next video/i })).toBeEnabled();
   await expect(firstPreview.getByRole("button", { name: /Next media item/i })).toHaveCount(0);
-  await expect.poll(() => page.evaluate(() => (window as unknown as { __davoraVideoEvents: string[] }).__davoraVideoEvents)).toEqual([
-    expect.stringMatching(/^play:.*Projects%2Fclip\.mp4/)
-  ]);
+  // Stream retries may interleave extra play/pause pairs; assert the
+  // semantic order rather than the raw event list.
+  const videoEvents = async () =>
+    page.evaluate(() => (window as unknown as { __davoraVideoEvents: string[] }).__davoraVideoEvents);
+  await expect.poll(async () => (await videoEvents()).some((entry) => /^play:.*Projects%2Fclip\.mp4/.test(entry))).toBe(true);
+  expect((await videoEvents()).some((entry) => entry.includes("z-clip"))).toBe(false);
 
   await firstNavigation.getByRole("button", { name: /Next video/i }).click();
 
   const lastPreview = page.getByRole("dialog", { name: /Preview z-clip.webm/i });
+  await lastPreview.locator(".preview-media-stage").evaluate((element) =>
+    element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
+  );
   const lastNavigation = lastPreview.getByRole("group", { name: /Video navigation/i });
   await expect(lastNavigation.getByRole("button", { name: /Previous video/i })).toBeEnabled();
   await expect(lastNavigation.getByRole("button", { name: /Next video/i })).toBeDisabled();
-  await expect.poll(() => page.evaluate(() => (window as unknown as { __davoraVideoEvents: string[] }).__davoraVideoEvents)).toEqual([
-    expect.stringMatching(/^play:.*Projects%2Fclip\.mp4/),
-    expect.stringMatching(/^pause:.*Projects%2Fclip\.mp4/),
-    expect.stringMatching(/^play:.*Projects%2Fz-clip\.webm/)
-  ]);
+  await expect.poll(async () => {
+    const events = await videoEvents();
+    const clipPlay = events.findIndex((entry) => /^play:.*Projects%2Fclip\.mp4/.test(entry));
+    const clipPause = events.findIndex((entry, index) => index > clipPlay && /^pause:.*Projects%2Fclip\.mp4/.test(entry));
+    const nextPlay = events.findIndex((entry, index) => index > clipPause && /^play:.*Projects%2Fz-clip\.webm/.test(entry));
+    return clipPlay >= 0 && clipPause > clipPlay && nextPlay > clipPause;
+  }).toBe(true);
   expect(mediaRequests.some((url) => url.includes("notes.txt") || url.includes("song.mp3"))).toBe(false);
 
-  const toolbarBoxes = await lastPreview.locator(".preview-header-actions-immersive > *").evaluateAll((elements) => elements.map((element) => {
+  const toolbarBoxes = await lastPreview.locator(".preview-video-overlay > *").evaluateAll((elements) => elements.map((element) => {
     const rect = element.getBoundingClientRect();
     return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
   }));
@@ -1549,7 +1565,8 @@ test("large video preview streams through the Worker without full-file download"
 
   const preview = page.getByRole("dialog", { name: /Preview clip.mp4/i });
   await expect(preview).toBeVisible();
-  await expect(preview.getByText(/Streaming-only playback/i)).toBeVisible();
+  // The streaming notice is intentionally not rendered over video (PER-93).
+  await expect(preview.getByText(/Streaming-only playback/i)).toHaveCount(0);
   await expect(preview.getByLabel(/Video preview clip.mp4/i)).toHaveAttribute("src", /\/api\/file\/stream\?path=Projects%2Fclip\.mp4&streamToken=/);
   await expect.poll(() => streamRequests).toBeGreaterThan(0);
   expect(originalRequests).toBe(0);

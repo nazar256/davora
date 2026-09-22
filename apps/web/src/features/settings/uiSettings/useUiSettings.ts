@@ -104,6 +104,10 @@ export function useUiSettings(input: UseUiSettingsInput) {
     persistSetting({ sortMode: mode }, buildSortModeStatusMessage(mode));
   }, [persistSetting]);
 
+  const handleVideoMutedChange = useCallback((muted: boolean) => {
+    persistSetting({ videoMuted: muted });
+  }, [persistSetting]);
+
   return {
     uiSettings,
     handleFileSizeDisplayModeChange,
@@ -116,6 +120,7 @@ export function useUiSettings(input: UseUiSettingsInput) {
     handleExperimentalHeicPreviewEnabledChange,
     handleExperimentalFolderAppShortcutsEnabledChange,
     handleDiagnosticsEnabledChange,
-    handleSortModeChange
+    handleSortModeChange,
+    handleVideoMutedChange
   };
 }

@@ -165,7 +165,7 @@ function normalizeMimeType(mimeType: string | undefined): string | undefined {
   return mimeType?.split(";", 1)[0]?.trim();
 }
 
-function previewFingerprint(file: FilePreview, options: { readonly blob?: Blob; readonly mimeType?: string; readonly filename?: string } = {}): string {
+function previewFingerprint(file: FilePreview, options: { readonly filename?: string } = {}): string {
   return JSON.stringify({
     path: file.path,
     name: file.name,
@@ -180,8 +180,6 @@ function previewFingerprint(file: FilePreview, options: { readonly blob?: Blob; 
     bytesRead: file.bytesRead,
     unsupportedReason: file.unsupportedReason,
     requiresOriginalBlob: file.requiresOriginalBlob,
-    blobSize: options.blob?.size,
-    blobType: options.blob?.type ?? normalizeMimeType(options.mimeType),
     filename: options.filename
   });
 }
@@ -388,14 +386,10 @@ export class BrowserPreviewLiveAdapter {
     material?: BrowserPreviewMaterial,
     unsupported: BrowserPreviewSnapshot["unsupported"] = "none"
   ): BrowserPreviewAcquisition {
-    const materialSource = material ? this.options.materials.source(material) : undefined;
-    const blob = materialSource?.kind === "blob" ? materialSource.blob : undefined;
     return {
       snapshot: {
         preview,
         fingerprint: previewFingerprint(preview, {
-          ...(blob ? { blob } : {}),
-          mimeType: cache.mimeType,
           filename: cache.filename
         }),
         source,

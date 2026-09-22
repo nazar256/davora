@@ -1,10 +1,12 @@
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useState, type MouseEvent, type SyntheticEvent } from "react";
 import {
   ChevronLeft,
   ChevronRight,
   Download,
   ExternalLink,
-  Info
+  Info,
+  SkipBack,
+  SkipForward
 } from "lucide-react";
 
 import type { FileEntry, FilePreview } from "@davora/shared";
@@ -53,9 +55,11 @@ export interface PreviewModalStageProps {
   readonly cacheState: PreviewCacheState;
   readonly fileSizeDisplayMode: FileSizeDisplayMode;
   readonly imageFitMode: "fill" | "fit";
+  readonly videoMuted: boolean;
   readonly maxCacheableFileSizeBytes: number;
   readonly ports: PreviewModalRuntimePorts;
   readonly onImageFitModeChange: (mode: "fill" | "fit") => void;
+  readonly onVideoMutedChange?: (muted: boolean) => void;
   readonly onApplyRefresh?: () => void;
   readonly onDownload?: (path: string) => void;
   readonly onPrevious?: () => void;
@@ -66,6 +70,7 @@ export interface PreviewModalStageProps {
 
 export function PreviewModalStage(props: PreviewModalStageProps) {
   const [pdfPreviewFailed, setPdfPreviewFailed] = useState(false);
+  const [videoDetailsOpen, setVideoDetailsOpen] = useState(false);
   const previewViewer = resolvePreviewViewer(props.file?.viewer, props.entry?.mimeType);
   const previewPath = props.file?.path ?? props.entry?.path;
   const originalFileOpen = useOriginalFileOpen({
@@ -91,7 +96,9 @@ export function PreviewModalStage(props: PreviewModalStageProps) {
       blobUrl: props.blobUrl,
       filePath: props.file?.path
     },
+    muted: props.videoMuted,
     onMediaPlaybackChange: props.onMediaPlaybackChange,
+    onMutedChange: props.onVideoMutedChange,
     ports: props.ports.video
   });
   const audioInteraction = useAudioPreviewInteraction({
@@ -110,6 +117,10 @@ export function PreviewModalStage(props: PreviewModalStageProps) {
   useEffect(() => {
     setPdfPreviewFailed(false);
   }, [props.file?.path, props.file?.viewer, props.blobUrl, props.open, props.ports]);
+
+  useEffect(() => {
+    setVideoDetailsOpen(false);
+  }, [props.file?.path, props.open]);
 
   const onNext = props.onNext;
   const previewOpen = props.open;
@@ -139,6 +150,14 @@ export function PreviewModalStage(props: PreviewModalStageProps) {
   };
   const dialogRef = useModalFocusBoundary<HTMLElement>(props.open, closePreview);
 
+  const handleVideoDetailsToggle = (event: SyntheticEvent<HTMLDetailsElement>) => {
+    const open = event.currentTarget.open;
+    setVideoDetailsOpen(open);
+    if (!open) {
+      videoInteraction.overlay.notifyActivity();
+    }
+  };
+
   if (!props.open) {
     return null;
   }
@@ -155,15 +174,75 @@ export function PreviewModalStage(props: PreviewModalStageProps) {
   const openOriginalLabel = "Open or download original file";
   const openOriginalVisibleLabel = "Get original";
   const openingOriginalLabel = "Opening original…";
-  const previewNotice = getPreviewNotice(props.cacheState, props.offline || Boolean(props.workerUnavailable), props.offline);
+  const previewNotice = previewViewer === "video"
+    ? undefined
+    : getPreviewNotice(props.cacheState, props.offline || Boolean(props.workerUnavailable), props.offline);
   const imagePreviewUnavailable = previewViewer === "image" && (!props.blobUrl || imageInteraction.failed);
-  const mediaStreamingNote = isStreamingMediaViewer(previewViewer) && props.blobUrl
+  const mediaStreamingNote = isStreamingMediaViewer(previewViewer) && previewViewer !== "video" && props.blobUrl
     ? props.blobUrl.startsWith("blob:")
       ? "Offline-retained media copy is playing from browser cache."
       : props.file?.size !== undefined && props.file.size <= props.maxCacheableFileSizeBytes
         ? "Streaming now. An offline cache copy continues saving in the background."
         : "Streaming-only playback. This file is above the offline cache size limit."
     : undefined;
+
+  const videoOverlayVisible = previewViewer === "video" && (videoInteraction.overlay.visible || videoDetailsOpen);
+
+  const renderDetailsMetadata = () => (
+    <dl className="metadata preview-metadata">
+      <div>
+        <dt>Kind</dt>
+        <dd>{previewKind}</dd>
+      </div>
+      <div>
+        <dt>Modified</dt>
+        <dd>{formatPreviewFileTimestamp(props.file?.lastModified ?? props.entry?.lastModified)}</dd>
+      </div>
+      <div>
+        <dt>Size</dt>
+        <dd>{formatFileSize(props.file?.size ?? props.entry?.size, props.fileSizeDisplayMode)}</dd>
+      </div>
+      <div>
+        <dt>Location</dt>
+        <dd>{displayPath}</dd>
+      </div>
+    </dl>
+  );
+
+  const renderVideoOverlay = () => (
+    <div
+      className={`preview-video-overlay${videoOverlayVisible ? "" : " preview-video-overlay-hidden"}`}
+      onClick={videoInteraction.overlay.notifyActivity}
+      onKeyDown={videoInteraction.overlay.notifyActivity}
+      onPointerDown={videoInteraction.overlay.notifyActivity}
+      onPointerMove={videoInteraction.overlay.notifyActivity}
+      onTouchStart={videoInteraction.overlay.notifyActivity}
+    >
+      <button aria-label="Back to files" className="preview-video-overlay-button preview-video-overlay-back" onClick={closePreview} title="Back to files" type="button">
+        <ChevronLeft aria-hidden="true" />
+      </button>
+      <div aria-label="Video navigation" className="preview-video-navigation preview-video-overlay-navigation" role="group">
+        <button aria-label="Previous video" className="preview-video-overlay-button" disabled={!props.onPrevious} onClick={() => props.onPrevious?.()} title="Previous video" type="button">
+          <SkipBack aria-hidden="true" />
+        </button>
+        <span className="preview-video-overlay-title">{fileName}</span>
+        <button aria-label="Next video" className="preview-video-overlay-button" disabled={!props.onNext} onClick={() => props.onNext?.()} title="Next video" type="button">
+          <SkipForward aria-hidden="true" />
+        </button>
+      </div>
+      <details key={previewPath} className="preview-details-disclosure preview-video-overlay-details" onToggle={handleVideoDetailsToggle}>
+        <summary aria-label="File details" className="preview-video-overlay-button preview-video-overlay-summary" title="File details"><Info aria-hidden="true" /></summary>
+        <div className="preview-video-details-panel">
+          {renderDetailsMetadata()}
+          {handleDownload ? (
+            <div className="preview-stage-actions">
+              <button onClick={handleDownload} type="button"><Download aria-hidden="true" />Download</button>
+            </div>
+          ) : null}
+        </div>
+      </details>
+    </div>
+  );
 
   const renderFallbackState = (title: string, message: string) => (
     <div className="empty-state preview-empty">
@@ -245,8 +324,10 @@ export function PreviewModalStage(props: PreviewModalStageProps) {
 
   return (
     <div className={`modal-scrim preview-scrim${immersivePreview ? " preview-scrim-immersive" : ""}${previewViewer === "image" ? " preview-scrim-image" : ""}`} onClick={handlePreviewScrimClick} role="presentation">
-      <section ref={dialogRef} aria-label={`Preview ${fileName}`} aria-modal="true" className={`preview-modal panel${immersivePreview ? " preview-modal-immersive" : ""}`} onClick={handlePreviewModalClick} role="dialog" tabIndex={-1}>
+      <section ref={dialogRef} aria-label={`Preview ${fileName}`} aria-modal="true" className={`preview-modal panel${immersivePreview ? " preview-modal-immersive" : ""}${previewViewer === "video" ? " preview-modal-video" : ""}`} onClick={handlePreviewModalClick} role="dialog" tabIndex={-1}>
         <header className="preview-header">
+          {previewViewer === "video" ? renderVideoOverlay() : (
+          <>
           <div className={`preview-header-context${immersivePreview ? " preview-header-context-immersive" : ""}`}>
             {immersivePreview ? (
               <button aria-label="Back to files" className="quiet-button preview-back-button" onClick={closePreview} type="button">
@@ -272,36 +353,9 @@ export function PreviewModalStage(props: PreviewModalStageProps) {
             </div>
           </div>
           <div className={`preview-header-actions${immersivePreview ? " preview-header-actions-immersive" : ""}${previewViewer === "image" ? " preview-header-actions-image" : ""}`}>
-            {previewViewer === "video" ? (
-              <div aria-label="Video navigation" className="preview-video-navigation" role="group">
-                <button aria-label="Previous video" disabled={!props.onPrevious} onClick={() => props.onPrevious?.()} title="Previous video" type="button">
-                  <ChevronLeft aria-hidden="true" />
-                </button>
-                <button aria-label="Next video" disabled={!props.onNext} onClick={() => props.onNext?.()} title="Next video" type="button">
-                  <ChevronRight aria-hidden="true" />
-                </button>
-              </div>
-            ) : null}
             <details className="preview-details-disclosure">
               <summary aria-label="File details"><Info aria-hidden="true" /><span>Details</span></summary>
-              <dl className="metadata preview-metadata">
-                <div>
-                  <dt>Kind</dt>
-                  <dd>{previewKind}</dd>
-                </div>
-                <div>
-                  <dt>Modified</dt>
-                  <dd>{formatPreviewFileTimestamp(props.file?.lastModified ?? props.entry?.lastModified)}</dd>
-                </div>
-                <div>
-                  <dt>Size</dt>
-                  <dd>{formatFileSize(props.file?.size ?? props.entry?.size, props.fileSizeDisplayMode)}</dd>
-                </div>
-                <div>
-                  <dt>Location</dt>
-                  <dd>{displayPath}</dd>
-                </div>
-              </dl>
+              {renderDetailsMetadata()}
             </details>
             {previewViewer === "image" ? (
               <>
@@ -338,6 +392,8 @@ export function PreviewModalStage(props: PreviewModalStageProps) {
             {handleDownload ? <button onClick={handleDownload} type="button"><Download aria-hidden="true" />Download</button> : null}
             {!immersivePreview ? <button aria-label="Back to files" className="quiet-button preview-dismiss-button" onClick={closePreview} type="button">Back</button> : null}
           </div>
+          </>
+          )}
         </header>
 
         {immersivePreview ? renderGalleryControls() : null}

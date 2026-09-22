@@ -224,7 +224,7 @@ describe("App preview integration", () => {
     const initialVideoPreview = await screen.findByRole("dialog", { name: /Preview clip.mp4/i });
     const initialVideo = within(initialVideoPreview).getByLabelText<HTMLVideoElement>(/Video preview clip.mp4/i);
     expect(initialVideo.autoplay).toBe(true);
-    expect(initialVideo.muted).toBe(true);
+    expect(initialVideo.muted).toBe(false);
     expect(initialVideo.playsInline).toBe(true);
     fireEvent.click(within(initialVideoPreview).getByRole("button", { name: /Back to files/i }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: /Preview clip.mp4/i })).not.toBeInTheDocument());
@@ -245,7 +245,7 @@ describe("App preview integration", () => {
     const videoPreview = await screen.findByRole("dialog", { name: /Preview clip.mp4/i });
     const video = within(videoPreview).getByLabelText<HTMLVideoElement>(/Video preview clip.mp4/i);
     expect(video.autoplay).toBe(true);
-    expect(video.muted).toBe(true);
+    expect(video.muted).toBe(false);
     expect(video.playsInline).toBe(true);
     await waitFor(() => expect(mediaPauseMock).toHaveBeenCalled());
     await waitFor(() => expect(mediaPlayMock.mock.calls.length).toBeGreaterThanOrEqual(2));

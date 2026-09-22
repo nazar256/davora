@@ -25,6 +25,7 @@ export interface SettingsPreferencesWorkspaceCommands {
   readonly handleExperimentalFolderAppShortcutsEnabledChange: (enabled: boolean) => void;
   readonly handleDiagnosticsEnabledChange: (enabled: boolean) => void;
   readonly handleSortModeChange: (mode: UiSettings["sortMode"]) => void;
+  readonly handleVideoMutedChange: (muted: boolean) => void;
 }
 
 export interface SettingsPreferencesWorkspaceOutput {

@@ -112,4 +112,21 @@ describe("useUiSettings", () => {
     expect(JSON.parse(storage.values.get("davora-ui-settings") ?? "null")).toMatchObject({ imagePreviewFitMode: "fit" });
     expect(announceStatus).not.toHaveBeenCalled();
   });
+
+  it("persists the video muted preference without announcing status", () => {
+    const { hook, storage, announceStatus } = createHarness();
+
+    act(() => {
+      hook.result.current.handleVideoMutedChange(true);
+    });
+    expect(hook.result.current.uiSettings.videoMuted).toBe(true);
+    expect(JSON.parse(storage.values.get("davora-ui-settings") ?? "null")).toMatchObject({ videoMuted: true });
+
+    act(() => {
+      hook.result.current.handleVideoMutedChange(false);
+    });
+    expect(hook.result.current.uiSettings.videoMuted).toBe(false);
+    expect(JSON.parse(storage.values.get("davora-ui-settings") ?? "null")).toMatchObject({ videoMuted: false });
+    expect(announceStatus).not.toHaveBeenCalled();
+  });
 });

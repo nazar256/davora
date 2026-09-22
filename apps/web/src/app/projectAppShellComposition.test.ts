@@ -28,7 +28,8 @@ function settingsCommands(): SettingsPreferencesWorkspaceCommands {
     handleExperimentalFolderAppShortcutsEnabledChange: vi.fn(),
     handleDiagnosticsEnabledChange: vi.fn(),
 
-    handleSortModeChange: vi.fn()
+    handleSortModeChange: vi.fn(),
+    handleVideoMutedChange: vi.fn()
   };
 }
 

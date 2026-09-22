@@ -16,6 +16,7 @@ export interface UiSettings {
   experimentalFolderAppShortcutsEnabled: boolean;
   diagnosticsEnabled: boolean;
   sortMode: SortMode;
+  videoMuted: boolean;
 }
 
 export const DEFAULT_MAX_CACHEABLE_FILE_SIZE_BYTES = 15 * 1024 * 1024;
@@ -56,7 +57,8 @@ export const DEFAULT_UI_SETTINGS: UiSettings = {
   experimentalHeicPreviewEnabled: false,
   experimentalFolderAppShortcutsEnabled: false,
   diagnosticsEnabled: false,
-  sortMode: "name-asc"
+  sortMode: "name-asc",
+  videoMuted: false
 };
 
 const isThemeMode = (value: unknown): value is ThemeMode =>
@@ -81,6 +83,7 @@ export const normalizeUiSettings = (value: unknown): UiSettings => {
     experimentalHeicPreviewEnabled: settings.experimentalHeicPreviewEnabled === true,
     experimentalFolderAppShortcutsEnabled: settings.experimentalFolderAppShortcutsEnabled === true,
     diagnosticsEnabled: settings.diagnosticsEnabled === true,
-    sortMode: isSortMode(settings.sortMode) ? settings.sortMode : "name-asc"
+    sortMode: isSortMode(settings.sortMode) ? settings.sortMode : "name-asc",
+    videoMuted: settings.videoMuted === true
   };
 };

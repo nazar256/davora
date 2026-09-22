@@ -339,8 +339,12 @@ test("captures streaming-only media playback evidence", async ({ page }, testInf
   await page.getByRole("button", { name: /Open folder Projects/i }).click();
   await page.getByRole("button", { name: /Open file clip.mp4/i }).click();
   const preview = page.getByRole("dialog", { name: /Preview clip.mp4/i });
-  await expect(preview.getByText(/Streaming-only playback/i)).toBeVisible();
+  await expect(preview.getByText(/Streaming-only playback/i)).toHaveCount(0);
   await expect(preview.getByLabel(/Video preview clip.mp4/i)).toHaveAttribute("src", /\/api\/file\/stream/);
+  // Undecodable bytes exhaust the stream retries; the terminal failure pins
+  // the overlay controls visible for the capture.
+  await expect(preview.getByText(/Media playback could not continue/i)).toBeVisible({ timeout: 20000 });
+  await expect(preview.locator(".preview-video-overlay")).toBeVisible();
   await saveScreenshot(page, "davora-media-streaming.png");
 });
 
@@ -408,6 +412,10 @@ test("captures mobile video-only previous and next navigation", async ({ page },
   await page.getByRole("button", { name: /Open folder Projects/i }).click();
   await page.getByRole("button", { name: /Open file clip.mp4/i }).click();
   const firstPreview = page.getByRole("dialog", { name: /Preview clip.mp4/i });
+  // Playback hides the overlay controls; a tap on the stage reveals them.
+  await firstPreview.locator(".preview-media-stage").evaluate((element) =>
+    element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
+  );
   const firstNavigation = firstPreview.getByRole("group", { name: /Video navigation/i });
   await expect(firstNavigation.getByRole("button", { name: /Previous video/i })).toBeDisabled();
   await expect(firstNavigation.getByRole("button", { name: /Next video/i })).toBeEnabled();
@@ -417,9 +425,16 @@ test("captures mobile video-only previous and next navigation", async ({ page },
   await expect(firstPreview.getByText(/Media playback could not continue/i)).toHaveCount(0);
   await expect(firstNavigation).toBeVisible();
   await saveScreenshot(page, "davora-mobile-video-navigation.png");
+  // The screenshot pause may outlast the auto-hide delay; reveal again.
+  await firstPreview.locator(".preview-media-stage").evaluate((element) =>
+    element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
+  );
   await firstNavigation.getByRole("button", { name: /Next video/i }).click();
 
   const lastPreview = page.getByRole("dialog", { name: /Preview z-clip.webm/i });
+  await lastPreview.locator(".preview-media-stage").evaluate((element) =>
+    element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
+  );
   const lastNavigation = lastPreview.getByRole("group", { name: /Video navigation/i });
   await expect(lastNavigation.getByRole("button", { name: /Previous video/i })).toBeEnabled();
   await expect(lastNavigation.getByRole("button", { name: /Next video/i })).toBeDisabled();

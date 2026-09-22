@@ -142,7 +142,8 @@ const defaultSettings: UiSettings = {
   keepAwakeEnabled: true,
   showHiddenFiles: false,
   experimentalHeicPreviewEnabled: false, experimentalFolderAppShortcutsEnabled: false, diagnosticsEnabled: false,
-  sortMode: "name-asc" as const
+  sortMode: "name-asc" as const,
+  videoMuted: false
 };
 let settings: UiSettings = { ...defaultSettings };
 

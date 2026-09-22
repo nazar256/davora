@@ -78,6 +78,19 @@ describe("settings service", () => {
     expect(createSettingsService(createFakeSettingsStorage()).load().diagnosticsEnabled).toBe(false);
   });
 
+  it("persists videoMuted only as an explicit boolean", () => {
+    const muted = createFakeSettingsStorage({
+      [UI_SETTINGS_STORAGE_KEY]: JSON.stringify({ videoMuted: true })
+    });
+    expect(createSettingsService(muted).load().videoMuted).toBe(true);
+
+    const unmuted = createFakeSettingsStorage({
+      [UI_SETTINGS_STORAGE_KEY]: JSON.stringify({ videoMuted: "yes" })
+    });
+    expect(createSettingsService(unmuted).load().videoMuted).toBe(false);
+    expect(createSettingsService(createFakeSettingsStorage()).load().videoMuted).toBe(false);
+  });
+
   it("treats non-object JSON as missing settings", () => {
     const storage = createFakeSettingsStorage({ [UI_SETTINGS_STORAGE_KEY]: "null" });
 

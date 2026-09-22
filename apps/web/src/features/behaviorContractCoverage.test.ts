@@ -56,7 +56,7 @@ const contractIds = [
   "MUT-01", "MUT-02", "MUT-03", "MUT-04", "MUT-05", "MUT-06", "MUT-07", "MUT-08", "MUT-09", "MUT-10", "MUT-11", "MUT-12",
   "MUT-13", "MUT-14",
   "OFF-01", "OFF-02", "OFF-03", "OFF-04", "OFF-05", "OFF-06", "OFF-07",
-  "PRV-01", "PRV-02", "PRV-03", "PRV-04", "PRV-05", "PRV-06", "PRV-07",
+  "PRV-01", "PRV-02", "PRV-03", "PRV-04", "PRV-05", "PRV-06", "PRV-07", "PRV-08",
   "UI-01", "UI-02", "UI-03", "UI-04", "UI-05", "UI-06", "UI-07", "UI-08", "UI-09", "UI-10", "UI-11",
   "SEC-01", "SEC-02", "SEC-03", "SEC-04", "SEC-05"
 ] as const;
@@ -125,7 +125,8 @@ const coverage: Record<ContractId, OwnerCitation> = {
   "PRV-04": owner("integration", "src/features/preview/workspace/AppPreviewMediaIntegration.test.tsx", "autoplays audio and video previews and pauses the previous media when switching"),
   "PRV-05": owner("unit", "src/features/preview/session/usePreviewSession.test.tsx", "releases blob resources exactly once and keeps stream URLs non-revocable"),
   "PRV-06": owner("integration", "src/features/preview/session/AppPreviewSessionIntegration.test.tsx", "releases an applied preview Blob exactly once when App unmounts"),
-  "PRV-07": owner("browser", "tests/video-preview-controls.spec.ts", "PER-92 vertical video keeps playback controls above the bottom action bar"),
+  "PRV-07": owner("browser", "tests/video-preview-controls.spec.ts", "PER-93 video is screen-filling with a top overlay and no bottom action bar"),
+  "PRV-08": owner("browser", "tests/video-preview-controls.spec.ts", "PER-93 pause keeps overlay controls pinned and details pin them while open"),
   "UI-01": owner("pwa", "tests/pwa.spec.ts", "manifest metadata and Chrome installability checks pass outside incognito blockers"),
   "UI-02": owner("unit", "src/features/settings/theme/themeStartupOwnership.characterization.test.ts", "proves pure policy parity between bootstrap and the Settings theme model"),
   "UI-03": owner("visual", "tests/responsive-layout.spec.ts", "PER-74 responsive visual QA keeps core browser controls within representative viewports"),

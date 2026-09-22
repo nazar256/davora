@@ -288,6 +288,7 @@ function workspacePortsForComposition(composition: PreviewSessionCompositionFact
         clearListError: () => openPorts.surface.reportListError(undefined),
         markWorkerAvailable: openPorts.surface.markWorkerAvailable,
         onImageFitModeChange: vi.fn(),
+        onVideoMutedChange: vi.fn(),
         toDisplayPath: (path: string) => path
       }
     } satisfies PreviewWorkspaceInput["ports"]["application"];

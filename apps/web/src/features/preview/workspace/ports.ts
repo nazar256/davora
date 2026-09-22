@@ -47,6 +47,7 @@ export interface PreviewApplicationPorts {
     readonly clearListError: () => void;
     readonly markWorkerAvailable: () => void;
     readonly onImageFitModeChange: (mode: PreviewModalStageProps["imageFitMode"]) => void;
+    readonly onVideoMutedChange: (muted: boolean) => void;
     readonly toDisplayPath: (path: string) => string;
   };
 }
@@ -70,6 +71,7 @@ export interface PreviewWorkspaceSettings {
   readonly maxCacheableFileSizeBytes: number;
   readonly fileSizeDisplayMode?: PreviewModalStageProps["fileSizeDisplayMode"];
   readonly imageFitMode?: PreviewModalStageProps["imageFitMode"];
+  readonly videoMuted?: PreviewModalStageProps["videoMuted"];
 }
 
 export interface PreviewWorkspacePorts {

@@ -24,7 +24,8 @@ function createInput(): SettingsDialogStageProjectionInput {
       handleExperimentalHeicPreviewEnabledChange: command,
       handleExperimentalFolderAppShortcutsEnabledChange: command,
       handleDiagnosticsEnabledChange: command,
-      handleSortModeChange: command
+      handleSortModeChange: command,
+      handleVideoMutedChange: command
     },
     surface: {
       open: true,

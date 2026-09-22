@@ -290,16 +290,18 @@ export function usePreviewWorkspace({ context, settings, ports }: PreviewWorkspa
         cacheState: modal.previewCacheState,
         fileSizeDisplayMode: settings.fileSizeDisplayMode ?? "human",
         imageFitMode: settings.imageFitMode ?? "fill",
+        videoMuted: settings.videoMuted ?? false,
         maxCacheableFileSizeBytes: settings.maxCacheableFileSizeBytes,
         ports: application.runtime.modal,
         onImageFitModeChange: application.presentation.onImageFitModeChange,
+        onVideoMutedChange: application.presentation.onVideoMutedChange,
         onApplyRefresh: modal.pendingPreviewUpdate ? () => { void commandsRef.current.open.applyPendingRefresh(); } : undefined,
         onDownload: (path) => void application.operation.download(path, application.presentation.toDisplayPath(path)),
         onPrevious: open.previousMediaItem ? () => open.openAdjacentMedia(-1) : undefined,
         onNext: open.nextMediaItem ? () => open.openAdjacentMedia(1) : undefined,
         onMediaPlaybackChange,
         onClose: application.navigation.closePreview
-      }), [application, context.activeAccount?.id, context.cacheOnlyMode, context.explicitOfflineMode, context.offline, context.token, context.workerUnavailable, modal, onMediaPlaybackChange, open, settings.fileSizeDisplayMode, settings.imageFitMode, settings.maxCacheableFileSizeBytes]);
+      }), [application, context.activeAccount?.id, context.cacheOnlyMode, context.explicitOfflineMode, context.offline, context.token, context.workerUnavailable, modal, onMediaPlaybackChange, open, settings.fileSizeDisplayMode, settings.imageFitMode, settings.maxCacheableFileSizeBytes, settings.videoMuted]);
   const stateRef = useRef(state);
   stateRef.current = state;
   const commandsRef = useRef({ clearIdentity, openFile, pauseFolderAudio, session, open });

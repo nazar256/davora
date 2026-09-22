@@ -60,6 +60,7 @@ interface VideoLifecycleHarnessProps {
   readonly enabled?: boolean;
   readonly filePath?: string;
   readonly mediaGeneration?: number;
+  readonly muted?: boolean;
   readonly ownerGeneration?: number;
   readonly onMediaPlaybackChange?: (playing: boolean) => void;
   readonly ports: VideoLifecyclePorts;
@@ -75,11 +76,13 @@ function VideoLifecycleOwner({
   enabled = true,
   filePath = "Projects/clip.mp4",
   mediaGeneration = 0,
+  muted,
   onMediaPlaybackChange,
   ports,
   stageCapture
 }: Omit<VideoLifecycleHarnessProps, "ownerGeneration">) {
   const interaction = useVideoPreviewInteraction({
+    muted,
     onMediaPlaybackChange,
     ports,
     source: {
@@ -823,10 +826,10 @@ describe("useVideoPreviewInteraction timer/media-currentness characterization", 
 
   it("T20 the declarative stage keeps the current video identity tied to effectiveSource", async () => {
     const ports = createPorts();
-    const view = render(<VideoLifecycleHarness {...videoProps("blob:alpha", ports)} />);
+    const view = render(<VideoLifecycleHarness {...videoProps("blob:alpha", ports, { muted: true })} />);
     await flushMicrotasks();
     const alpha = videoElement();
-    view.rerender(<VideoLifecycleHarness {...videoProps("blob:beta", ports)} />);
+    view.rerender(<VideoLifecycleHarness {...videoProps("blob:beta", ports, { muted: true })} />);
     await flushMicrotasks();
     const beta = videoElement();
     expect(beta).not.toBe(alpha);

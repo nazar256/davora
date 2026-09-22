@@ -259,7 +259,7 @@ it("navigates video previews across videos only and exposes disabled toolbar bou
     ]);
   })
 
-it("opens video preview with muted autoplay-compatible attributes", async () => {
+it("opens video preview honoring the persisted mute preference", async () => {
     const account = buildAccount("alpha", { displayName: "Video workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     mockedApi.listFiles.mockResolvedValue({
@@ -289,8 +289,47 @@ it("opens video preview with muted autoplay-compatible attributes", async () => 
 
     fireEvent.click(await screen.findByRole("button", { name: /Open file clip.mp4/i }));
     const previewDialog = await screen.findByRole("dialog", { name: /Preview clip.mp4/i });
-    const video = within(previewDialog).getByLabelText(/Video preview clip.mp4/i) as HTMLVideoElement;
+    const video = within(previewDialog).getByLabelText<HTMLVideoElement>(/Video preview clip.mp4/i);
     expect(video.autoplay).toBe(true);
-    expect(video.muted).toBe(true);
+    expect(video.muted).toBe(false);
     expect(video.playsInline).toBe(true);
+
+    video.muted = true;
+    fireEvent(video, new Event("volumechange"));
+    expect(JSON.parse(localStorage.getItem("davora-ui-settings") ?? "{}")).toMatchObject({ videoMuted: true });
+  })
+
+it("opens video preview muted when the persisted preference is muted", async () => {
+    localStorage.setItem("davora-ui-settings", JSON.stringify({ ...DEFAULT_UI_SETTINGS, videoMuted: true }));
+    const account = buildAccount("alpha", { displayName: "Muted video workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [{ path: "Projects/clip.mp4", name: "clip.mp4", isFolder: false, size: 16, mimeType: "video/mp4" }]
+    });
+    mockedApi.getFile.mockResolvedValue({
+      file: {
+        ...textPreview,
+        path: "Projects/clip.mp4",
+        name: "clip.mp4",
+        mimeType: "video/mp4",
+        viewer: "video",
+        content: "",
+        encoding: "none",
+        bytesRead: 0,
+        requiresOriginalBlob: true
+      }
+    });
+    mockedApi.fetchOriginalFile.mockResolvedValue({
+      blob: new Blob([new Uint8Array([0, 0, 0, 24])], { type: "video/mp4" }),
+      mimeType: "video/mp4",
+      filename: "clip.mp4"
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Open file clip.mp4/i }));
+    const previewDialog = await screen.findByRole("dialog", { name: /Preview clip.mp4/i });
+    const video = within(previewDialog).getByLabelText<HTMLVideoElement>(/Video preview clip.mp4/i);
+    expect(video.muted).toBe(true);
   })

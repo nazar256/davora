@@ -115,6 +115,34 @@ describe("browser preview runtime adapters", () => {
     expect(streamTransport.fetchOriginalFile).not.toHaveBeenCalled();
   });
 
+  it("gives a cached blob copy and a live stream of the same media file an identical fingerprint", async () => {
+    const materials = new BrowserPreviewMaterialStore();
+    const video = preview({ path: "Videos/clip.mp4", name: "clip.mp4", mimeType: "video/mp4", viewer: "video", size: 512 });
+    const videoKey = key({ path: video.path });
+    const adapter = new BrowserPreviewLiveAdapter({ tokenFor: () => "token", materials, transport: transport(video) });
+    const abort = new BrowserPreviewAbortPort().create();
+
+    const live = await adapter.acquire(videoKey, abort);
+    expect(live.snapshot.source).toBe("stream");
+
+    const cached = await adapter.materializeCached(videoKey, {
+      preview: video,
+      blob: new Blob(["video"], { type: "video/mp4" }),
+      mimeType: "video/mp4",
+      filename: "clip.mp4"
+    }, abort);
+    expect(cached?.snapshot.source).toBe("blob");
+    expect(cached?.snapshot.fingerprint).toBe(live.snapshot.fingerprint);
+
+    const changed = await adapter.materializeCached(videoKey, {
+      preview: { ...video, etag: "different-etag" },
+      blob: new Blob(["video"], { type: "video/mp4" }),
+      mimeType: "video/mp4",
+      filename: "clip.mp4"
+    }, abort);
+    expect(changed?.snapshot.fingerprint).not.toBe(live.snapshot.fingerprint);
+  });
+
   it("preserves HEIC disabled, size-guard, decoder-fallback, and abort paths", async () => {
     const materials = new BrowserPreviewMaterialStore();
     const heic = preview({ path: "Archive/photo.heic", name: "photo.heic", mimeType: "image/heic" });

@@ -119,7 +119,8 @@ function settingsInput(overrides: Partial<SettingsDialogStageProjectionInput> = 
     handleExperimentalFolderAppShortcutsEnabledChange: vi.fn(),
     handleDiagnosticsEnabledChange: vi.fn(),
 
-    handleSortModeChange: vi.fn()
+    handleSortModeChange: vi.fn(),
+    handleVideoMutedChange: vi.fn()
   };
   const preferences: UiSettings = { ...DEFAULT_UI_SETTINGS, themeMode: "dark", showHiddenFiles: true };
   const onClose = vi.fn();

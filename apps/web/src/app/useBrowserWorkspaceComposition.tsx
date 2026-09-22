@@ -439,7 +439,8 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
       previewFreshnessIntervalSeconds,
       maxCacheableFileSizeBytes,
       fileSizeDisplayMode,
-      imageFitMode: imagePreviewFitMode
+      imageFitMode: imagePreviewFitMode,
+      videoMuted: uiSettings.videoMuted
     },
     ports: {
       application: {
@@ -477,6 +478,7 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
           clearListError: browsingCommands.clearExternalListError,
           markWorkerAvailable: () => setWorkerUnavailable(false),
           onImageFitModeChange: settingsCommands.handleImagePreviewFitModeChange,
+          onVideoMutedChange: settingsCommands.handleVideoMutedChange,
           toDisplayPath
         }
       }

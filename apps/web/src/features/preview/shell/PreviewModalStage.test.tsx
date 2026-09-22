@@ -48,11 +48,13 @@ vi.mock("../pdf", () => ({
   })
 }));
 
+const videoOverlayMock = { visible: true, playing: false, notifyActivity: vi.fn() };
+
 vi.mock("../video", () => ({
   VideoPreviewStage: (props: { fileName: string }) => videoStageMock(props),
   useVideoPreviewInteraction: () => ({
-    fileName: "fixture.mp4",
-    interaction: {}
+    stage: {},
+    overlay: videoOverlayMock
   })
 }));
 
@@ -121,6 +123,7 @@ function buildProps(overrides: Partial<ComponentProps<typeof PreviewModalStage>>
     },
     fileSizeDisplayMode: "human" as const,
     imageFitMode: "fit" as const,
+    videoMuted: false,
     maxCacheableFileSizeBytes: 50_000_000,
     onImageFitModeChange: vi.fn(),
     onClose: vi.fn(),
@@ -134,6 +137,9 @@ describe("PreviewModalStage", () => {
     imageStageMock.mockClear();
     pdfStageMock.mockClear();
     videoStageMock.mockClear();
+    videoOverlayMock.visible = true;
+    videoOverlayMock.playing = false;
+    videoOverlayMock.notifyActivity.mockClear();
   });
 
   afterEach(cleanup);
@@ -370,6 +376,185 @@ describe("PreviewModalStage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open or download original file" }));
     fireEvent.click(screen.getByRole("button", { name: /Back to files/i }));
     expect(order).toEqual(["cancel", "close"]);
+  });
+
+  it("renders the video overlay controls and no bottom action panel for video previews", () => {
+    const onDownload = vi.fn();
+    render(
+      <PreviewModalStage
+        {...buildProps({
+          blobUrl: "blob:video",
+          file: buildFilePreview("Media/clip.mp4", {
+            viewer: "video",
+            name: "clip.mp4",
+            mimeType: "video/mp4"
+          }),
+          onDownload,
+          onNext: vi.fn(),
+          onPrevious: vi.fn()
+        })}
+      />
+    );
+
+    const dialog = screen.getByRole("dialog", { name: /Preview clip.mp4/i });
+    expect(dialog.className).toContain("preview-modal-video");
+
+    const overlay = dialog.querySelector(".preview-video-overlay");
+    if (!(overlay instanceof HTMLElement)) {
+      throw new Error("Expected the video overlay.");
+    }
+    expect(overlay.className).not.toContain("preview-video-overlay-hidden");
+    expect(dialog.querySelector(".preview-header-actions-immersive")).toBeNull();
+    expect(dialog.querySelector(".preview-header-context-immersive")).toBeNull();
+
+    const navigation = within(dialog).getByRole("group", { name: /Video navigation/i });
+    expect(within(navigation).getByRole("button", { name: /Previous video/i })).toBeEnabled();
+    expect(within(navigation).getByRole("button", { name: /Next video/i })).toBeEnabled();
+    expect(within(overlay).getByRole("button", { name: /Back to files/i })).toBeInTheDocument();
+    expect(within(overlay).getByText("clip.mp4")).toHaveClass("preview-video-overlay-title");
+    expect(overlay.querySelector(".preview-video-overlay-summary")).toHaveAttribute("aria-label", "File details");
+  });
+
+  it("hides the video overlay while playing and pins it while details are open", () => {
+    videoOverlayMock.visible = false;
+    videoOverlayMock.playing = true;
+    const onDownload = vi.fn();
+    render(
+      <PreviewModalStage
+        {...buildProps({
+          blobUrl: "blob:video",
+          file: buildFilePreview("Media/clip.mp4", {
+            viewer: "video",
+            name: "clip.mp4",
+            mimeType: "video/mp4"
+          }),
+          onDownload
+        })}
+      />
+    );
+
+    const overlay = document.querySelector(".preview-video-overlay");
+    expect(overlay).toHaveClass("preview-video-overlay-hidden");
+
+    const details = document.querySelector(".preview-video-overlay-details");
+    if (!(details instanceof HTMLDetailsElement)) {
+      throw new Error("Expected the video details disclosure.");
+    }
+    details.open = true;
+    fireEvent(details, new Event("toggle"));
+    expect(overlay).not.toHaveClass("preview-video-overlay-hidden");
+    expect(within(details).getByRole("button", { name: /Download/i })).toBeInTheDocument();
+
+    details.open = false;
+    fireEvent(details, new Event("toggle"));
+    expect(overlay).toHaveClass("preview-video-overlay-hidden");
+    expect(videoOverlayMock.notifyActivity).toHaveBeenCalled();
+  });
+
+  it("forwards overlay pointer and key activity to the video interaction", () => {
+    render(
+      <PreviewModalStage
+        {...buildProps({
+          blobUrl: "blob:video",
+          file: buildFilePreview("Media/clip.mp4", {
+            viewer: "video",
+            name: "clip.mp4",
+            mimeType: "video/mp4"
+          })
+        })}
+      />
+    );
+
+    const overlay = document.querySelector(".preview-video-overlay");
+    if (!(overlay instanceof HTMLElement)) {
+      throw new Error("Expected the video overlay.");
+    }
+    fireEvent.pointerMove(overlay);
+    fireEvent.pointerDown(overlay);
+    fireEvent.keyDown(overlay, { key: "Tab" });
+    fireEvent.touchStart(overlay);
+    fireEvent.click(overlay);
+    expect(videoOverlayMock.notifyActivity).toHaveBeenCalledTimes(5);
+  });
+
+  it("remounts the details disclosure closed when the previewed file changes", () => {
+    const props = buildProps({
+      blobUrl: "blob:video",
+      file: buildFilePreview("Media/clip.mp4", {
+        viewer: "video",
+        name: "clip.mp4",
+        mimeType: "video/mp4"
+      })
+    });
+    const { rerender } = render(<PreviewModalStage {...props} />);
+
+    const details = document.querySelector(".preview-video-overlay-details");
+    if (!(details instanceof HTMLDetailsElement)) {
+      throw new Error("Expected the video details disclosure.");
+    }
+    details.open = true;
+    fireEvent(details, new Event("toggle"));
+
+    rerender(
+      <PreviewModalStage
+        {...buildProps({
+          blobUrl: "blob:video-2",
+          file: buildFilePreview("Media/next.mp4", {
+            viewer: "video",
+            name: "next.mp4",
+            mimeType: "video/mp4"
+          })
+        })}
+      />
+    );
+
+    const replacement = document.querySelector(".preview-video-overlay-details");
+    if (!(replacement instanceof HTMLDetailsElement)) {
+      throw new Error("Expected the video details disclosure to remount.");
+    }
+    expect(replacement.open).toBe(false);
+    expect(replacement).not.toBe(details);
+  });
+
+  it("suppresses cached-preview banners for video while keeping them for other viewers", () => {
+    const refreshingCache = {
+      source: "cache" as const,
+      cachedAt: "2026-07-18T12:00:00.000Z",
+      refreshing: true,
+      stale: false,
+      updateReady: false
+    };
+    render(
+      <PreviewModalStage
+        {...buildProps({
+          blobUrl: "blob:video",
+          cacheState: refreshingCache,
+          file: buildFilePreview("Media/clip.mp4", {
+            viewer: "video",
+            name: "clip.mp4",
+            mimeType: "video/mp4"
+          })
+        })}
+      />
+    );
+    expect(screen.queryByText(/cached preview/i)).not.toBeInTheDocument();
+    expect(document.querySelector(".preview-cache-status")).toBeNull();
+
+    cleanup();
+    render(
+      <PreviewModalStage
+        {...buildProps({
+          blobUrl: "blob:image",
+          cacheState: refreshingCache,
+          file: buildFilePreview("Media/photo.png", {
+            viewer: "image",
+            name: "photo.png",
+            mimeType: "image/png"
+          })
+        })}
+      />
+    );
+    expect(screen.getByText(/cached preview/i)).toBeInTheDocument();
   });
 
   it("preserves the modal audio element contract and inline gallery slot", () => {

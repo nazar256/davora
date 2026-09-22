@@ -196,6 +196,39 @@ describe("PreviewSessionController", () => {
     expect(adapter.releases).toEqual(["resource-material-old"]);
   });
 
+  it("keeps identical cached playback when a stale stream refresh verifies unchanged", async () => {
+    const adapter = ports({
+      cache: { read: vi.fn(async () => cacheEntry(acquisition("same", "blob"), 0)), write: vi.fn(async () => cacheWriteResult()) },
+      live: { acquire: vi.fn(async () => acquisition("same", "stream")) }
+    });
+    const controller = new PreviewSessionController(adapter);
+
+    await controller.open(request);
+    await controller.waitForBackground();
+
+    expect(adapter.published.at(-1)).toMatchObject({ kind: "cached", status: "verified", current: { fingerprint: "same" } });
+    expect(adapter.resources.apply).toHaveBeenCalledTimes(1);
+    expect(adapter.cache.write).not.toHaveBeenCalled();
+    expect(adapter.releases).toEqual([]);
+  });
+
+  it("still persists a verified-identical stream refresh when the cached entry is metadata-only", async () => {
+    const adapter = ports({
+      cache: { read: vi.fn(async () => cacheEntry(acquisition("same", "stream"), 0)), write: vi.fn(async () => cacheWriteResult()) },
+      live: { acquire: vi.fn(async () => acquisition("same", "stream")) }
+    });
+    const controller = new PreviewSessionController(adapter);
+
+    await controller.open(request);
+    await controller.waitForBackground();
+
+    expect(adapter.published.at(-1)).toMatchObject({ kind: "cached", status: "verified", current: { fingerprint: "same" } });
+    expect(adapter.resources.apply).toHaveBeenCalledTimes(1);
+    expect(adapter.cache.write).toHaveBeenCalledTimes(1);
+    expect(adapter.cacheEvents).toEqual([expect.objectContaining({ kind: "stream-cache-ready" })]);
+    expect(adapter.releases).toEqual([]);
+  });
+
   it("applies a no-cache stream before its independently owned cache write completes", async () => {
     const write = deferred<PreviewCacheWriteResult>();
     const adapter = ports({

@@ -186,6 +186,7 @@ function createPorts() {
         clearListError: () => { ports.open.ports.surface.reportListError(undefined); },
         markWorkerAvailable: ports.open.ports.surface.markWorkerAvailable,
         onImageFitModeChange: vi.fn(),
+        onVideoMutedChange: vi.fn(),
         toDisplayPath: (path: string) => path
       }
     }
