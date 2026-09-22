@@ -26,7 +26,7 @@ Load and follow these skills when applicable; do not duplicate their content her
 
 1. Read project instructions and persistent handoff/state files before changing code or tracker state.
 2. Identify the intended Linear project or workstream from the user request, repository context, issue prefixes, and tracker metadata.
-3. Refresh the Linear queue across all eligible non-final states, including Backlog, Todo, In Progress, In Review, and Reopened when those states exist.
+3. Refresh the Linear queue across all eligible non-final states, including Backlog, Todo, In Progress, In Review, and Reopened when those states exist. "Eligible" means tickets within the project/workstream identified in step 2; a shared team prefix or a local repo existing is not scope authorization. When only out-of-scope tickets remain, stop and confirm with the user instead of continuing into another project or repo.
 4. Process exactly one ticket at a time.
 5. For each ticket, use `$linear` to read the full issue, extract issue images, read all comments, extract comment images, and fetch relevant attachments before deciding what to do.
 6. If the ticket is a bug or regression, use `$address-bug`: understand the failure, reproduce where practical, add focused regression coverage, fix the cause, and validate the real behavior.
