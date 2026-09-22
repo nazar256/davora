@@ -209,7 +209,8 @@ export function useAppWorkspacePresentation(input: AppWorkspacePresentationInput
       navigation: workspaceNavigation,
       settings,
       status: status.snapshot,
-      pullToRefresh: navigationSurfaceWorkspace.pullToRefresh
+      pullToRefresh: navigationSurfaceWorkspace.pullToRefresh,
+      viewport
     },
     ports: {
       directoryUploadInputRef: ports.directoryUploadInputRef,
@@ -229,7 +230,6 @@ export function useAppWorkspacePresentation(input: AppWorkspacePresentationInput
       navigation: workspaceNavigation,
       offline: offlineApplication,
       pwa,
-      wakeLock,
       transfers,
       offlineSync: offlineSyncWorkspace,
       operation: {

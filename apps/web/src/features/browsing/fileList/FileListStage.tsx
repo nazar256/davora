@@ -9,15 +9,22 @@ import {
   FileVideo,
   Folder,
   HardDriveDownload,
+  House,
   MoreVertical,
   type LucideIcon
 } from "lucide-react";
-import { forwardRef, type DragEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { forwardRef, useState, type DragEvent, type MouseEvent as ReactMouseEvent } from "react";
 
 import { formatFileSize, type FileSizeDisplayMode } from "../../../lib/fileSize";
+import type { BreadcrumbItem } from "../presentation";
+import { foldFileListBreadcrumbs } from "./breadcrumbPresentation";
 
 export interface FileListStageProps {
   readonly items: readonly (FileEntry | SearchResult)[];
+  readonly breadcrumbs: readonly BreadcrumbItem[];
+  readonly currentPath: string;
+  readonly showBreadcrumbs: boolean;
+  readonly onNavigateToPath: (path: string) => void;
   readonly folderDropActive: boolean;
   readonly batchModeActive: boolean;
   readonly showEmptyState: boolean;
@@ -117,6 +124,47 @@ function handleRowContextMenu(
   }
 }
 
+interface FileListBreadcrumbsProps {
+  readonly breadcrumbs: readonly BreadcrumbItem[];
+  readonly currentPath: string;
+  readonly onNavigateToPath: (path: string) => void;
+}
+
+function FileListBreadcrumbs(props: FileListBreadcrumbsProps) {
+  const [expanded, setExpanded] = useState(false);
+  const nodes = expanded
+    ? props.breadcrumbs.map((item) => ({ kind: "item" as const, item }))
+    : foldFileListBreadcrumbs(props.breadcrumbs);
+  return (
+    <nav aria-label="Breadcrumbs" className="breadcrumbs file-list-breadcrumbs">
+      {nodes.map((node, index) => (
+        <div className="breadcrumb-segment" key={node.kind === "ellipsis" ? "ellipsis" : node.item.value || "root"}>
+          {node.kind === "ellipsis" ? (
+            <button
+              aria-label="Show all folders in this path"
+              className="breadcrumb-ellipsis"
+              onClick={() => setExpanded(true)}
+              type="button"
+            >
+              …
+            </button>
+          ) : (
+            <button
+              aria-current={node.item.value === props.currentPath ? "page" : undefined}
+              aria-label={node.item.ariaLabel}
+              onClick={() => props.onNavigateToPath(node.item.value)}
+              type="button"
+            >
+              {node.item.value ? node.item.label : <House aria-hidden="true" />}
+            </button>
+          )}
+          {index < nodes.length - 1 ? <span aria-hidden="true" className="breadcrumb-separator">/</span> : null}
+        </div>
+      ))}
+    </nav>
+  );
+}
+
 export const FileListStage = forwardRef<HTMLElement, FileListStageProps>(function FileListStage(props, ref) {
   const handleRowPrimaryClick = (item: FileEntry | SearchResult) => {
     if (props.selectionModeActive) {
@@ -139,6 +187,14 @@ export const FileListStage = forwardRef<HTMLElement, FileListStageProps>(functio
       onDragOver={props.onDragOver}
       onDrop={props.onDrop}
     >
+      {props.showBreadcrumbs ? (
+        <FileListBreadcrumbs
+          breadcrumbs={props.breadcrumbs}
+          currentPath={props.currentPath}
+          key={props.currentPath}
+          onNavigateToPath={props.onNavigateToPath}
+        />
+      ) : null}
       <div className="list-head">
         <span className="list-head-select-all">
           <label className="item-batch-control">

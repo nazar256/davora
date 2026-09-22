@@ -1110,7 +1110,7 @@ test("folder audio player uses current folder tracks and restores per-folder pro
   await expect(page.getByRole("dialog", { name: /Preview Привіт.m4a/i })).toHaveCount(0);
   await expect(player.getByRole("button", { name: /Pause folder audio/i }).or(player.getByText(/Playback was blocked by the browser/i))).toBeVisible();
 
-  await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).click();
+  await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).first().click();
   await expect(player).toHaveCount(0);
   await page.getByRole("button", { name: /Open folder Projects/i }).click();
   const restoredPlayer = page.getByRole("region", { name: /Audio playlist for Projects/i });

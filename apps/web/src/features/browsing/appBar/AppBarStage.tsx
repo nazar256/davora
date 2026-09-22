@@ -1,18 +1,22 @@
 import {
   ArrowDownAZ,
+  ArrowDownNarrowWide,
+  ArrowDownWideNarrow,
+  ArrowDownZA,
   ArrowUp,
+  ClockArrowDown,
+  ClockArrowUp,
   Menu,
   Search,
   Settings,
-  Sun,
   Wifi,
   WifiOff,
-  X
+  X,
+  type LucideIcon
 } from "lucide-react";
 import type { ChangeEvent, ReactNode } from "react";
 
 import {
-  getSortModeCompactLabel,
   getSortModeLabel,
   SORT_MODE_OPTIONS,
   type SortMode
@@ -37,6 +41,15 @@ function buildHeaderStatusBadgeLabel(input: {
   return "Online";
 }
 
+const SORT_MODE_ICONS: Record<SortMode, LucideIcon> = {
+  "name-asc": ArrowDownAZ,
+  "name-desc": ArrowDownZA,
+  "modified-desc": ClockArrowDown,
+  "modified-asc": ClockArrowUp,
+  "size-desc": ArrowDownWideNarrow,
+  "size-asc": ArrowDownNarrowWide
+};
+
 export interface AppBarStageProps {
   readonly supportText: string;
   readonly hasAccounts: boolean;
@@ -45,7 +58,6 @@ export interface AppBarStageProps {
   readonly mobileSearchOpen: boolean;
   readonly searchQuery: string;
   readonly currentPath: string;
-  readonly currentFolderLabel: string;
   readonly sortPanel: AppBarSortPanelBinding;
   readonly sortMode: SortMode;
   readonly showRoutineCachedRefresh: boolean;
@@ -59,8 +71,6 @@ export interface AppBarStageProps {
     readonly onInstall: () => void;
   };
   readonly hasSession: boolean;
-  readonly screenWakeLockActive: boolean;
-  readonly screenWakeLockReasonLabel: string;
   readonly transferTray?: ReactNode;
   readonly onOpenNavigationDrawer: () => void;
   readonly onSearchQueryChange: (query: string) => void;
@@ -79,6 +89,7 @@ export function AppBarStage(props: AppBarStageProps) {
     offline: props.offline,
     workerUnavailable: props.workerUnavailable
   });
+  const SortModeIcon = SORT_MODE_ICONS[props.sortMode];
 
   const handleSearchQueryChange = (event: ChangeEvent<HTMLInputElement>) => {
     props.onSearchQueryChange(event.target.value);
@@ -133,7 +144,6 @@ export function AppBarStage(props: AppBarStageProps) {
                     <ArrowUp aria-hidden="true" />
                   </button>
                 ) : null}
-                <span className="mobile-app-bar-title">{props.currentFolderLabel}</span>
               </>
             )
           ) : (
@@ -191,8 +201,7 @@ export function AppBarStage(props: AppBarStageProps) {
                   title={`Sort: ${getSortModeLabel(props.sortMode)}`}
                   type="button"
                 >
-                  <ArrowDownAZ aria-hidden="true" />
-                  <span>{getSortModeCompactLabel(props.sortMode)}</span>
+                  <SortModeIcon aria-hidden="true" />
                 </button>
               ) : null}
               {props.compactMobileHeader && !props.mobileSearchOpen && props.showRoutineCachedRefresh ? (
@@ -201,17 +210,6 @@ export function AppBarStage(props: AppBarStageProps) {
                 </span>
               ) : null}
               {props.transferTray}
-              {props.screenWakeLockActive ? (
-                <span
-                  aria-label={`Keeping screen awake for ${props.screenWakeLockReasonLabel}`}
-                  className="wake-lock-status"
-                  role="status"
-                  title={`Keeping screen awake for ${props.screenWakeLockReasonLabel}`}
-                >
-                  <Sun aria-hidden="true" />
-                  <span>Screen awake</span>
-                </span>
-              ) : null}
             </>
           ) : null}
           {showHeaderStatusBadge ? (

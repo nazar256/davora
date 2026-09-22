@@ -1,12 +1,12 @@
 import { assertNever } from "@davora/shared";
 
 export const SORT_MODES = [
-  { value: "name-asc", label: "Name A-Z", compactLabel: "A-Z" },
-  { value: "name-desc", label: "Name Z-A", compactLabel: "Z-A" },
-  { value: "modified-desc", label: "Modified newest", compactLabel: "New" },
-  { value: "modified-asc", label: "Modified oldest", compactLabel: "Old" },
-  { value: "size-desc", label: "Size largest", compactLabel: "Big" },
-  { value: "size-asc", label: "Size smallest", compactLabel: "Small" }
+  { value: "name-asc", label: "Name A-Z" },
+  { value: "name-desc", label: "Name Z-A" },
+  { value: "modified-desc", label: "Modified newest" },
+  { value: "modified-asc", label: "Modified oldest" },
+  { value: "size-desc", label: "Size largest" },
+  { value: "size-asc", label: "Size smallest" }
 ] as const;
 
 export type SortMode = (typeof SORT_MODES)[number]["value"];
@@ -47,5 +47,3 @@ const getSortModeDefinition = (mode: SortMode): (typeof SORT_MODES)[number] => {
 };
 
 export const getSortModeLabel = (mode: SortMode): string => getSortModeDefinition(mode).label;
-
-export const getSortModeCompactLabel = (mode: SortMode): string => getSortModeDefinition(mode).compactLabel;

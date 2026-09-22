@@ -31,7 +31,6 @@ function buildProps(overrides: Partial<ComponentProps<typeof AppBarStage>> = {})
     mobileSearchOpen: false,
     searchQuery: "",
     currentPath: "Projects/Plans",
-    currentFolderLabel: "Plans",
     sortPanel: buildSortPanelBinding(),
     sortMode: "name-asc" as const,
     showRoutineCachedRefresh: false,
@@ -45,8 +44,6 @@ function buildProps(overrides: Partial<ComponentProps<typeof AppBarStage>> = {})
       onInstall: vi.fn()
     },
     hasSession: true,
-    screenWakeLockActive: false,
-    screenWakeLockReasonLabel: "media playback",
     onOpenNavigationDrawer: vi.fn(),
     onSearchQueryChange: vi.fn(),
     onCloseMobileSearch: vi.fn(),
@@ -95,20 +92,20 @@ describe("AppBarStage", () => {
     expect(screen.getByRole("button", { name: /Open navigation menu/i })).toBeInTheDocument();
   });
 
-  it("renders compact mobile title chrome and hides desktop subtitle", () => {
+  it("keeps folder identity out of the compact mobile header and hides desktop subtitle", () => {
     render(
       <AppBarStage
         {...buildProps({
           compactMobileHeader: true,
-          currentFolderLabel: "Plans",
           supportText: "/Projects/Plans"
         })}
       />
     );
 
-    expect(screen.getByText("Plans")).toHaveClass("mobile-app-bar-title");
+    expect(document.querySelector(".mobile-app-bar-title")).toBeNull();
     expect(screen.queryByText("/Projects/Plans")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 1, name: "Davora" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Go up one folder level/i })).toBeInTheDocument();
   });
 
   it("projects navigation drawer open state onto aria-expanded", () => {
@@ -196,6 +193,37 @@ describe("AppBarStage", () => {
 
     fireEvent.click(within(sortPanel).getByRole("button", { name: "Name Z-A" }));
     expect(selectSortMode).toHaveBeenCalledWith("name-desc");
+  });
+
+  it.each([
+    { sortMode: "name-asc" as const, label: "Name A-Z", iconClass: "lucide-arrow-down-a-z" },
+    { sortMode: "name-desc" as const, label: "Name Z-A", iconClass: "lucide-arrow-down-z-a" },
+    { sortMode: "modified-desc" as const, label: "Modified newest", iconClass: "lucide-clock-arrow-down" },
+    { sortMode: "modified-asc" as const, label: "Modified oldest", iconClass: "lucide-clock-arrow-up" },
+    { sortMode: "size-desc" as const, label: "Size largest", iconClass: "lucide-arrow-down-wide-narrow" },
+    { sortMode: "size-asc" as const, label: "Size smallest", iconClass: "lucide-arrow-down-narrow-wide" }
+  ])("renders an icon-only $label sort trigger", ({ sortMode, label, iconClass }) => {
+    render(
+      <AppBarStage
+        {...buildProps({
+          compactMobileHeader: true,
+          sortMode
+        })}
+      />
+    );
+
+    const sortButton = screen.getByRole("button", { name: `Open sort options. Current sort: ${label}` });
+    expect(sortButton).toHaveAttribute("title", `Sort: ${label}`);
+    expect(sortButton.textContent).toBe("");
+    const icon = sortButton.querySelector("svg");
+    expect(icon).not.toBeNull();
+    expect(icon?.getAttribute("class") ?? "").toContain(iconClass);
+  });
+
+  it("keeps the wake-lock status out of the app bar", () => {
+    render(<AppBarStage {...buildProps({ compactMobileHeader: true })} />);
+    expect(document.querySelector(".wake-lock-status")).toBeNull();
+    expect(screen.queryByText(/Screen awake/i)).not.toBeInTheDocument();
   });
 
   it("toggles compact sort visibility while preserving open state across wide and search chrome", () => {

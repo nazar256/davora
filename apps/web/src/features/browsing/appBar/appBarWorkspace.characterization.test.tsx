@@ -37,7 +37,6 @@ function buildProps(overrides: Partial<AppBarStageProps> = {}): AppBarStageProps
     mobileSearchOpen: false,
     searchQuery: "",
     currentPath: "Projects/Plans",
-    currentFolderLabel: "Plans",
     sortPanel: buildSortPanel(),
     sortMode: "name-asc",
     showRoutineCachedRefresh: false,
@@ -47,8 +46,6 @@ function buildProps(overrides: Partial<AppBarStageProps> = {}): AppBarStageProps
     workerUnavailable: false,
     install: { available: false, busy: false, onInstall: vi.fn() },
     hasSession: true,
-    screenWakeLockActive: false,
-    screenWakeLockReasonLabel: "media playback",
     onOpenNavigationDrawer: vi.fn(),
     onSearchQueryChange: vi.fn(),
     onCloseMobileSearch: vi.fn(),
@@ -68,7 +65,7 @@ function buildWorkspaceOwners(currentPath: string, navigateToPath: (path: string
     viewport: { isNarrowScreen: false },
     browsing: {
       query: { raw: "", set: vi.fn() },
-      presentation: { folderLabel: "Home", locationLabel: "Online", showRoutineCachedRefresh: false },
+      presentation: { locationLabel: "Online", showRoutineCachedRefresh: false },
       sort: { mode: "name-asc", saved: false, select: vi.fn(), reset: buildResetBinding() }
     },
     navigation: {
@@ -82,7 +79,6 @@ function buildWorkspaceOwners(currentPath: string, navigateToPath: (path: string
     },
     offline: { explicitOfflineMode: false },
     pwa: { install: { available: false, busy: false, onInstall: vi.fn() } },
-    wakeLock: { active: false, reasonLabel: "media playback" },
     transfers: { tasks: [], clearAccountHistory: vi.fn() },
     offlineSync: { commands: { retry: vi.fn() } },
     operation: { cancelTransferTask: vi.fn(), retryTransferTask: vi.fn() }
@@ -99,8 +95,8 @@ describe("AppBar application boundary characterization", () => {
     expect(screen.getByText("Offline")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Open navigation menu/i })).not.toBeInTheDocument();
 
-    rerender(<AppBarStage {...buildProps({ compactMobileHeader: true, currentPath: "", currentFolderLabel: "Home", explicitOfflineMode: true, showRoutineCachedRefresh: true, workerUnavailable: true })} />);
-    expect(screen.getByText("Home")).toHaveClass("mobile-app-bar-title");
+    rerender(<AppBarStage {...buildProps({ compactMobileHeader: true, currentPath: "", explicitOfflineMode: true, showRoutineCachedRefresh: true, workerUnavailable: true })} />);
+    expect(document.querySelector(".mobile-app-bar-title")).toBeNull();
     expect(screen.getByRole("status", { name: "Refreshing cached folder" })).toBeInTheDocument();
     expect(screen.queryByText("Online")).not.toBeInTheDocument();
     cleanup();
@@ -223,12 +219,13 @@ describe("AppBar application boundary characterization", () => {
     expect(toggle).toHaveBeenCalledTimes(1);
   });
 
-  it("forwards install and wake-lock presentation without acquiring either lifecycle", () => {
+  it("forwards install presentation without acquiring the lifecycle and keeps wake-lock status out of the bar", () => {
     const onInstall = vi.fn();
-    render(<AppBarStage {...buildProps({ install: { available: true, busy: false, onInstall }, screenWakeLockActive: true, screenWakeLockReasonLabel: "transfers" })} />);
+    render(<AppBarStage {...buildProps({ install: { available: true, busy: false, onInstall } })} />);
     fireEvent.click(screen.getByRole("button", { name: "Install app" }));
     expect(onInstall).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("status", { name: "Keeping screen awake for transfers" })).toBeInTheDocument();
+    expect(document.querySelector(".wake-lock-status")).toBeNull();
+    expect(screen.queryByRole("status", { name: /Keeping screen awake/i })).not.toBeInTheDocument();
   });
 
   it("serializes authoritative transfer metadata while containing credentials and capabilities", () => {
@@ -430,7 +427,7 @@ describe("AppBar application boundary characterization", () => {
     expect(appBarCall).toContain("useAppBarWorkspace");
     for (const owner of [
       "accountContext", "session", "bootstrap", "connectivity", "viewport", "browsingWorkspace",
-      "workspaceNavigation", "offlineApplication", "pwa", "wakeLock", "transfers",
+      "workspaceNavigation", "offlineApplication", "pwa", "transfers",
       "offlineSyncWorkspace"
     ]) {
       expect(appBarCall).toContain(owner);

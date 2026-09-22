@@ -82,7 +82,7 @@ test("folder sort settings persist per folder, inherit through context, and rese
     }
   };
   const goHome = async () => {
-    await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).click();
+    await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).first().click();
   };
 
   await expect(rowNames).toHaveText(["Archive", "Design", "Projects"]);

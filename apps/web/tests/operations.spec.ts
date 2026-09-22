@@ -612,7 +612,7 @@ test("mutation flow still works for the active account", async ({ page }, testIn
   await moveDialog.getByRole("button", { name: /Move here/i }).click();
   await expect(moveDialog).toHaveCount(0);
   await expect(page.locator(".browse-status-note")).toContainText(/Moved 1 selected item to \/renamed\.txt in Mutation workspace\./i);
-  await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).click();
+  await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).first().click();
   await expect(page.getByRole("button", { name: /Open file renamed.txt/i })).toBeVisible();
 });
 

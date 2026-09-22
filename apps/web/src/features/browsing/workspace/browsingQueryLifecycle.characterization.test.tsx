@@ -191,7 +191,8 @@ function buildSurfaceInput(raw: string, active: boolean, set: (value: string) =>
       navigation: { getCurrentPath: () => "Docs", navigateToPath: vi.fn() },
       settings: { preferences: { fileSizeDisplayMode: "human" }, commands: { handleFileSizeDisplayModeChange: vi.fn() } },
       status: { message: "Ready" },
-      pullToRefresh: { fileListRef: vi.fn() }
+      pullToRefresh: { fileListRef: vi.fn() },
+      viewport: { isNarrowScreen: false }
     },
     ports: {
       directoryUploadInputRef: vi.fn(),

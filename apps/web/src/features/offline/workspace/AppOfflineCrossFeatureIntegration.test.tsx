@@ -85,7 +85,7 @@ describe("App offline integration", () => {
     fireEvent.change(input, { target: { files: uploads } });
 
     await waitFor(() => expect(mockedApi.uploadFileWithProgress).toHaveBeenCalledTimes(12), { timeout: 5_000 });
-    await waitFor(() => expect(screen.getByRole("status", { name: /Keeping screen awake for offline sync/i })).toBeInTheDocument());
+    expect(document.querySelector(".wake-lock-status")).toBeNull();
     expect(wakeLock.sentinel.release).not.toHaveBeenCalled();
 
     syncDownload.resolve({ blob: new Blob(["offline roadmap"], { type: "text/plain" }), filename: "roadmap.txt" });

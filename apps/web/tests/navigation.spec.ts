@@ -261,6 +261,82 @@ test("mobile pull-to-refresh requests only the current folder", async ({ page },
   await expect(page).toHaveURL(/path=Projects/);
 });
 
+test("mobile keeps folder identity in a scrollable in-list breadcrumb row that folds deep paths", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chrome", "Mobile in-list breadcrumb coverage.");
+  const deepListings: Record<string, unknown[]> = {
+    Projects: [{ path: "Projects/Deep", name: "Deep", isFolder: true }],
+    "Projects/Deep": [{ path: "Projects/Deep/Deeper", name: "Deeper", isFolder: true }],
+    "Projects/Deep/Deeper": [{ path: "Projects/Deep/Deeper/Deepest", name: "Deepest", isFolder: true }],
+    "Projects/Deep/Deeper/Deepest": Array.from({ length: 30 }, (_, index) => ({
+      path: `Projects/Deep/Deeper/Deepest/leaf-${index}.txt`,
+      name: `leaf-${index}.txt`,
+      isFolder: false,
+      size: 10
+    }))
+  };
+  await page.route("**/api/files?**", async (route) => {
+    const path = new URL(route.request().url()).searchParams.get("path") ?? "";
+    const items = deepListings[path];
+    if (!items) {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: { path, items } })
+    });
+  });
+
+  await connectAccount(page, "Mobile breadcrumb workspace");
+
+  // Root omits the row entirely; the compact app bar keeps no folder title or wake-lock badge.
+  await expect(page.locator(".file-list-breadcrumbs")).toHaveCount(0);
+  await expect(page.locator(".mobile-app-bar-title")).toHaveCount(0);
+  await expect(page.locator(".wake-lock-status")).toHaveCount(0);
+  const sortButton = page.getByRole("button", { name: /Open sort options\. Current sort: Name A-Z/i });
+  await expect(sortButton).toBeVisible();
+  await expect(sortButton.locator("svg")).toBeVisible();
+  expect(await sortButton.textContent()).toBe("");
+
+  await page.getByRole("button", { name: /Open folder Projects/i }).click();
+  const breadcrumbs = page.locator(".file-list-breadcrumbs");
+  await expect(breadcrumbs).toBeVisible();
+  await expect(page.locator(".file-list-panel .file-list-breadcrumbs")).toHaveCount(1);
+  await expect(breadcrumbs.getByRole("button", { name: /Go to home folder/i })).toBeVisible();
+  await expect(breadcrumbs.getByRole("button", { name: "Go to /Projects", exact: true })).toHaveAttribute("aria-current", "page");
+
+  // Deep paths fold middle segments under an expandable ellipsis.
+  await page.getByRole("button", { name: /Open folder Deep/i }).click();
+  await page.getByRole("button", { name: /Open folder Deeper/i }).click();
+  await page.getByRole("button", { name: /Open folder Deepest/i }).click();
+  await expect(page).toHaveURL(/path=Projects%2FDeep%2FDeeper%2FDeepest/);
+  await expect(breadcrumbs.getByRole("button", { name: "Go to /Projects/Deep", exact: true })).toHaveCount(0);
+  const ellipsis = breadcrumbs.getByRole("button", { name: /Show all folders in this path/i });
+  await expect(ellipsis).toBeVisible();
+  await ellipsis.click();
+  await expect(breadcrumbs.getByRole("button", { name: "Go to /Projects/Deep", exact: true })).toBeVisible();
+
+  // The row lives inside the scrollable list panel, so it scrolls away with the content.
+  const panel = page.locator(".file-list-panel");
+  const topBeforeScroll = await breadcrumbs.evaluate((element) => element.getBoundingClientRect().top);
+  await panel.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    element.dispatchEvent(new Event("scroll", { bubbles: true }));
+  });
+  const topAfterScroll = await breadcrumbs.evaluate((element) => element.getBoundingClientRect().top);
+  expect(topAfterScroll).toBeLessThan(topBeforeScroll);
+
+  // Breadcrumb taps still route through the shared navigation owner.
+  await panel.evaluate((element) => {
+    element.scrollTop = 0;
+    element.dispatchEvent(new Event("scroll", { bubbles: true }));
+  });
+  await breadcrumbs.getByRole("button", { name: /Go to home folder/i }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.locator(".file-list-breadcrumbs")).toHaveCount(0);
+});
+
 test("breadcrumbs use a home root with slash separators and replace redundant navigation buttons", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === "mobile-chrome", "Mobile uses the compact app bar and navigation drawer instead of breadcrumbs.");
   await connectAccount(page, "Navigation workspace");

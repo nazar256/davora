@@ -316,7 +316,7 @@ test("PER-5 cached offline notice stays readable above the file list", async ({ 
   await context.setOffline(true);
   await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
 
-  await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).click();
+  await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).first().click();
   const notice = page.locator(".state-banner-slot .banner-state");
   await expect(notice).toContainText(/cached data while offline/i);
   await expectNoticeReadable(page, "root folder offline notice");
@@ -359,7 +359,7 @@ test("PER-5 routine cached refresh uses header status and never moves file rows"
   await connectAccount(page, "PER-5 routine refresh");
   await page.getByRole("button", { name: /Open folder Projects/i }).click();
   await expect(page.getByRole("button", { name: /Open file roadmap.txt/i })).toBeVisible();
-  await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).click();
+  await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).first().click();
   await expect(page.getByRole("button", { name: /Open folder Projects/i })).toBeVisible();
 
   holdRefresh = true;

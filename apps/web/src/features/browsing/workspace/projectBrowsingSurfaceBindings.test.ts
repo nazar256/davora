@@ -52,7 +52,8 @@ function buildInput(): BrowsingSurfaceInput {
       navigation: { getCurrentPath: () => "", navigateToPath },
       settings: { preferences: { fileSizeDisplayMode: "human" }, commands: { handleFileSizeDisplayModeChange: vi.fn() } },
       status: { message: "Ready" },
-      pullToRefresh: { fileListRef: vi.fn() }
+      pullToRefresh: { fileListRef: vi.fn() },
+      viewport: { isNarrowScreen: false }
     },
     ports: {
       directoryUploadInputRef: vi.fn(), loadFolder: vi.fn(), openFile, openOfflineSync: vi.fn()
@@ -67,7 +68,31 @@ describe("projectBrowsingSurfaceBindings", () => {
     expect(projected.browseHeader.selectionSummaryLabel).toBe("2 items selected");
     expect(projected.fileList.props.items).toBe(input.owners.browse.list.items);
     expect(projected.fileList.props.getItemSubtitle(file)).toBe("/Projects");
+    expect(projected.fileList.props.breadcrumbs).toBe(input.owners.browse.presentation.breadcrumbs);
+    expect(projected.fileList.props.currentPath).toBe(input.owners.browse.context.path);
+    expect(projected.fileList.props.onNavigateToPath).toBe(input.owners.navigation.navigateToPath);
     expect(projected.fileList.ref).toBe(input.owners.pullToRefresh.fileListRef);
+  });
+
+  it.each([
+    { isNarrowScreen: true, showBreadcrumbs: true, expected: true },
+    { isNarrowScreen: true, showBreadcrumbs: false, expected: false },
+    { isNarrowScreen: false, showBreadcrumbs: true, expected: false },
+    { isNarrowScreen: false, showBreadcrumbs: false, expected: false }
+  ])("gates in-list breadcrumbs to narrow viewports inside folders (%j)", ({ isNarrowScreen, showBreadcrumbs, expected }) => {
+    const input = buildInput();
+    const projected = projectBrowsingSurfaceBindings({
+      ...input,
+      owners: {
+        ...input.owners,
+        browse: {
+          ...input.owners.browse,
+          presentation: { ...input.owners.browse.presentation, showBreadcrumbs }
+        },
+        viewport: { isNarrowScreen }
+      }
+    });
+    expect(projected.fileList.props.showBreadcrumbs).toBe(expected);
   });
 
   it("forwards Header mutation commands by identity without adding arguments or effects", () => {

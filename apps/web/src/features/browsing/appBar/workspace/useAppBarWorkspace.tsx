@@ -26,7 +26,6 @@ export interface AppBarWorkspaceOwners {
   readonly browsing: {
     readonly query: { readonly raw: string; readonly set: (value: string) => void };
     readonly presentation: {
-      readonly folderLabel: string;
       readonly locationLabel: string;
       readonly showRoutineCachedRefresh: boolean;
     };
@@ -43,7 +42,6 @@ export interface AppBarWorkspaceOwners {
   };
   readonly offline: { readonly explicitOfflineMode: boolean };
   readonly pwa: { readonly install: PwaInstallBinding };
-  readonly wakeLock: { readonly active: boolean; readonly reasonLabel: string };
   readonly transfers: {
     readonly tasks: readonly TransferTask[];
     readonly clearAccountHistory: (accountId: string) => void;
@@ -95,7 +93,6 @@ export function useAppBarWorkspace({ owners }: AppBarWorkspaceInput): AppBarWork
     return {
       cacheOnlyMode: owners.bootstrap.cacheOnlyMode,
       compactMobileHeader,
-      currentFolderLabel: owners.browsing.presentation.folderLabel,
       currentPath: owners.navigation.currentPath,
       explicitOfflineMode: owners.offline.explicitOfflineMode,
       hasAccounts,
@@ -110,8 +107,6 @@ export function useAppBarWorkspace({ owners }: AppBarWorkspaceInput): AppBarWork
       onOpenNavigationDrawer: () => owners.navigation.openChrome("navigation"),
       onOpenSettings: () => owners.navigation.openChrome("settings"),
       onSearchQueryChange: owners.browsing.query.set,
-      screenWakeLockActive: owners.wakeLock.active,
-      screenWakeLockReasonLabel: owners.wakeLock.reasonLabel,
       searchQuery: owners.browsing.query.raw,
       showRoutineCachedRefresh: owners.browsing.presentation.showRoutineCachedRefresh,
       sortMode: owners.browsing.sort.mode,

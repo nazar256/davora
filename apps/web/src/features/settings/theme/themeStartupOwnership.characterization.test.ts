@@ -32,7 +32,7 @@ const characterizedSourceHashes = {
   "apps/web/src/platform/theme/browserThemePorts.ts": "65665f70178efe9fea71a91a5fdea42bd3601150bbd2f118d97aa263be468730",
   "apps/web/src/features/settings/theme/model.test.ts": "723d262e5dc8b3649f4401ef1955f73109bdb6d9c1001d4e9804ed6a73886999",
   "apps/web/src/features/settings/theme/useThemePreference.test.tsx": "e7b46aa8d05258e45d9dd8c1c72ccc308c236385a27b3351ad5c5643ea0ba03c",
-  "apps/web/src/features/settings/workspace/AppSettingsIntegration.test.tsx": "9ab67067f7746bd69eb6e52b6dc5deb1fc7c324a9cda7b764225416dc3692006",
+  "apps/web/src/features/settings/workspace/AppSettingsIntegration.test.tsx": "699ee2f5b08427b425ddbe2ba992bf945980db9904c14dfda5b787614af557bb",
   "apps/web/src/features/settings/model.ts": "f3279a97355b0f354c9ad2bb02f03640e7e3d688e6ac6c8aa403d5afa18163cc",
   "apps/web/src/features/settings/service.test.ts": "35cea1da7b4332f667449dc18934ba1cafcc1fb3d1012e4bb7d3546a648a5ff3",
   "apps/web/src/features/settings/workspace/useSettingsPreferencesWorkspace.ts": "bdf5545544fa93fa970a7b7c26eb78408ed7a5d771074b1d3afb2e96c259583e",

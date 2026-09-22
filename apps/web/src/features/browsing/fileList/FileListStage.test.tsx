@@ -24,9 +24,28 @@ const ROADMAP_FILE: FileEntry = {
   mimeType: "text/plain"
 };
 
+const NESTED_BREADCRUMBS = [
+  { label: "Home", ariaLabel: "Go to home folder", value: "" },
+  { label: "Projects", ariaLabel: "Go to /Projects", value: "Projects" },
+  { label: "Plans", ariaLabel: "Go to /Projects/Plans", value: "Projects/Plans" }
+] as const;
+
+const DEEP_BREADCRUMBS = [
+  { label: "Home", ariaLabel: "Go to home folder", value: "" },
+  { label: "a", ariaLabel: "Go to /a", value: "a" },
+  { label: "b", ariaLabel: "Go to /a/b", value: "a/b" },
+  { label: "c", ariaLabel: "Go to /a/b/c", value: "a/b/c" },
+  { label: "d", ariaLabel: "Go to /a/b/c/d", value: "a/b/c/d" },
+  { label: "e", ariaLabel: "Go to /a/b/c/d/e", value: "a/b/c/d/e" }
+] as const;
+
 function buildProps(overrides: Partial<ComponentProps<typeof FileListStage>> = {}) {
   return {
     items: [PROJECTS_FOLDER, ROADMAP_FILE],
+    breadcrumbs: [],
+    currentPath: "",
+    showBreadcrumbs: false,
+    onNavigateToPath: vi.fn(),
     folderDropActive: false,
     batchModeActive: false,
     showEmptyState: false,
@@ -276,6 +295,68 @@ describe("FileListStage", () => {
   it("disables batch checkbox when marking is unavailable", () => {
     render(<FileListStage {...buildProps({ canMarkForBatchDownload: false })} />);
     expect(screen.getByRole("checkbox", { name: /Select Projects folder/i })).toBeDisabled();
+  });
+
+  it("hides the breadcrumb row when showBreadcrumbs is false", () => {
+    render(
+      <FileListStage
+        {...buildProps({
+          breadcrumbs: NESTED_BREADCRUMBS,
+          currentPath: "Projects/Plans",
+          showBreadcrumbs: false
+        })}
+      />
+    );
+
+    expect(document.querySelector(".file-list-breadcrumbs")).toBeNull();
+  });
+
+  it("renders nested breadcrumbs inside the scrollable panel and routes navigation", () => {
+    const onNavigateToPath = vi.fn();
+    render(
+      <FileListStage
+        {...buildProps({
+          breadcrumbs: NESTED_BREADCRUMBS,
+          currentPath: "Projects/Plans",
+          showBreadcrumbs: true,
+          onNavigateToPath
+        })}
+      />
+    );
+
+    const nav = screen.getByRole("navigation", { name: "Breadcrumbs" });
+    expect(nav).toHaveClass("file-list-breadcrumbs");
+    expect(nav.closest(".file-list-panel")).not.toBeNull();
+    expect(within(nav).getByRole("button", { name: "Go to home folder" })).toBeInTheDocument();
+    expect(within(nav).getByRole("button", { name: "Go to /Projects/Plans" })).toHaveAttribute("aria-current", "page");
+
+    fireEvent.click(within(nav).getByRole("button", { name: "Go to /Projects" }));
+    expect(onNavigateToPath).toHaveBeenCalledWith("Projects");
+    fireEvent.click(within(nav).getByRole("button", { name: "Go to home folder" }));
+    expect(onNavigateToPath).toHaveBeenCalledWith("");
+  });
+
+  it("folds deep paths under an expandable ellipsis", () => {
+    render(
+      <FileListStage
+        {...buildProps({
+          breadcrumbs: DEEP_BREADCRUMBS,
+          currentPath: "a/b/c/d/e",
+          showBreadcrumbs: true
+        })}
+      />
+    );
+
+    const nav = screen.getByRole("navigation", { name: "Breadcrumbs" });
+    expect(within(nav).getByRole("button", { name: "Go to home folder" })).toBeInTheDocument();
+    expect(within(nav).queryByRole("button", { name: "Go to /a/b" })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole("button", { name: "Go to /a/b/c" })).not.toBeInTheDocument();
+    expect(within(nav).getByRole("button", { name: "Go to /a/b/c/d" })).toBeInTheDocument();
+    expect(within(nav).getByRole("button", { name: "Go to /a/b/c/d/e" })).toBeInTheDocument();
+
+    fireEvent.click(within(nav).getByRole("button", { name: "Show all folders in this path" }));
+    expect(within(nav).getByRole("button", { name: "Go to /a/b" })).toBeInTheDocument();
+    expect(within(nav).getByRole("button", { name: "Go to /a/b/c" })).toBeInTheDocument();
   });
 
   it("forwards ref to the file list panel section", () => {

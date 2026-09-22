@@ -25,7 +25,7 @@ test("offline mode keeps account-scoped cached content visible and disables muta
   await page.getByRole("button", { name: /Back to files/i }).click();
 
   await context.setOffline(true);
-  await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).click();
+  await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).first().click();
   await expect(page.getByText(/Showing cached data while offline/i)).toBeVisible();
   await page.getByRole("button", { name: /Open folder Projects/i }).click();
   await expect(page.locator(".browse-status-note")).toHaveText(/Offline snapshot/i);
@@ -279,7 +279,7 @@ test("browser offline recovers after reconnect while explicit offline mode remai
 
   await context.setOffline(true);
   await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
-  await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).click();
+  await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).first().click();
   await expect(page.getByText(/Showing cached data while offline/i)).toBeVisible();
   await expect(page.getByRole("button", { name: /Open folder Projects/i })).toBeVisible();
 

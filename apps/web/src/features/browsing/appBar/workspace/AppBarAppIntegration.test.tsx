@@ -495,15 +495,13 @@ describe("AppBar App integration", () => {
       hasAccounts: true,
       hasSession: true,
       currentPath: "",
-      currentFolderLabel: "Home",
       searchQuery: "",
       explicitOfflineMode: false,
       offline: false,
       cacheOnlyMode: false,
       workerUnavailable: false,
       showRoutineCachedRefresh: false,
-      compactMobileHeader: false,
-      screenWakeLockActive: false
+      compactMobileHeader: false
     });
     const { transferTray: _transferTray, ...appBarFacts } = workspace.common.appBar;
     const serialized = JSON.stringify(appBarFacts);
@@ -603,7 +601,6 @@ describe("AppBar App integration", () => {
     expect(mockedApi.deleteFile).not.toHaveBeenCalled();
     expect(Object.keys(workspace.common.appBar).filter((key) => /delete|webdav|nextcloud/i.test(key))).toEqual([]);
     expect(workspace.common.appBar.install.onInstall).toEqual(expect.any(Function));
-    expect(workspace.common.appBar.screenWakeLockReasonLabel).toBe("");
   });
 
   it("keeps the newest AppBar viewport/query binding current while old callbacks route through current owners", async () => {
@@ -777,8 +774,9 @@ describe("AppBar App integration", () => {
     if (!initial || initial.kind !== "workspace") throw new Error("Expected lifecycle AppBar capture");
     expect(initial.common.appBar.install.available).toBe(false);
     expect(initial.common.appBar.install.busy).toBe(false);
-    expect(initial.common.appBar.screenWakeLockActive).toBe(false);
-    expect(initial.common.appBar.screenWakeLockReasonLabel).toBe("");
+    expect("screenWakeLockActive" in initial.common.appBar).toBe(false);
+    expect("screenWakeLockReasonLabel" in initial.common.appBar).toBe(false);
+    expect(document.querySelector(".wake-lock-status")).toBeNull();
     expect(wakeLock.request).not.toHaveBeenCalled();
     expect(wakeLock.sentinel.release).not.toHaveBeenCalled();
 

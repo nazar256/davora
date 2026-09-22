@@ -369,12 +369,17 @@ describe("wake-lock App integration", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /^Download selected$/i })[0]);
 
     await waitFor(() => expect(wakeLock.request).toHaveBeenCalledWith("screen"));
-    expect(screen.getByRole("status", { name: /Keeping screen awake for downloads/i })).toBeInTheDocument();
+    expect(document.querySelector(".wake-lock-status")).toBeNull();
+
+    fireEvent.click(await screen.findByRole("button", { name: /Profile & settings/i }));
+    const settingsDialog = await screen.findByRole("dialog", { name: /Profile and settings/i });
+    expect(within(settingsDialog).getByText(/Active while media or transfers are running/i)).toBeInTheDocument();
+    fireEvent.click(within(settingsDialog).getByRole("button", { name: /^(Done|Close)$/i }));
 
     download.resolve({ blob: new Blob(["download"]), filename: "roadmap.txt" });
 
     await waitFor(() => expect(wakeLock.sentinel.release).toHaveBeenCalledTimes(1));
-    expect(screen.queryByRole("status", { name: /Keeping screen awake/i })).not.toBeInTheDocument();
+    expect(document.querySelector(".wake-lock-status")).toBeNull();
   });
 
   it("releases the wake lock when session expiry terminates an active download", async () => {
@@ -395,7 +400,7 @@ describe("wake-lock App integration", () => {
 
     await waitFor(() => {
       expect(wakeLock.sentinel.release).toHaveBeenCalledTimes(1);
-      expect(screen.queryByRole("status", { name: /Keeping screen awake/i })).not.toBeInTheDocument();
+      expect(document.querySelector(".wake-lock-status")).toBeNull();
     });
   });
 
@@ -422,7 +427,7 @@ describe("wake-lock App integration", () => {
 
     fireEvent.play(audio);
     await waitFor(() => expect(wakeLock.request).toHaveBeenCalledWith("screen"));
-    expect(screen.getByRole("status", { name: /Keeping screen awake for media playback/i })).toBeInTheDocument();
+    expect(document.querySelector(".wake-lock-status")).toBeNull();
 
     fireEvent.pause(audio);
     await waitFor(() => expect(wakeLock.sentinel.release).toHaveBeenCalledTimes(1));
@@ -452,7 +457,7 @@ describe("wake-lock App integration", () => {
     expect(within(player).queryByRole("button", { name: /Pause folder audio/i })).not.toBeInTheDocument();
     expect(mediaPlayMock).not.toHaveBeenCalled();
     expect(wakeLock.request).not.toHaveBeenCalled();
-    expect(screen.queryByRole("status", { name: /Keeping screen awake for media playback/i })).not.toBeInTheDocument();
+    expect(document.querySelector(".wake-lock-status")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: /Open file chapter.m4a/i }));
     await waitFor(() => expect(mockedApi.createStreamingFileUrl).toHaveBeenCalledTimes(2));

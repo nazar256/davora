@@ -48,6 +48,7 @@ interface BrowsingSurfaceOwners {
   readonly settings: { readonly preferences: Pick<BrowseHeaderStageProps, "fileSizeDisplayMode">; readonly commands: { readonly handleFileSizeDisplayModeChange: BrowseHeaderStageProps["onFileSizeDisplayModeChange"] } };
   readonly status: { readonly message: string };
   readonly pullToRefresh: { readonly fileListRef: Ref<HTMLElement> };
+  readonly viewport: { readonly isNarrowScreen: boolean };
 }
 
 export interface BrowsingSurfaceInput {
@@ -113,7 +114,9 @@ export function projectBrowsingSurfaceBindings(input: BrowsingSurfaceInput): Bro
     fileList: {
       props: {
         ...selection.fileList,
+        breadcrumbs: browse.presentation.breadcrumbs,
         canMarkForBatchDownload: capabilities.canMarkForBatchDownload,
+        currentPath: browse.context.path,
         emptyStatus: browse.presentation.empty.emptyStatus,
         emptyTitle: browse.presentation.empty.emptyTitle,
         fileSizeDisplayMode: settings.preferences.fileSizeDisplayMode,
@@ -126,8 +129,10 @@ export function projectBrowsingSurfaceBindings(input: BrowsingSurfaceInput): Bro
         onDragLeave: operation.upload.drop.onDragLeave,
         onDragOver: operation.upload.drop.onDragOver,
         onDrop: operation.upload.drop.onDrop,
+        onNavigateToPath: navigation.navigateToPath,
         onRetryFolder: () => { void ports.loadFolder(browse.context.path); },
         onRowOpenClick: (item) => item.isFolder ? navigation.navigateToPath(item.path) : ports.openFile(item),
+        showBreadcrumbs: browse.presentation.showBreadcrumbs && input.owners.viewport.isNarrowScreen,
         showClearSearchButton: browse.query.active,
         showEmptyState: browse.presentation.empty.showEmptyState,
         showRetryFolderButton: browse.presentation.empty.listRecoveryAvailable

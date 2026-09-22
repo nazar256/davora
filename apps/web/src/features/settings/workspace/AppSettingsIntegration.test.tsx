@@ -311,7 +311,7 @@ it("shows the current app build label in profile and settings", async () => {
     expect(within(settingsDialog).getByTestId("app-build-label")).toHaveTextContent("1.0.0");
   })
 
-it("shows the active sort direction in the mobile toolbar", async () => {
+it("shows the active sort direction as an icon-only trigger in the mobile toolbar", async () => {
     matchMediaMatches = true;
     const account = buildAccount("alpha", { displayName: "Mobile sort workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
@@ -327,7 +327,8 @@ it("shows the active sort direction in the mobile toolbar", async () => {
 
     await screen.findByRole("button", { name: /Open file alpha.txt/i });
     const sortButton = screen.getByRole("button", { name: /Open sort options\. Current sort: Name A-Z/i });
-    expect(sortButton).toHaveTextContent("A-Z");
+    expect(sortButton.textContent).toBe("");
+    expect(sortButton.querySelector("svg.lucide-arrow-down-a-z")).not.toBeNull();
 
     fireEvent.click(sortButton);
     expect(sortButton).toHaveAttribute("aria-expanded", "true");
@@ -340,7 +341,8 @@ it("shows the active sort direction in the mobile toolbar", async () => {
     fireEvent.click(screen.getByRole("button", { name: "Name Z-A" }));
 
     const selectedSortButton = screen.getByRole("button", { name: /Open sort options\. Current sort: Name Z-A/i });
-    expect(selectedSortButton).toHaveTextContent("Z-A");
+    expect(selectedSortButton.textContent).toBe("");
+    expect(selectedSortButton.querySelector("svg.lucide-arrow-down-z-a")).not.toBeNull();
     expect(selectedSortButton).toHaveAttribute("aria-expanded", "false");
   })
 

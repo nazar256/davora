@@ -53,7 +53,7 @@ test("captures the cached-data notice above the mobile file list", async ({ page
   await expect(page.getByRole("button", { name: /Open file roadmap.txt/i })).toBeVisible();
   await context.setOffline(true);
   await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
-  await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).click();
+  await page.getByRole("button", { name: /Go to home folder|Go up one folder level/i }).first().click();
   await page.getByRole("button", { name: /Open folder Projects/i }).click();
   const notice = page.locator(".state-banner-slot .banner-state");
   await expect(notice).toContainText(/cached data while offline/i);
@@ -74,9 +74,15 @@ test("captures background offline sync progress", async ({ page }, testInfo) => 
         sentinel.dispatchEvent(new Event("release"));
       }
     });
+    Object.defineProperty(window, "__wakeLockRequests", { configurable: true, writable: true, value: 0 });
     Object.defineProperty(navigator, "wakeLock", {
       configurable: true,
-      value: { request: async () => sentinel }
+      value: {
+        request: async () => {
+          (window as unknown as { __wakeLockRequests: number }).__wakeLockRequests += 1;
+          return sentinel;
+        }
+      }
     });
   });
   let releaseDownload: ((body: string) => void) | undefined;
@@ -101,12 +107,19 @@ test("captures background offline sync progress", async ({ page }, testInfo) => 
   const transferStatus = page.getByRole("dialog", { name: /Transfer status/i });
   await expect(transferStatus.getByText("roadmap.txt")).toBeVisible();
   await expect(transferStatus.getByText(/Offline sync/i)).toBeVisible();
-  await expect(page.getByRole("status", { name: /Keeping screen awake for offline sync/i })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __wakeLockRequests: number }).__wakeLockRequests)).toBeGreaterThan(0);
+  await expect(page.locator(".wake-lock-status")).toHaveCount(0);
   await saveScreenshot(page, "davora-offline-sync-background.png");
+
+  await page.getByRole("button", { name: /Profile & settings/i }).click();
+  const settingsDialog = page.getByRole("dialog", { name: /Profile and settings/i });
+  await expect(settingsDialog.getByText(/Active while media or transfers are running/i)).toBeVisible();
   await saveScreenshot(page, "davora-screen-wake-lock.png");
+  await settingsDialog.getByRole("button", { name: /^Close$/i }).click();
+  await expect(settingsDialog).toBeHidden();
 
   releaseDownload?.("offline roadmap");
-  await expect(page.getByRole("status", { name: /Keeping screen awake/i })).toBeHidden();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __wakeLockRequests: number }).__wakeLockRequests)).toBeGreaterThan(0);
 });
 
 test("captures recursive offline sync retry preserving folder scope", async ({ page }, testInfo) => {

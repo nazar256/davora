@@ -505,12 +505,12 @@ describe("AppBrowsingSurfaceIntegration", () => {
       "selectionSummaryLabel", "showBreadcrumbs", "sortMode", "sortReset", "staleFolder", "status"
     ].sort());
     expect(Object.keys(fileList.props).sort()).toEqual([
-      "batchModeActive", "canDeselectAll", "canMarkForBatchDownload", "canSelectAll", "clearRowOpenSuppression", "emptyStatus", "emptyTitle", "fileSizeDisplayMode",
+      "batchModeActive", "breadcrumbs", "canDeselectAll", "canMarkForBatchDownload", "canSelectAll", "clearRowOpenSuppression", "currentPath", "emptyStatus", "emptyTitle", "fileSizeDisplayMode",
       "folderDropActive", "getItemSubtitle", "getRowOpenSuppressed", "isItemAvailableOffline", "isItemBatchSelected",
       "isItemSelected", "items", "onClearSearch", "onDragEnter", "onDragLeave", "onDragOver", "onDrop",
-      "onRetryFolder", "onRowOpenClick", "onRowPointerCancel", "onRowPointerDown", "onRowPointerLeave",
+      "onNavigateToPath", "onRetryFolder", "onRowOpenClick", "onRowPointerCancel", "onRowPointerDown", "onRowPointerLeave",
       "onRowPointerUp", "onToggleBatchSelection", "onToggleEntrySelection", "onToggleSelectAll", "selectAllState", "selectionModeActive",
-      "showClearSearchButton", "showEmptyState", "showRetryFolderButton", "suppressNarrowScreenContextMenu"
+      "showBreadcrumbs", "showClearSearchButton", "showEmptyState", "showRetryFolderButton", "suppressNarrowScreenContextMenu"
     ].sort());
     expect(browseHeader).toMatchObject({
       currentFolderLabel: "Home",
