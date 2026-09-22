@@ -244,6 +244,12 @@ test("mobile pull-to-refresh requests only the current folder", async ({ page },
     element.scrollTop = 0;
     element.dispatchEvent(new Event("scroll", { bubbles: true }));
   });
+  await expect
+    .poll(() => page.evaluate(() => getComputedStyle(document.documentElement).overscrollBehaviorY))
+    .toBe("none");
+  await expect
+    .poll(() => panel.evaluate((element) => getComputedStyle(element).overscrollBehaviorY))
+    .toBe("contain");
   const workspace = page.locator(".workspace-layout");
   await workspace.dispatchEvent("touchstart", { touches: [{ identifier: 4, clientX: 180, clientY: 0 }] });
   await workspace.dispatchEvent("touchmove", { touches: [{ identifier: 4, clientX: 180, clientY: 140 }] });
