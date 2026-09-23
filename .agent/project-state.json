@@ -987,14 +987,14 @@
     "git": true,
     "defaultBranch": "main",
     "currentStableCommit": {
-      "short": "4674704",
-      "full": "467470432c56ae10966e5dcbb1ec33c5e89f9359",
-      "summary": "feat: complete Davora Linear backlog"
+      "short": "4651756",
+      "full": "4651756a546d34208fb2155a45ecf287a33e87e7",
+      "summary": "fix: improve offline sync, previews, and wide-screen layout"
     },
     "lastDeployHead": {
-      "short": "4674704",
-      "full": "467470432c56ae10966e5dcbb1ec33c5e89f9359",
-      "summary": "feat: complete Davora Linear backlog"
+      "short": "4651756",
+      "full": "4651756a546d34208fb2155a45ecf287a33e87e7",
+      "summary": "fix: improve offline sync, previews, and wide-screen layout"
     },
     "lastDirtyDeploy": {
       "date": "2026-07-17",
@@ -1006,6 +1006,18 @@
       "canonicalPagesUrl": "https://davora.pages.dev",
       "commitCreated": false,
       "reason": "linear_per65_video_navigation_reviewed_deployed_evidenced_done_user_requested_pause_before_next_ticket"
+    },
+    "latestProductionRelease": {
+      "date": "2026-09-23",
+      "commit": "4651756a546d34208fb2155a45ecf287a33e87e7",
+      "summary": "fix: improve offline sync, previews, and wide-screen layout",
+      "workerVersionId": "eb31ffd3-7466-4e3d-89d8-fdade176956d",
+      "workerOrigin": "https://api.example.invalid",
+      "pagesProductionDeploymentId": "2219abea",
+      "canonicalWebUrl": "https://davora.pages.dev",
+      "productionBundle": "assets/index-D_j9myGO.js",
+      "validation": "check_fast_pass__playwright_239_pass_131_skipped__dev_pwa_1_pass_1_mobile_skipped",
+      "productionVerification": "worker_health_configLoaded_true_backend_nextcloud_unlockRequired_false__unauthenticated_files_401__canonical_and_versioned_pages_200__manifest_and_service_worker_200__early_sync_and_heic_bundle_markers_present__preview_image_css_marker_present"
     },
     "workspace": [
       "apps/web",
