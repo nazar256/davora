@@ -7,12 +7,17 @@ import type { BatchArchiveInput, BatchSelectionCapture } from "../../operations/
 import type { TransferTask } from "../../transfers";
 import type { OfflineSyncDialogSnapshot } from "./dialogModel";
 import { snapshotOfflineSyncEntry } from "./dialogModel";
-import type { OfflineSyncArchiveInput } from "./model";
+import type { OfflineSyncArchiveInput, OfflineSyncPlan } from "./model";
 import {
   runOfflineSyncConfirmOrchestration,
   runOfflineSyncOpenOrchestration
 } from "./orchestration";
-import type { OfflineSyncEstimateAbortHandle, OfflineSyncPorts } from "./orchestrationPorts";
+import type {
+  OfflineSyncEstimateAbortHandle,
+  OfflineSyncEstimateExecution,
+  OfflineSyncPendingEstimate,
+  OfflineSyncPorts
+} from "./orchestrationPorts";
 import { toOfflineSyncRetryTask } from "./orchestrationPorts";
 import {
   buildOfflineSyncBlockedMessage,
@@ -44,6 +49,13 @@ export interface UseOfflineSyncInput {
   ports: OfflineSyncPorts;
 }
 
+interface PendingEstimateCell {
+  readonly attempt: number;
+  readonly abort: OfflineSyncEstimateAbortHandle;
+  adopted: boolean;
+  promise?: Promise<OfflineSyncPlan>;
+}
+
 function toEntrySnapshots(entries: readonly FileEntry[]) {
   return entries.map((entry) => snapshotOfflineSyncEntry({
     path: entry.path,
@@ -61,12 +73,15 @@ export function useOfflineSync(input: UseOfflineSyncInput) {
   const [busy, setBusyState] = useState(false);
   const aliveRef = useRef(true);
   const attemptRef = useRef(0);
-  const estimateAbortRef = useRef<OfflineSyncEstimateAbortHandle | undefined>();
+  const estimateRef = useRef<PendingEstimateCell | undefined>();
   const confirmInFlightRef = useRef<number | undefined>();
 
   const invalidate = useCallback(() => {
-    estimateAbortRef.current?.abort();
-    estimateAbortRef.current = undefined;
+    const estimate = estimateRef.current;
+    estimateRef.current = undefined;
+    if (estimate && !estimate.adopted) {
+      estimate.abort.abort();
+    }
     attemptRef.current += 1;
     confirmInFlightRef.current = undefined;
     setDialogState(undefined);
@@ -89,8 +104,11 @@ export function useOfflineSync(input: UseOfflineSyncInput) {
     aliveRef.current = true;
     return () => {
       aliveRef.current = false;
-      estimateAbortRef.current?.abort();
-      estimateAbortRef.current = undefined;
+      const estimate = estimateRef.current;
+      estimateRef.current = undefined;
+      if (estimate && !estimate.adopted) {
+        estimate.abort.abort();
+      }
       attemptRef.current += 1;
       confirmInFlightRef.current = undefined;
     };
@@ -153,21 +171,35 @@ export function useOfflineSync(input: UseOfflineSyncInput) {
     const capturedContext = current.getOperationContextToken();
     const resolvedArchiveInput = current.resolveArchiveInput(selectedEntries, archiveInput);
 
-    estimateAbortRef.current?.abort();
+    const previousEstimate = estimateRef.current;
+    estimateRef.current = undefined;
+    if (previousEstimate && !previousEstimate.adopted) {
+      previousEstimate.abort.abort();
+    }
     const attempt = ++attemptRef.current;
     const estimateAbort = current.ports.createAbortHandle();
-    estimateAbortRef.current = estimateAbort;
+    const estimate: PendingEstimateCell = { attempt, abort: estimateAbort, adopted: false };
+    estimateRef.current = estimate;
     confirmInFlightRef.current = undefined;
     const estimateExecution = {
       signal: estimateAbort.signal,
-      checkStillOwned: () => aliveRef.current
-        && attemptRef.current === attempt
-        && !estimateAbort.signal.aborted
-        && current.isCurrentOperationHandler()
-        && current.isCurrentOperationContext(capturedContext)
+      checkStillOwned: () => estimate.adopted
+        ? aliveRef.current && !estimateAbort.signal.aborted
+        : aliveRef.current
+          && attemptRef.current === attempt
+          && !estimateAbort.signal.aborted
+          && current.isCurrentOperationHandler()
+          && current.isCurrentOperationContext(capturedContext)
     };
     const orchestrationPorts = {
       ...current.ports.open,
+      plan: {
+        buildEstimatePlan: (archiveInput: OfflineSyncArchiveInput, execution: OfflineSyncEstimateExecution) => {
+          const promise = current.ports.open.plan.buildEstimatePlan(archiveInput, execution);
+          estimate.promise = promise;
+          return promise;
+        }
+      },
       presentation: {
         ...current.ports.open.presentation,
         setDialog: (next: OfflineSyncDialogSnapshot | undefined) => setAttemptDialog(attempt, capturedContext, next),
@@ -206,6 +238,14 @@ export function useOfflineSync(input: UseOfflineSyncInput) {
       return;
     }
     confirmInFlightRef.current = attempt;
+    const pendingCell = estimateRef.current;
+    const pendingEstimate: OfflineSyncPendingEstimate | undefined = pendingCell?.attempt === attempt && pendingCell.promise
+      ? {
+          promise: pendingCell.promise,
+          adopt: () => { pendingCell.adopted = true; },
+          abort: () => pendingCell.abort.abort()
+        }
+      : undefined;
     const orchestrationPorts = {
       ...current.ports.confirm,
       presentation: {
@@ -231,7 +271,8 @@ export function useOfflineSync(input: UseOfflineSyncInput) {
         currentContext: current.getCurrentOperationContextToken(),
         accountId,
         accountName: current.getAccountName(),
-        cacheNamespace: current.getCacheNamespace()!
+        cacheNamespace: current.getCacheNamespace()!,
+        ...(pendingEstimate === undefined ? {} : { pendingEstimate })
       }, orchestrationPorts);
     } finally {
       if (confirmInFlightRef.current === attempt) {

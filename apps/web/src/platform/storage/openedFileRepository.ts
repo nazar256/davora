@@ -100,11 +100,25 @@ interface LegacyEntry {
   readonly keepOfflineAddedAt?: string;
 }
 
+export interface OpenedFilePreviewWrite {
+  readonly file: RetainedFileShape;
+  readonly blob?: Blob;
+  /**
+   * Original-bytes variant stored instead of `file`/`blob` when the record
+   * still belongs to a retained root, so a preview refresh can never replace
+   * a kept-offline file's true bytes with derived preview material.
+   */
+  readonly retainedOriginal?: {
+    readonly file: RetainedFileShape;
+    readonly blob: Blob;
+  };
+}
+
 export interface OpenedFileRepository {
   readonly defaultCacheLimitBytes?: number;
   readSnapshot(account: RetentionAccountShape): Promise<RetentionResultShape<RetentionSnapshotShape>>;
   readPreview(account: RetentionAccountShape, path: string): Promise<RetentionResultShape<{ readonly file: RetainedFileShape; readonly blob?: Blob } | undefined>>;
-  writePreview(account: RetentionAccountShape, input: { readonly file: RetainedFileShape; readonly blob?: Blob }): Promise<RetentionResultShape<RetentionSnapshotShape>>;
+  writePreview(account: RetentionAccountShape, input: OpenedFilePreviewWrite): Promise<RetentionResultShape<RetentionSnapshotShape>>;
   beginRoot(account: RetentionAccountShape, root: RetainedRootInputShape): Promise<RetentionResultShape<RetentionSnapshotShape>>;
   persistRetainedFile(account: RetentionAccountShape, input: { readonly rootId: string; readonly file: RetainedFileShape; readonly blob?: Blob }): Promise<RetentionResultShape<RetentionSnapshotShape>>;
   completeRoot(account: RetentionAccountShape, rootId: string): Promise<RetentionResultShape<RetentionSnapshotShape>>;
@@ -538,12 +552,17 @@ export function createOpenedFileRepository(): OpenedFileRepository {
     async writePreview(account, input) {
       try {
         const index = await load(account.cacheNamespace);
-        const file = writeFile(index, input.file, input.blob, "owned");
-        if (input.blob === undefined && membershipCount(index, file.path) === 0) {
+        const path = validPath(input.file.path);
+        const original = input.retainedOriginal;
+        const selected = original !== undefined && path !== undefined && validPath(original.file.path) === path && membershipCount(index, path) > 0
+          ? { file: original.file, blob: original.blob as Blob | undefined }
+          : { file: input.file, blob: input.blob };
+        const file = writeFile(index, selected.file, selected.blob, "owned");
+        if (selected.blob === undefined && membershipCount(index, file.path) === 0) {
           file.blobSize = 0;
           await deleteCanonicalBlob(account.cacheNamespace, file.path);
         } else {
-          await writeBlob(account.cacheNamespace, file.path, input.blob);
+          await writeBlob(account.cacheNamespace, file.path, selected.blob);
         }
         return { kind: "success", value: await save(account, index) };
       } catch (error) { return failure(error); }

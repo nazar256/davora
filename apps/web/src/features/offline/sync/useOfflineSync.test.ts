@@ -9,7 +9,10 @@ import { createEstimatingOfflineSyncDialog } from "./dialogModel";
 import type { OfflineSyncActionResult } from "./ports";
 import type { OfflineSyncPlan } from "./model";
 import type { OfflineSyncConfirmOrchestrationPorts, OfflineSyncOpenOrchestrationPorts, OfflineSyncPorts } from "./orchestrationPorts";
-import { OFFLINE_SYNC_NO_SESSION_MESSAGE } from "./presentation";
+import {
+  OFFLINE_SYNC_CONTEXT_CHANGED_MESSAGE,
+  OFFLINE_SYNC_NO_SESSION_MESSAGE
+} from "./presentation";
 import { useOfflineSync, type UseOfflineSyncInput } from "./useOfflineSync";
 
 function entry(path: string, isFolder = false): FileEntry {
@@ -434,5 +437,98 @@ describe("useOfflineSync", () => {
     await act(async () => { await second.result.current.confirm(); });
     expect(noOwnership.confirm.transfers.enqueue).not.toHaveBeenCalled();
     second.unmount();
+  });
+
+  it("adopts the in-flight estimate when confirming during estimating", async () => {
+    const ports = createPorts();
+    let resolveEstimate!: (plan: OfflineSyncPlan) => void;
+    ports.open.plan.buildEstimatePlan = vi.fn(() => new Promise<OfflineSyncPlan>((resolve) => { resolveEstimate = resolve; }));
+    ports.confirm.download.fetchDownloadBlob = vi.fn(async () => ({ blob: new Blob(["x"]), filename: "a.txt" }));
+    const context = createOperationContextToken();
+    const { result } = renderHook(() => useOfflineSync(createInput(ports, context)));
+
+    await act(async () => { void result.current.open([entry("Docs", true)]); });
+    expect(result.current.dialog?.phase).toBe("estimating");
+
+    await act(async () => { void result.current.confirm(); });
+    expect(ports.confirm.transfers.enqueue).toHaveBeenCalledOnce();
+    expect(result.current.dialog).toBeUndefined();
+    expect(ports.confirm.plan.resolvePlan).not.toHaveBeenCalled();
+
+    resolveEstimate({ files: [{ sourcePath: "Docs/a.txt", size: 4 }], totalBytes: 4 });
+    await waitFor(() => expect(ports.confirm.retention.persistRetainedFile).toHaveBeenCalled());
+    expect(vi.mocked(ports.confirm.retention.persistRetainedFile).mock.calls[0]?.[1]).toMatchObject({ sourcePath: "Docs/a.txt" });
+    expect(ports.confirm.plan.resolvePlan).not.toHaveBeenCalled();
+  });
+
+  it("keeps the adopted estimate alive across dialog invalidation while the sync stays owned", async () => {
+    const ports = createPorts();
+    let resolveEstimate!: (plan: OfflineSyncPlan) => void;
+    ports.open.plan.buildEstimatePlan = vi.fn(() => new Promise<OfflineSyncPlan>((resolve) => { resolveEstimate = resolve; }));
+    ports.confirm.download.fetchDownloadBlob = vi.fn(async () => ({ blob: new Blob(["x"]), filename: "a.txt" }));
+    const context = createOperationContextToken();
+    let lifecycleKey = "path:one";
+    const { result, rerender } = renderHook(() => useOfflineSync(createInput(ports, context, { lifecycleKey })));
+
+    await act(async () => { void result.current.open([entry("Docs", true)]); });
+    const execution = vi.mocked(ports.open.plan.buildEstimatePlan).mock.calls[0]?.[1];
+
+    await act(async () => { void result.current.confirm(); });
+    lifecycleKey = "path:two";
+    rerender();
+
+    expect(execution?.signal.aborted).toBe(false);
+    resolveEstimate({ files: [{ sourcePath: "Docs/a.txt" }], totalBytes: 1 });
+    await waitFor(() => expect(ports.confirm.retention.persistRetainedFile).toHaveBeenCalled());
+  });
+
+  it("falls back to resolving the plan when the pending estimate fails", async () => {
+    const ports = createPorts();
+    let rejectEstimate!: (error: Error) => void;
+    ports.open.plan.buildEstimatePlan = vi.fn(() => new Promise<OfflineSyncPlan>((_resolve, reject) => { rejectEstimate = reject; }));
+    ports.confirm.plan.resolvePlan = vi.fn(async () => ({
+      kind: "success" as const,
+      value: { files: [{ sourcePath: "Docs/fallback.txt" }], totalBytes: 1 }
+    }));
+    ports.confirm.download.fetchDownloadBlob = vi.fn(async () => ({ blob: new Blob(["x"]), filename: "fallback.txt" }));
+    const context = createOperationContextToken();
+    const { result } = renderHook(() => useOfflineSync(createInput(ports, context)));
+
+    await act(async () => { void result.current.open([entry("Docs", true)]); });
+    await act(async () => { void result.current.confirm(); });
+    expect(ports.confirm.transfers.enqueue).toHaveBeenCalledOnce();
+
+    rejectEstimate(new Error("estimate failed"));
+    await waitFor(() => expect(ports.confirm.plan.resolvePlan).toHaveBeenCalled());
+    await waitFor(() => expect(ports.confirm.retention.persistRetainedFile).toHaveBeenCalled());
+    expect(vi.mocked(ports.confirm.retention.persistRetainedFile).mock.calls[0]?.[1]).toMatchObject({ sourcePath: "Docs/fallback.txt" });
+  });
+
+  it("aborts the adopted estimate when the sync scope aborts and fails the transfer", async () => {
+    const ports = createPorts();
+    const scopeController = new AbortController();
+    ports.confirm.registry.acquire = vi.fn(() => ({
+      signal: scopeController.signal,
+      isRegistered: () => true,
+      isOwned: () => !scopeController.signal.aborted,
+      release: vi.fn()
+    }));
+    ports.open.plan.buildEstimatePlan = vi.fn<OfflineSyncOpenOrchestrationPorts["plan"]["buildEstimatePlan"]>(
+      (_input, execution) => new Promise<OfflineSyncPlan>((_resolve, reject) => {
+        execution.signal.addEventListener("abort", () => reject(new Error("estimate aborted")));
+      })
+    );
+    const context = createOperationContextToken();
+    const { result } = renderHook(() => useOfflineSync(createInput(ports, context)));
+
+    await act(async () => { void result.current.open([entry("Docs", true)]); });
+    const execution = vi.mocked(ports.open.plan.buildEstimatePlan).mock.calls[0]?.[1];
+    await act(async () => { void result.current.confirm(); });
+    expect(ports.confirm.transfers.enqueue).toHaveBeenCalledOnce();
+
+    act(() => { scopeController.abort(); });
+    expect(execution?.signal.aborted).toBe(true);
+    await waitFor(() => expect(ports.confirm.transfers.fail).toHaveBeenCalledWith("transfer-1", OFFLINE_SYNC_CONTEXT_CHANGED_MESSAGE));
+    expect(ports.confirm.download.fetchDownloadBlob).not.toHaveBeenCalled();
   });
 });

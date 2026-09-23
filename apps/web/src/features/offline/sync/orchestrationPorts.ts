@@ -68,6 +68,17 @@ export interface OfflineSyncEstimateAbortHandle {
   abort(): void;
 }
 
+/**
+ * An estimate enumeration that is still in flight when the sync is confirmed.
+ * `adopt` transfers ownership from the dialog attempt to the sync scope so
+ * dialog invalidation no longer aborts it; `abort` terminates it.
+ */
+export interface OfflineSyncPendingEstimate {
+  readonly promise: Promise<OfflineSyncPlan>;
+  adopt(): void;
+  abort(): void;
+}
+
 export interface OfflineSyncPlanPort extends OfflineSyncEstimatePlanPort {
   resolvePlan(
     archiveInput: OfflineSyncArchiveInput,

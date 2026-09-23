@@ -3,7 +3,9 @@ import type { FilePreview, FileResponse } from "@davora/shared";
 import {
   HEIC_PREVIEW_MAX_SOURCE_BYTES,
   decodeHeicPreview,
-  isHeicLikeFile
+  isHeicFileName,
+  isHeicLikeFile,
+  isHeicMimeType
 } from "../../lib/heicPreview";
 import { createStreamingFileUrl, fetchOriginalFile, getFile } from "../../lib/api";
 
@@ -42,9 +44,21 @@ export interface BrowserPreviewSnapshot {
   readonly unsupported: "none" | "heic-fallback";
 }
 
+/** True original bytes when the preview material is derived (e.g. decoded HEIC). */
+export interface BrowserPreviewOriginalBlob {
+  readonly blob: Blob;
+  readonly mimeType: string;
+  readonly filename: string;
+}
+
 export interface BrowserPreviewCacheMetadata {
   readonly mimeType: string;
   readonly filename: string;
+  /**
+   * The fetched original bytes for derived materials. Cache writes persist
+   * these instead of the preview material when the record is kept offline.
+   */
+  readonly original?: BrowserPreviewOriginalBlob;
 }
 
 export interface BrowserPreviewAcquisition {
@@ -257,6 +271,13 @@ export class BrowserPreviewLiveAdapter {
       return this.acquisition(preview, "inline", input);
     }
     if (blob) {
+      // A record mimeType is the stored blob's own type: explicit keep-offline
+      // persists the raw original, so a HEIC blob still needs local decoding.
+      // The filename fallback covers retained records whose download blob was
+      // stored with a generic application/octet-stream type.
+      if ((isHeicMimeType(input.mimeType) || isHeicFileName(input.filename)) && key.heicPreviewEnabled) {
+        return this.materializeCachedHeic(preview, input, blob, abort);
+      }
       return this.acquisition(preview, "blob", input, this.options.materials.blob(blob));
     }
     if ((preview.viewer !== "audio" && preview.viewer !== "video") || key.connectionMode !== "online") {
@@ -344,7 +365,15 @@ export class BrowserPreviewLiveAdapter {
       return this.acquisition(
         preview,
         "blob",
-        { mimeType: decoded.mimeType, filename: `${filename}.jpg` },
+        {
+          mimeType: decoded.mimeType,
+          filename: `${filename}.jpg`,
+          // Kept-offline records must hold the true original bytes, so the
+          // fetched source rides along to the cache write. A canonical HEIC
+          // mime keeps reads on the decode path even when the download was
+          // labeled with a generic type.
+          original: { blob: original.blob, mimeType: isHeicMimeType(mimeType) ? mimeType : "image/heic", filename }
+        },
         this.options.materials.blob(decoded.blob)
       );
     } catch (error) {
@@ -354,6 +383,40 @@ export class BrowserPreviewLiveAdapter {
         ? `HEIC preview could not be decoded locally: ${error.message}`
         : "HEIC preview could not be decoded locally. You can still open or download the original file.");
       return this.acquisition(preview, "inline", { mimeType: original.mimeType || mimeType, filename }, undefined, "heic-fallback");
+    }
+  }
+
+  private async materializeCachedHeic(preview: FilePreview, input: BrowserCachedPreviewInput, blob: Blob, abort: BrowserPreviewAbortHandle): Promise<BrowserPreviewAcquisition> {
+    const { mimeType, filename } = input;
+    if (blob.size > HEIC_PREVIEW_MAX_SOURCE_BYTES) {
+      const fallback = unsupportedHeicPreview(preview, `HEIC preview is limited to files up to ${Math.round(HEIC_PREVIEW_MAX_SOURCE_BYTES / (1024 * 1024))} MB.`);
+      return this.acquisition(fallback, "inline", { mimeType, filename }, undefined, "heic-fallback");
+    }
+    try {
+      const decoded = await this.decode(blob);
+      const decodedPreview: FilePreview = {
+        ...preview,
+        viewer: "image",
+        content: "",
+        encoding: "none",
+        truncated: false,
+        bytesRead: 0,
+        requiresOriginalBlob: true,
+        unsupportedReason: undefined
+      };
+      return this.acquisition(
+        decodedPreview,
+        "blob",
+        { mimeType: decoded.mimeType, filename: `${filename}.jpg` },
+        this.options.materials.blob(decoded.blob)
+      );
+    } catch (error) {
+      if (isAbortError(error)) throw error;
+      if (signalFor(abort).aborted) throw new DOMException("Aborted", "AbortError");
+      const reason = error instanceof Error
+        ? `HEIC preview could not be decoded locally: ${error.message}`
+        : "HEIC preview could not be decoded locally. You can still open or download the original file.";
+      return this.acquisition(unsupportedHeicPreview(preview, reason), "inline", { mimeType, filename }, undefined, "heic-fallback");
     }
   }
 

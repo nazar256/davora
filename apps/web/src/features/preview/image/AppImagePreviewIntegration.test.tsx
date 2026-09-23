@@ -13,7 +13,7 @@ import { createMemoryFolderSortService } from "../../browsing/folderSort/testing
 import { DEFAULT_UI_SETTINGS, normalizeUiSettings } from "../../settings";
 import type { ConnectivityPort } from "../../offline/connectivity";
 import type { ExplicitOfflineModeRuntimePort } from "../../offline/mode";
-import type { RetainedFile, RetainedRoot, RetainedSnapshot, RetentionAccount, RetentionRepository, RetentionResult } from "../../offline/retention";
+import { retainedRootId, type RetainedFile, type RetainedRoot, type RetainedSnapshot, type RetentionAccount, type RetentionRepository, type RetentionResult } from "../../offline/retention";
 import type { OperationRuntimePort } from "../../operations/workspace";
 import { WIDE_RESPONSIVE_VIEWPORT_SNAPSHOT, type ResponsiveViewportPort } from "../../navigation/viewport";
 import * as heicPreview from "../../../lib/heicPreview";
@@ -79,10 +79,12 @@ const retentionFixture = (() => {
       const store = storeFor(account); const normalized = normalizePath(path); const file = store.files.get(normalized);
       return success(file ? { file: { ...file, readable: file.readable || store.blobs.has(normalized) }, blob: store.blobs.get(normalized) } : undefined);
     }),
-    writePreview: vi.fn(async (account, input) => {
+    writePreview: vi.fn<RetentionRepository["writePreview"]>(async (account, input) => {
       const store = storeFor(account); const path = normalizePath(input.file.path);
-      store.files.set(path, { ...input.file, path, normalCacheOwnership: "owned", readable: Boolean(input.file.readable) || Boolean(input.blob), blobSize: input.blob?.size ?? input.file.blobSize });
-      if (input.blob) store.blobs.set(path, input.blob);
+      const retained = input.retainedOriginal !== undefined && normalizePath(input.retainedOriginal.file.path) === path && (store.memberships.get(path)?.size ?? 0) > 0 ? input.retainedOriginal : undefined;
+      const file = retained?.file ?? input.file; const blob = retained?.blob ?? input.blob;
+      store.files.set(path, { ...file, path, normalCacheOwnership: "owned", readable: Boolean(file.readable) || Boolean(blob), blobSize: blob?.size ?? file.blobSize });
+      if (blob) store.blobs.set(path, blob);
       return success(snapshotFor(account));
     }),
     beginRoot: vi.fn(async (account, root) => { const store = storeFor(account); store.roots.set(`${root.kind}:${root.rootPath}`, { ...root, id: `${root.kind}:${root.rootPath}` }); return success(snapshotFor(account)); }),
@@ -421,6 +423,108 @@ describe("image preview App integration", () => {
     expect(within(previewDialog).queryByAltText("photo.heic")).not.toBeInTheDocument();
     expect(mockedApi.fetchOriginalFile).not.toHaveBeenCalled();
     expect(mockedHeicPreview.decodeHeicPreview).not.toHaveBeenCalled();
+  });
+
+  it("decodes a HEIC image that was explicitly saved for offline use", async () => {
+    localStorage.setItem("davora-ui-settings", JSON.stringify({ experimentalHeicPreviewEnabled: true }));
+    const account = buildAccount("alpha", { displayName: "Offline HEIC workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    const heicBlob = new Blob(["heic"], { type: "image/heic" });
+    const jpegBlob = new Blob(["jpeg"], { type: "image/jpeg" });
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [{ path: "Archive/photo.heic", name: "photo.heic", isFolder: false, size: 12, mimeType: "image/heic" }]
+    });
+    // Mirror persistRetainedFile: the retained record keeps the raw original
+    // blob with the download's own MIME type, outside normal cache ownership.
+    const retainedPreview = {
+      ...textPreview,
+      path: "Archive/photo.heic",
+      name: "photo.heic",
+      mimeType: "image/heic",
+      viewer: "image" as const,
+      content: "",
+      encoding: "none" as const,
+      bytesRead: 0,
+      size: heicBlob.size,
+      requiresOriginalBlob: true
+    };
+    const rootId = retainedRootId({ kind: "file", rootPath: "Archive/photo.heic" });
+    retentionFixture.seed(retentionAccountFor(account), {
+      normalCache: { itemCount: 0, totalBytes: 0, limitBytes: 24 * 1024 * 1024 },
+      roots: [{ id: rootId, rootPath: "Archive/photo.heic", rootName: "photo.heic", kind: "file", folderRoots: [], status: "complete", addedAt: "2026-05-21T10:00:00.000Z" }],
+      files: [retainedFileFixture("Archive/photo.heic", { preview: retainedPreview, mimeType: "image/heic", size: heicBlob.size, blobSize: heicBlob.size, normalCacheOwnership: "none", cachedAt: new Date().toISOString(), lastAccessedAt: new Date().toISOString() })],
+      memberships: [{ rootId, filePath: "Archive/photo.heic" }]
+    }, { "Archive/photo.heic": heicBlob });
+    mockedHeicPreview.decodeHeicPreview.mockResolvedValue({ blob: jpegBlob, width: 1200, height: 900, mimeType: "image/jpeg" });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Open file photo.heic/i }));
+
+    const previewDialog = await screen.findByRole("dialog", { name: /Preview photo.heic/i });
+    const image = await within(previewDialog).findByAltText("photo.heic");
+    expect(image).toHaveAttribute("src", "blob:preview");
+    expect(mockedHeicPreview.decodeHeicPreview).toHaveBeenCalledWith(heicBlob);
+    expect(within(previewDialog).queryByText(/Image preview is unavailable/i)).not.toBeInTheDocument();
+    expect(mockedApi.getFile).not.toHaveBeenCalled();
+    expect(mockedApi.fetchOriginalFile).not.toHaveBeenCalled();
+  });
+
+  it("keeps the retained original blob when a stale offline HEIC preview refreshes", async () => {
+    localStorage.setItem("davora-ui-settings", JSON.stringify({ experimentalHeicPreviewEnabled: true }));
+    const account = buildAccount("alpha", { displayName: "Offline HEIC refresh workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    const staleHeic = new Blob(["stale-heic"], { type: "image/heic" });
+    const freshHeic = new Blob(["fresh-heic"], { type: "image/heic" });
+    const staleJpeg = new Blob(["stale-jpeg"], { type: "image/jpeg" });
+    const freshJpeg = new Blob(["fresh-jpeg"], { type: "image/jpeg" });
+    mockedApi.listFiles.mockResolvedValue({
+      path: "",
+      items: [{ path: "Archive/photo.heic", name: "photo.heic", isFolder: false, size: freshHeic.size, mimeType: "image/heic" }]
+    });
+    const stalePreview = {
+      ...textPreview,
+      path: "Archive/photo.heic",
+      name: "photo.heic",
+      mimeType: "image/heic",
+      viewer: "image" as const,
+      content: "",
+      encoding: "none" as const,
+      bytesRead: 0,
+      size: staleHeic.size,
+      requiresOriginalBlob: true
+    };
+    const rootId = retainedRootId({ kind: "file", rootPath: "Archive/photo.heic" });
+    retentionFixture.seed(retentionAccountFor(account), {
+      normalCache: { itemCount: 0, totalBytes: 0, limitBytes: 24 * 1024 * 1024 },
+      roots: [{ id: rootId, rootPath: "Archive/photo.heic", rootName: "photo.heic", kind: "file", folderRoots: [], status: "complete", addedAt: "2026-05-21T10:00:00.000Z" }],
+      files: [retainedFileFixture("Archive/photo.heic", { preview: stalePreview, mimeType: "image/heic", size: staleHeic.size, blobSize: staleHeic.size, normalCacheOwnership: "none", cachedAt: "2026-05-21T10:00:00.000Z", lastAccessedAt: "2026-05-21T10:00:00.000Z" })],
+      memberships: [{ rootId, filePath: "Archive/photo.heic" }]
+    }, { "Archive/photo.heic": staleHeic });
+    mockedApi.getFile.mockResolvedValue({ file: { ...stalePreview, size: freshHeic.size } });
+    mockedApi.fetchOriginalFile.mockResolvedValue({ blob: freshHeic, mimeType: "image/heic", filename: "photo.heic" });
+    mockedHeicPreview.decodeHeicPreview.mockImplementation(async (blob: Blob) => ({ blob: blob === staleHeic ? staleJpeg : freshJpeg, width: 1200, height: 900, mimeType: "image/jpeg" }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Open file photo.heic/i }));
+
+    const previewDialog = await screen.findByRole("dialog", { name: /Preview photo.heic/i });
+    await within(previewDialog).findByAltText("photo.heic");
+    // The stale record refreshes live: fresh original fetched and decoded.
+    await waitFor(() => expect(mockedApi.fetchOriginalFile).toHaveBeenCalledWith("Archive/photo.heic", "token-alpha", expect.any(AbortSignal)));
+    await waitFor(async () => {
+      const stored = await mockedRetentionRepository.readPreview(retentionAccountFor(account), "Archive/photo.heic");
+      expect(stored.kind === "success" ? stored.value?.blob : undefined).toBe(freshHeic);
+    });
+    const stored = await mockedRetentionRepository.readPreview(retentionAccountFor(account), "Archive/photo.heic");
+    if (stored.kind === "failure" || !stored.value) throw new Error("Expected the retained record to stay readable.");
+    // The refresh wrote fresh original bytes — not the derived JPEG material.
+    expect(stored.value.blob).toBe(freshHeic);
+    expect(stored.value.blob).not.toBe(freshJpeg);
+    expect(stored.value.file).toMatchObject({ name: "photo.heic", mimeType: "image/heic", blobSize: freshHeic.size });
+    expect(stored.value.file.preview).toMatchObject({ size: freshHeic.size });
   });
 
   it("falls back cleanly when experimental HEIC decode fails a guard or decoder error", async () => {

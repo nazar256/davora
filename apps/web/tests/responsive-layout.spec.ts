@@ -132,6 +132,35 @@ test("PER-74 responsive visual QA keeps core browser controls within representat
   }
 });
 
+test("desktop shell expands with the window beyond the old 1440px cap", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chrome", "Desktop-only layout regression.");
+  await connectAccount(page, "PER-95 wide desktop workspace");
+  await expect(page.getByRole("button", { name: /Open folder Projects/i })).toBeVisible();
+
+  for (const width of [1920, 2560]) {
+    await page.setViewportSize({ width, height: 900 });
+    const geometry = await page.evaluate(() => {
+      const rect = (selector: string) => document.querySelector<HTMLElement>(selector)?.getBoundingClientRect();
+      return {
+        documentOverflow: document.documentElement.scrollWidth - window.innerWidth,
+        viewport: window.innerWidth,
+        shell: rect(".shell")?.width ?? 0,
+        appBar: rect(".app-bar")?.width ?? 0,
+        fileList: rect(".file-list-panel")?.width ?? 0
+      };
+    });
+
+    expect(geometry.viewport).toBe(width);
+    expect(geometry.documentOverflow, `${width}px document overflow`).toBeLessThanOrEqual(1);
+    expect(geometry.shell, `${width}px shell width`).toBeGreaterThanOrEqual(width - 30);
+    expect(geometry.shell, `${width}px shell width`).toBeLessThanOrEqual(width);
+    expect(geometry.appBar, `${width}px app bar width`).toBeGreaterThan(1440);
+    expect(geometry.fileList, `${width}px file list width`).toBeGreaterThan(1440);
+    expect(geometry.appBar, `${width}px app bar width`).toBeLessThanOrEqual(width);
+    expect(geometry.fileList, `${width}px file list width`).toBeLessThanOrEqual(width);
+  }
+});
+
 test("mobile file list fills the available viewport height", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chrome", "Mobile-only layout regression.");
   await page.route("**/api/files?path=", async (route) => {

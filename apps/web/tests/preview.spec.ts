@@ -126,8 +126,20 @@ test("preview supports markdown MIME variants, inline PDF rendering, and PDF ope
 
     await imagePreview.getByRole("button", { name: /Fill preview area/i }).click();
     await expect(imageElement).toHaveClass(/media-preview-image-fill/);
+    const stageBoxFill = await imageStage.boundingBox();
+    const imageBoxFill = await imageElement.boundingBox();
+    expect(Math.abs((imageBoxFill?.width ?? 0) - (stageBoxFill?.width ?? 0))).toBeLessThanOrEqual(1);
+    expect(Math.abs((imageBoxFill?.height ?? 0) - (stageBoxFill?.height ?? 0))).toBeLessThanOrEqual(1);
+    const fillStageScreenshot = await imageStage.screenshot();
     await imagePreview.getByRole("button", { name: /Fit entire image/i }).click();
     await expect(imageElement).toHaveClass(/media-preview-image-fit/);
+    await expect(imageElement).toHaveCSS("object-fit", "contain");
+    const stageBoxFit = await imageStage.boundingBox();
+    const imageBoxFit = await imageElement.boundingBox();
+    expect(Math.abs((imageBoxFit?.width ?? 0) - (stageBoxFit?.width ?? 0))).toBeLessThanOrEqual(1);
+    expect(Math.abs((imageBoxFit?.height ?? 0) - (stageBoxFit?.height ?? 0))).toBeLessThanOrEqual(1);
+    const fitStageScreenshot = await imageStage.screenshot();
+    expect(fitStageScreenshot.equals(fillStageScreenshot)).toBe(false);
     const fitAnchor = await captureImageAnchor("fit", 0.22, 0.75);
     await imageStage.dispatchEvent("touchstart", {
       touches: [
@@ -1129,7 +1141,7 @@ test("immersive video and settings close through explicit controls", async ({ pa
   await expect(preview).toBeVisible();
   const video = preview.getByLabel(/Video preview clip.mp4/i);
   await expect(video).toHaveJSProperty("autoplay", true);
-  await expect(video).toHaveJSProperty("muted", true);
+  await expect(video).toHaveJSProperty("muted", false);
   await expect(video).toHaveJSProperty("playsInline", true);
   await page.locator(".preview-scrim").click({ position: { x: 8, y: 8 } });
   await expect(preview).toBeVisible();
@@ -1471,7 +1483,7 @@ test("media preview attempts autoplay for audio and video and pauses when switch
   await expect(initialVideoPreview).toBeVisible();
   const initialVideo = initialVideoPreview.getByLabel(/Video preview clip.mp4/i);
   await expect(initialVideo).toHaveJSProperty("autoplay", true);
-  await expect(initialVideo).toHaveJSProperty("muted", true);
+  await expect(initialVideo).toHaveJSProperty("muted", false);
   await expect(initialVideo).toHaveJSProperty("playsInline", true);
   await initialVideoPreview.getByRole("button", { name: /Back to files/i }).click();
   await expect(initialVideoPreview).toHaveCount(0);
@@ -1491,7 +1503,7 @@ test("media preview attempts autoplay for audio and video and pauses when switch
   const videoPreview = page.getByRole("dialog", { name: /Preview clip.mp4/i });
   const video = videoPreview.getByLabel(/Video preview clip.mp4/i);
   await expect(video).toHaveJSProperty("autoplay", true);
-  await expect(video).toHaveJSProperty("muted", true);
+  await expect(video).toHaveJSProperty("muted", false);
   await expect(video).toHaveJSProperty("playsInline", true);
   await expect.poll(() => page.evaluate(() => (window as unknown as { __davoraMediaEvents: Array<{ type: string; tag: string }> }).__davoraMediaEvents)).toEqual(
     expect.arrayContaining([

@@ -32,7 +32,7 @@ export function OfflineSyncConfirmStage(props: OfflineSyncConfirmStageProps) {
     return null;
   }
 
-  const startDisabled = props.busy || props.estimating || !props.canStart;
+  const startDisabled = props.busy || !props.canStart;
 
   return (
     <div className="modal-scrim" onClick={(event) => dismissOnScrimClick(event, () => !props.busy && props.onClose())} role="presentation">
@@ -67,6 +67,7 @@ export function OfflineSyncConfirmStage(props: OfflineSyncConfirmStageProps) {
             </div>
           </dl>
           {props.estimateError ? <StateBanner kind="stale" message={`Storage size could not be calculated exactly: ${props.estimateError}. Confirm only if you still want to use local device storage.`} /> : null}
+          {props.estimating ? <p className="status">You can start the sync now — the size keeps calculating in the background.</p> : null}
           <p className="status">Kept-offline files are excluded from normal automatic cache eviction and remain until you remove them from this device.</p>
         </div>
         <div className="dialog-actions">

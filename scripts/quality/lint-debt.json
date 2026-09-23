@@ -254,14 +254,6 @@
       "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
       "nodeType": "unknown",
       "messageId": "unsafeArgument",
-      "source": "{ ...input.file, path, normalCacheOwnership: \"owned\", readable: Boolean(input.file.readable) || Boolean(input.blob), blobSize: input.blob?.size ?? input.file.blobSize }",
-      "count": 1
-    },
-    {
-      "ruleId": "@typescript-eslint/no-unsafe-argument",
-      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
-      "nodeType": "unknown",
-      "messageId": "unsafeArgument",
       "source": "{ ...root, id: `${root.kind}:${root.rootPath}` }",
       "count": 1
     },
@@ -279,23 +271,7 @@
       "nodeType": "unknown",
       "messageId": "unsafeArgument",
       "source": "account",
-      "count": 13
-    },
-    {
-      "ruleId": "@typescript-eslint/no-unsafe-argument",
-      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
-      "nodeType": "unknown",
-      "messageId": "unsafeArgument",
-      "source": "input.blob",
-      "count": 1
-    },
-    {
-      "ruleId": "@typescript-eslint/no-unsafe-argument",
-      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
-      "nodeType": "unknown",
-      "messageId": "unsafeArgument",
-      "source": "input.file.path",
-      "count": 1
+      "count": 11
     },
     {
       "ruleId": "@typescript-eslint/no-unsafe-argument",
@@ -463,14 +439,6 @@
       "nodeType": "unknown",
       "messageId": "anyAssignment",
       "source": "storeFor(account).limitBytes = limitBytes",
-      "count": 1
-    },
-    {
-      "ruleId": "@typescript-eslint/no-unsafe-assignment",
-      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
-      "nodeType": "unknown",
-      "messageId": "anyAssignment",
-      "source": "blobSize: input.blob?.size ?? input.file.blobSize",
       "count": 1
     },
     {
@@ -686,24 +654,8 @@
       "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
       "nodeType": "unknown",
       "messageId": "unsafeMemberExpression",
-      "source": "blob",
-      "count": 4
-    },
-    {
-      "ruleId": "@typescript-eslint/no-unsafe-member-access",
-      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
-      "nodeType": "unknown",
-      "messageId": "unsafeMemberExpression",
       "source": "cacheNamespace",
       "count": 1
-    },
-    {
-      "ruleId": "@typescript-eslint/no-unsafe-member-access",
-      "path": "apps/web/src/features/preview/image/AppImagePreviewIntegration.test.tsx",
-      "nodeType": "unknown",
-      "messageId": "unsafeMemberExpression",
-      "source": "file",
-      "count": 7
     },
     {
       "ruleId": "@typescript-eslint/no-unsafe-member-access",

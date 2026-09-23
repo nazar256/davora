@@ -7,6 +7,15 @@ export type RetentionResult<T> =
 export interface RetentionPreviewWrite {
   readonly file: RetainedFile;
   readonly blob?: Blob;
+  /**
+   * Original-bytes variant used instead of `file`/`blob` when the stored
+   * record still belongs to a retained root, so a refresh can never replace
+   * a kept-offline file's true bytes with derived preview material.
+   */
+  readonly retainedOriginal?: {
+    readonly file: RetainedFile;
+    readonly blob: Blob;
+  };
 }
 
 export interface RetentionPreviewRead {

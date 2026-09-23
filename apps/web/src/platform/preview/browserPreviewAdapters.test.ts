@@ -210,6 +210,151 @@ describe("browser preview runtime adapters", () => {
     }, abort)).resolves.toBeUndefined();
   });
 
+  it("decodes a retained raw HEIC blob while leaving already-decoded cache records untouched", async () => {
+    const materials = new BrowserPreviewMaterialStore();
+    const heic = preview({ path: "Archive/photo.heic", name: "photo.heic", mimeType: "image/heic" });
+    const abort = new BrowserPreviewAbortPort().create();
+    const rawHeic = new Blob(["heic"], { type: "image/heic" });
+    const jpeg = new Blob(["jpeg"], { type: "image/jpeg" });
+    const decode = vi.fn(async () => ({ blob: jpeg, mimeType: "image/jpeg" }));
+    const runtime = new BrowserPreviewLiveAdapter({ tokenFor: () => "token", materials, transport: transport(heic), decodeHeicPreview: decode });
+
+    // An explicit keep-offline record stores the raw original blob.
+    const retained = await runtime.materializeCached(key({ path: heic.path }), {
+      preview: heic,
+      blob: rawHeic,
+      mimeType: "image/heic",
+      filename: "photo.heic"
+    }, abort);
+    expect(decode).toHaveBeenCalledWith(rawHeic);
+    expect(retained?.snapshot).toMatchObject({ source: "blob", unsupported: "none" });
+    expect(retained?.snapshot.preview).toMatchObject({ viewer: "image", mimeType: "image/heic" });
+    expect(materials.source(retained!.material!)).toMatchObject({ kind: "blob", blob: jpeg });
+    expect(retained?.cache).toEqual({ mimeType: "image/jpeg", filename: "photo.heic.jpg" });
+
+    // A normal-cache record already stores the decoded JPEG blob; materialize it directly.
+    decode.mockClear();
+    const decodedRecord = await runtime.materializeCached(key({ path: heic.path }), {
+      preview: heic,
+      blob: jpeg,
+      mimeType: "image/jpeg",
+      filename: "photo.heic.jpg"
+    }, abort);
+    expect(decode).not.toHaveBeenCalled();
+    expect(decodedRecord?.snapshot.source).toBe("blob");
+    expect(materials.source(decodedRecord!.material!)).toMatchObject({ kind: "blob", blob: jpeg });
+  });
+
+  it("surfaces an honest HEIC fallback when a retained raw blob is oversized or fails to decode", async () => {
+    const materials = new BrowserPreviewMaterialStore();
+    const heic = preview({ path: "Archive/photo.heic", name: "photo.heic", mimeType: "image/heic" });
+    const abort = new BrowserPreviewAbortPort().create();
+    const decode = vi.fn(async () => ({ blob: new Blob(["jpeg"], { type: "image/jpeg" }), mimeType: "image/jpeg" }));
+    const runtime = new BrowserPreviewLiveAdapter({ tokenFor: () => "token", materials, transport: transport(heic), decodeHeicPreview: decode });
+
+    const tooLarge = await runtime.materializeCached(key({ path: heic.path }), {
+      preview: heic,
+      blob: new Blob([new Uint8Array(26 * 1024 * 1024)], { type: "image/heic" }),
+      mimeType: "image/heic",
+      filename: "photo.heic"
+    }, abort);
+    expect(decode).not.toHaveBeenCalled();
+    expect(tooLarge?.snapshot).toMatchObject({ source: "inline", unsupported: "heic-fallback" });
+    expect(tooLarge?.snapshot.preview.unsupportedReason).toMatch(/limited/i);
+    expect(tooLarge?.material).toBeUndefined();
+
+    const failing = new BrowserPreviewLiveAdapter({
+      tokenFor: () => "token",
+      materials,
+      transport: transport(heic),
+      decodeHeicPreview: async () => { throw new Error("Decoder rejected this image."); }
+    });
+    const fallback = await failing.materializeCached(key({ path: heic.path }), {
+      preview: heic,
+      blob: new Blob(["heic"], { type: "image/heic" }),
+      mimeType: "image/heic",
+      filename: "photo.heic"
+    }, abort);
+    expect(fallback?.snapshot).toMatchObject({ source: "inline", unsupported: "heic-fallback" });
+    expect(fallback?.snapshot.preview.unsupportedReason).toMatch(/could not be decoded/i);
+    expect(fallback?.material).toBeUndefined();
+  });
+
+  it("carries the fetched original bytes alongside a derived decoded-HEIC payload", async () => {
+    const materials = new BrowserPreviewMaterialStore();
+    const heic = preview({ path: "Archive/photo.heic", name: "photo.heic", mimeType: "image/heic" });
+    const rawHeic = new Blob(["heic"], { type: "image/heic" });
+    const jpeg = new Blob(["jpeg"], { type: "image/jpeg" });
+    const heicTransport = transport(heic);
+    heicTransport.fetchOriginalFile = vi.fn(async () => ({ blob: rawHeic, mimeType: "image/heic", filename: "photo.heic" }));
+    const runtime = new BrowserPreviewLiveAdapter({
+      tokenFor: () => "token",
+      materials,
+      transport: heicTransport,
+      decodeHeicPreview: async () => ({ blob: jpeg, mimeType: "image/jpeg" })
+    });
+    const abort = new BrowserPreviewAbortPort().create();
+
+    const decoded = await runtime.acquire(key({ path: heic.path }), abort);
+    const payload = await runtime.cachePayload(key({ path: heic.path }), decoded, abort);
+    expect(payload).toMatchObject({
+      kind: "payload",
+      payload: {
+        blob: jpeg,
+        mimeType: "image/jpeg",
+        filename: "photo.heic.jpg",
+        original: { blob: rawHeic, mimeType: "image/heic", filename: "photo.heic" }
+      }
+    });
+
+    // A HEIC file identified only by extension still labels the stored
+    // original with a HEIC mime so reads route through the decode path.
+    const extensionOnly = preview({ path: "Archive/scan.heic", name: "scan.heic", mimeType: "application/octet-stream" });
+    const octetTransport = transport(extensionOnly);
+    octetTransport.fetchOriginalFile = vi.fn(async () => ({ blob: rawHeic, mimeType: "application/octet-stream", filename: "scan.heic" }));
+    const extensionRuntime = new BrowserPreviewLiveAdapter({
+      tokenFor: () => "token",
+      materials,
+      transport: octetTransport,
+      decodeHeicPreview: async () => ({ blob: jpeg, mimeType: "image/jpeg" })
+    });
+    const extensionDecoded = await extensionRuntime.acquire(key({ path: extensionOnly.path }), abort);
+    const extensionPayload = await extensionRuntime.cachePayload(key({ path: extensionOnly.path }), extensionDecoded, abort);
+    expect(extensionPayload).toMatchObject({
+      kind: "payload",
+      payload: { original: { blob: rawHeic, mimeType: "image/heic", filename: "scan.heic" } }
+    });
+
+    // Ordinary blob payloads carry no original: their material already is one.
+    const plain = await runtime.cachePayload(key(), {
+      snapshot: { preview: preview(), fingerprint: "image", source: "blob", unsupported: "none" },
+      material: materials.blob(new Blob(["image"], { type: "image/png" })),
+      cache: { mimeType: "image/png", filename: "image.png" }
+    }, abort);
+    expect(plain).toMatchObject({ kind: "payload", payload: { mimeType: "image/png" } });
+    expect(plain.kind === "payload" && "original" in plain.payload ? plain.payload.original : undefined).toBeUndefined();
+  });
+
+  it("decodes a retained HEIC blob identified by filename when its record mime is generic", async () => {
+    const materials = new BrowserPreviewMaterialStore();
+    const heic = preview({ path: "Archive/photo.heic", name: "photo.heic", mimeType: "application/octet-stream" });
+    const abort = new BrowserPreviewAbortPort().create();
+    const rawHeic = new Blob(["heic"], { type: "application/octet-stream" });
+    const jpeg = new Blob(["jpeg"], { type: "image/jpeg" });
+    const decode = vi.fn(async () => ({ blob: jpeg, mimeType: "image/jpeg" }));
+    const runtime = new BrowserPreviewLiveAdapter({ tokenFor: () => "token", materials, transport: transport(heic), decodeHeicPreview: decode });
+
+    const retained = await runtime.materializeCached(key({ path: heic.path }), {
+      preview: heic,
+      blob: rawHeic,
+      mimeType: "application/octet-stream",
+      filename: "photo.heic"
+    }, abort);
+    expect(decode).toHaveBeenCalledWith(rawHeic);
+    expect(retained?.snapshot).toMatchObject({ source: "blob", unsupported: "none" });
+    expect(materials.source(retained!.material!)).toMatchObject({ kind: "blob", blob: jpeg });
+  });
+
   it("reports cached prefetch eligibility without allocating a stream or object URL", () => {
     const materials = new BrowserPreviewMaterialStore();
     const image = preview();

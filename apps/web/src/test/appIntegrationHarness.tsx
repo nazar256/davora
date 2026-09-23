@@ -177,9 +177,12 @@ const retentionFixture = vi.hoisted(() => {
     repository.writePreview.mockImplementation(async (account, input) => {
       const store = storeFor(account);
       const path = normalizedPath(input.file.path);
+      const retained = input.retainedOriginal !== undefined && normalizedPath(input.retainedOriginal.file.path) === path && (store.memberships.get(path)?.size ?? 0) > 0 ? input.retainedOriginal : undefined;
+      const file = retained?.file ?? input.file;
+      const blob = retained?.blob ?? input.blob;
       const existing = store.files.get(path);
-      store.files.set(path, { ...existing, ...input.file, path, normalCacheOwnership: "owned", readable: Boolean(input.file.readable) || Boolean(input.blob) || Boolean(existing?.readable) });
-      if (input.blob) store.blobs.set(path, input.blob);
+      store.files.set(path, { ...existing, ...file, path, normalCacheOwnership: "owned", readable: Boolean(file.readable) || Boolean(blob) || Boolean(existing?.readable) });
+      if (blob) store.blobs.set(path, blob);
       return success(snapshotFor(account));
     });
     repository.beginRoot.mockImplementation(async (account, root) => {

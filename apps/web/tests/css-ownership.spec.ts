@@ -389,11 +389,11 @@ test.describe("Phase 5 CSS rendered characterization", () => {
     }
   });
 
-  test("preserves 320/768/1440 geometry, target, and overflow invariants", async ({ page }) => {
+  test("preserves 320/768/1440/1920 geometry, target, and overflow invariants", async ({ page }) => {
     await page.goto("/");
     await mountFixture(page);
 
-    for (const width of [320, 768, 1440]) {
+    for (const width of [320, 768, 1440, 1920]) {
       await page.setViewportSize({ width, height: 900 });
       const metrics = await page.evaluate(() => {
         const rect = (selector: string) => document.querySelector<HTMLElement>(selector)?.getBoundingClientRect();
@@ -418,7 +418,8 @@ test.describe("Phase 5 CSS rendered characterization", () => {
 
       expect(metrics.viewport).toBe(width);
       expect(metrics.scrollWidth).toBeLessThanOrEqual(width);
-      expect(metrics.shellWidth).toBeLessThanOrEqual(Math.min(width, 1440));
+      expect(metrics.shellWidth).toBeLessThanOrEqual(width);
+      expect(metrics.shellWidth).toBeGreaterThanOrEqual(width - 30);
       expect(metrics.appBarWidth).toBeLessThanOrEqual(width);
       expect(metrics.navWidth).toBeGreaterThanOrEqual(36);
       expect(metrics.navHeight).toBeGreaterThanOrEqual(36);

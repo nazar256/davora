@@ -268,6 +268,54 @@ describe("opened-file repository", () => {
     expect(preview?.blob).toBeInstanceOf(Blob);
   });
 
+  it("stores the retained-original variant for a member file and the payload variant for plain cache", async () => {
+    const heicPreview = { path: "photo.heic", name: "photo.heic", isFolder: false as const, mimeType: "image/heic", viewer: "image" as const, content: "", encoding: "none" as const, truncated: false, bytesRead: 0, size: 4, requiresOriginalBlob: true };
+    const retainedBlob = new Blob(["heic"], { type: "image/heic" });
+    const derivedBlob = new Blob(["jpeg"], { type: "image/jpeg" });
+    const freshBlob = new Blob(["heic2"], { type: "image/heic" });
+    const started = await success(await repository.beginRoot(account, root("photo.heic", "file")));
+    await success(await repository.persistRetainedFile(account, { rootId: requiredRootId(started), file: { ...file("photo.heic", retainedBlob), mimeType: "image/heic", preview: heicPreview }, blob: retainedBlob }));
+    await success(await repository.writePreview(otherAccount, { file: { ...file("photo.heic", retainedBlob), mimeType: "image/heic", preview: heicPreview }, blob: retainedBlob }));
+
+    const write = {
+      file: { path: "photo.heic", name: "photo.heic.jpg", mimeType: "image/jpeg", size: 4, preview: { ...heicPreview, etag: "v2" }, blobSize: derivedBlob.size, readable: true, normalCacheOwnership: "owned" as const },
+      blob: derivedBlob,
+      retainedOriginal: {
+        file: { path: "photo.heic", name: "photo.heic", mimeType: "image/heic", size: freshBlob.size, preview: { ...heicPreview, etag: "v2" }, blobSize: freshBlob.size, readable: true, normalCacheOwnership: "owned" as const },
+        blob: freshBlob
+      }
+    };
+
+    const retained = await success(await repository.writePreview(account, write));
+    const retainedFile = retained.files.find((entry) => entry.path === "photo.heic");
+    expect(retainedFile).toMatchObject({ name: "photo.heic", mimeType: "image/heic", size: freshBlob.size, blobSize: freshBlob.size, readable: true });
+    expect(retainedFile?.preview?.etag).toBe("v2");
+    expect(await get(blobKey("alpha", "photo.heic"))).toEqual(freshBlob);
+    expect(retained.memberships).toHaveLength(1);
+
+    const cached = await success(await repository.writePreview(otherAccount, write));
+    const cachedFile = cached.files.find((entry) => entry.path === "photo.heic");
+    expect(cachedFile).toMatchObject({ name: "photo.heic.jpg", mimeType: "image/jpeg", blobSize: derivedBlob.size });
+    expect(await get(blobKey("beta", "photo.heic"))).toEqual(derivedBlob);
+  });
+
+  it("ignores a retained-original variant whose path does not match the payload", async () => {
+    const blob = new Blob(["image"], { type: "image/png" });
+    const started = await success(await repository.beginRoot(account, root("other.png", "file")));
+    await success(await repository.persistRetainedFile(account, { rootId: requiredRootId(started), file: file("other.png", blob), blob }));
+
+    await success(await repository.writePreview(account, {
+      file: { ...file("other.png"), mimeType: "image/jpeg", name: "other.png.jpg" },
+      blob: new Blob(["jpeg"], { type: "image/jpeg" }),
+      retainedOriginal: { file: file("unrelated.png", blob), blob }
+    }));
+
+    const stored = await success(await repository.readPreview(account, "other.png"));
+    expect(stored?.file).toMatchObject({ name: "other.png.jpg", mimeType: "image/jpeg" });
+    expect(stored?.blob).toEqual(new Blob(["jpeg"], { type: "image/jpeg" }));
+    expect(await success(await repository.readPreview(account, "unrelated.png"))).toBeUndefined();
+  });
+
   it("never treats a non-Blob persisted payload as readable or returns it as binary", async () => {
     await set(indexKey("alpha"), { version: 2, limitBytes: 1024 * 1024, files: { "malformed.txt": { ...file("malformed.txt"), blobSize: 7 } }, roots: {}, memberships: {} });
     await set(blobKey("alpha", "malformed.txt"), { size: 7 });

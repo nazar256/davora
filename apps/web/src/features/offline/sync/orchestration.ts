@@ -26,7 +26,8 @@ import type {
   OfflineSyncConfirmOrchestrationPorts,
   OfflineSyncEstimateAbortHandle,
   OfflineSyncEstimateExecution,
-  OfflineSyncOpenOrchestrationPorts
+  OfflineSyncOpenOrchestrationPorts,
+  OfflineSyncPendingEstimate
 } from "./orchestrationPorts";
 import type { OfflineSyncValueResult } from "./ports";
 
@@ -46,6 +47,7 @@ export interface OfflineSyncConfirmInput {
   readonly accountId: string;
   readonly accountName: string;
   readonly cacheNamespace: string;
+  readonly pendingEstimate?: OfflineSyncPendingEstimate;
 }
 
 export async function runOfflineSyncOpenOrchestration(
@@ -140,6 +142,17 @@ export async function runOfflineSyncConfirmOrchestration(
     return;
   }
 
+  const pendingEstimate = offlineSyncDialog.plan === undefined ? input.pendingEstimate : undefined;
+  if (pendingEstimate) {
+    pendingEstimate.adopt();
+    const abortEstimate = () => pendingEstimate.abort();
+    if (scope.signal.aborted) {
+      abortEstimate();
+    } else {
+      scope.signal.addEventListener("abort", abortEstimate, { once: true });
+    }
+  }
+
   const transferId = ports.transfers.createId();
   ports.presentation.setBusy(true);
   ports.transfers.enqueue({
@@ -162,6 +175,22 @@ export async function runOfflineSyncConfirmOrchestration(
   const syncStillOwned = () => scope.isOwned()
     && ports.context.isCurrentOperationContext(offlineSyncDialog.context, input.currentContext);
 
+  let acceptedPlan = offlineSyncDialog.plan;
+  if (!acceptedPlan && pendingEstimate) {
+    ports.transfers.beginPreparation(transferId, { loadedBytes: 0 });
+    const awaited = await pendingEstimate.promise.then(
+      (plan) => ({ kind: "resolved" as const, plan }),
+      () => ({ kind: "failed" as const })
+    );
+    if (!syncStillOwned()) {
+      ports.transfers.fail(transferId, OFFLINE_SYNC_CONTEXT_CHANGED_MESSAGE);
+      return;
+    }
+    if (awaited.kind === "resolved") {
+      acceptedPlan = awaited.plan;
+    }
+  }
+
   const syncJob = createOfflineSyncJob({
     id: ports.transfers.createId(),
     accountId,
@@ -173,15 +202,15 @@ export async function runOfflineSyncConfirmOrchestration(
       isFolder: entry.isFolder,
       ...(entry.size === undefined ? {} : { size: entry.size })
     })),
-    planSource: offlineSyncDialog.plan
+    planSource: acceptedPlan
       ? {
           kind: "acceptedPlan",
           plan: {
-            files: offlineSyncDialog.plan.files.map((file) => ({
+            files: acceptedPlan.files.map((file) => ({
               sourcePath: file.sourcePath,
               ...(file.size === undefined ? {} : { size: file.size })
             })),
-            ...(offlineSyncDialog.plan.totalBytes === undefined ? {} : { totalBytes: offlineSyncDialog.plan.totalBytes })
+            ...(acceptedPlan.totalBytes === undefined ? {} : { totalBytes: acceptedPlan.totalBytes })
           }
         }
       : { kind: "resolvePlan", archiveInput: offlineSyncDialog.archiveInput }

@@ -26,7 +26,7 @@ After compaction, read this guide and the active goal/session source. Do not inf
 - Deployed account material is encrypted and persisted through the existing Worker account-store abstraction; local development uses the documented local encrypted store.
 - Backend state must remain minimal. Any new backend persistence requires a documented concrete runtime failure, rejection of safer stateless/browser-local alternatives, explicit retention/cleanup semantics, and security review.
 - Explicit offline mode is a network gate, not merely a UI flag: it restores before startup effects, permits zero backend requests, aborts active work, closes streaming surfaces, and exposes only readable local content plus required ancestors.
-- Kept-offline data is distinct from evictable cache accounting and normal cache clearing.
+- Kept-offline data is distinct from evictable cache accounting and normal cache clearing. A retained record always holds the file's true original bytes: cache/preview refresh writes for member paths must persist original material, never derived preview output.
 - Large media streams through short-lived path/account-bound Worker URLs with range support; browser credentials and reusable sessions do not belong in media URLs.
 
 ## Change design rules

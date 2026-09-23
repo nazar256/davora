@@ -28,7 +28,7 @@ describe("OfflineSyncConfirmStage", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("shows estimating copy and disables Start sync", () => {
+  it("shows estimating copy and keeps Start sync enabled", () => {
     render(
       <OfflineSyncConfirmStage
         {...buildProps({
@@ -45,7 +45,8 @@ describe("OfflineSyncConfirmStage", () => {
     expect(within(dialog).getByText(/local device storage and does not create a server-side copy/i)).toBeInTheDocument();
     expect(within(dialog).getByText(/excluded from normal automatic cache eviction/i)).toBeInTheDocument();
     expect(within(dialog).getAllByText("Calculating…", { selector: "dd" })).toHaveLength(2);
-    expect(within(dialog).getByRole("button", { name: /Start sync/i })).toBeDisabled();
+    expect(within(dialog).getByText(/size keeps calculating in the background/i)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /Start sync/i })).toBeEnabled();
   });
 
   it("shows ready file count and estimated storage", () => {

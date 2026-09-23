@@ -313,10 +313,6 @@ select:focus-visible {
   height: var(--icon-size-md);
 }
 
-.shell {
-  max-width: 1440px;
-}
-
 .toolbar-search {
   position: relative;
   display: flex;

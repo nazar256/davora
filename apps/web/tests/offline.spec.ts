@@ -79,13 +79,19 @@ test("active background sync holds one screen wake lock and releases it on deskt
   await page.getByRole("dialog", { name: /Keep offline confirmation/i }).getByRole("button", { name: /Start sync/i }).click();
 
   await expect.poll(() => page.evaluate(() => (window as Window & { __davoraWakeLockRequests?: string[] }).__davoraWakeLockRequests)).toEqual(["screen"]);
-  await expect(page.getByRole("status", { name: /Keeping screen awake for offline sync/i })).toBeVisible();
+
+  await openSettings(page);
+  const settings = page.getByRole("dialog", { name: /Profile and settings/i });
+  await expect(settings.getByText("Active while media or transfers are running.")).toBeVisible();
+  await settings.getByRole("button", { name: /Close|Done/i }).click();
 
   await downloadStarted;
   releaseDownload("offline roadmap");
 
-  await expect(page.getByRole("status", { name: /Keeping screen awake/i })).toBeHidden();
   await expect.poll(() => page.evaluate(() => (window as Window & { __davoraWakeLockReleases?: number }).__davoraWakeLockReleases ?? 0)).toBe(1);
+
+  await openSettings(page);
+  await expect(settings.getByText("Ready for media playback and transfers.")).toBeVisible();
 });
 
 test("offline sync partial failure retries to a new completed transfer", async ({ page }) => {
@@ -151,6 +157,46 @@ test("offline sync partial failure retries to a new completed transfer", async (
   await expect(completedTransfer.getByText(/^Done/)).toBeVisible();
   await expect(partialTransfer.getByText("Projects/bad.pdf", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Projects is available offline")).toBeVisible();
+});
+
+test("keep offline can start while the estimate is still calculating and reuses that enumeration", async ({ page }) => {
+  let releaseListing!: () => void;
+  const listingGate = new Promise<void>((resolve) => {
+    releaseListing = resolve;
+  });
+  let projectsListingRequests = 0;
+  await page.route("**/api/files?path=Projects", async (route) => {
+    projectsListingRequests += 1;
+    await listingGate;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          path: "Projects",
+          items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 10, mimeType: "text/plain" }]
+        }
+      })
+    });
+  });
+
+  await connectAccount(page, "Early sync start workspace");
+  await page.getByRole("button", { name: /Open actions for Projects/i }).click();
+  await page.getByRole("button", { name: /^Keep offline$/i }).click();
+
+  const confirmDialog = page.getByRole("dialog", { name: /Keep offline confirmation/i });
+  await expect(confirmDialog.getByText("Calculating…", { exact: true })).toHaveCount(2);
+  const startButton = confirmDialog.getByRole("button", { name: /^Start sync$/i });
+  await expect(startButton).toBeEnabled();
+  await startButton.click();
+  await expect(confirmDialog).toBeHidden();
+
+  const transferStatus = page.getByRole("dialog", { name: /Transfer status/i });
+  await expect(transferStatus.getByText("Projects", { exact: true })).toBeVisible();
+
+  releaseListing();
+  await expect(transferStatus.getByText(/^Done/)).toBeVisible();
+  expect(projectsListingRequests).toBe(1);
 });
 
 test("retained roots preserve shared files when one root is removed and ordinary cache is cleared", async ({ page }) => {

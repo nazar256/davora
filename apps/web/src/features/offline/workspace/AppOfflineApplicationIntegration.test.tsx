@@ -830,6 +830,46 @@ describe("offline application App integration", () => {
     expect(screen.queryByRole("dialog", { name: /Keep offline confirmation/i })).not.toBeInTheDocument();
   });
 
+  it("starts keep-offline while the estimate is still running and reuses that enumeration", async () => {
+    const account = buildAccount("alpha", { displayName: "Early confirm workspace" });
+    seedAccounts([{ account, session: buildSession(account) }], account.id);
+    const projectsListing = createDeferred<Awaited<ReturnType<typeof mockedApi.listFiles>>>();
+    mockedApi.listFiles.mockImplementation(async (path: string) => {
+      if (path === "") {
+        return { path, items: [{ path: "Projects", name: "Projects", isFolder: true }] };
+      }
+      if (path === "Projects") {
+        return projectsListing.promise;
+      }
+      return { path, items: [] };
+    });
+    mockedApi.fetchDownloadBlob.mockImplementation(async (path: string) => ({ blob: new Blob([path], { type: "text/plain" }), filename: path.split("/").pop() }));
+
+    render(<App />);
+    await screen.findByRole("button", { name: /Open actions for Projects/i });
+    fireEvent.click(screen.getByRole("button", { name: /Open actions for Projects/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Keep offline$/i }));
+
+    const dialog = await screen.findByRole("dialog", { name: /Keep offline confirmation/i });
+    await waitFor(() => expect(mockedApi.listFiles).toHaveBeenCalledWith("Projects", "token-alpha", expect.any(AbortSignal)));
+    expect(within(dialog).getAllByText("Calculating…", { selector: "dd" })).toHaveLength(2);
+    const startButton = within(dialog).getByRole("button", { name: /Start sync/i });
+    expect(startButton).toBeEnabled();
+    fireEvent.click(startButton);
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Keep offline confirmation/i })).not.toBeInTheDocument());
+    expect(mockedApi.fetchDownloadBlob).not.toHaveBeenCalled();
+
+    projectsListing.resolve({
+      path: "Projects",
+      items: [{ path: "Projects/notes.txt", name: "notes.txt", isFolder: false, size: 4, mimeType: "text/plain" }]
+    });
+    await waitFor(() => expectRetainedFilePersisted("Projects/notes.txt"));
+
+    const projectsListingCalls = mockedApi.listFiles.mock.calls.filter(([path]) => path === "Projects");
+    expect(projectsListingCalls).toHaveLength(1);
+  });
+
   it("keeps a batch selection offline and removes offline copies from settings without server delete", async () => {
     const account = buildAccount("alpha", { displayName: "Batch offline workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);

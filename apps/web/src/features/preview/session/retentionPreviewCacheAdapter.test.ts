@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { del } from "idb-keyval";
+import { Blob as NodeBlob } from "node:buffer";
 
 import {
   createRetentionPreviewCacheAdapter,
@@ -269,6 +270,89 @@ describe("RetentionPreviewCacheAdapter", () => {
       blob: decoded,
       file: expect.objectContaining({ path: "Archive/photo.heic", mimeType: "image/jpeg", name: "photo.heic.jpg", blobSize: decoded.size })
     }));
+  });
+
+  it("forwards a retained-original variant when the payload carries original bytes", async () => {
+    const decoded = new Blob(["jpeg"], { type: "image/jpeg" });
+    const original = new Blob(["heic"], { type: "image/heic" });
+    const heicPreview = preview({ path: "Archive/photo.heic", name: "photo.heic", mimeType: "image/heic" });
+    const store = repository();
+    const browser = runtime({
+      cachePayload: vi.fn(async () => ({
+        kind: "payload" as const,
+        payload: {
+          preview: heicPreview,
+          blob: decoded,
+          mimeType: "image/jpeg",
+          filename: "photo.heic.jpg",
+          original: { blob: original, mimeType: "image/heic", filename: "photo.heic" }
+        }
+      }))
+    });
+    const adapter = createRetentionPreviewCacheAdapter(store, browser);
+
+    await adapter.write(key({ path: "Archive/photo.heic" }), acquisition(), abort());
+    const writeCall = vi.mocked(store.writePreview).mock.calls[0];
+    const input = writeCall?.[1];
+    expect(writeCall?.[0]).toEqual(account);
+    expect(input?.file).toMatchObject({ path: "Archive/photo.heic", name: "photo.heic.jpg", mimeType: "image/jpeg", blobSize: decoded.size });
+    expect(input?.blob).toBe(decoded);
+    expect(input?.retainedOriginal?.blob).toBe(original);
+    expect(input?.retainedOriginal?.file).toMatchObject({ path: "Archive/photo.heic", name: "photo.heic", mimeType: "image/heic", size: original.size, blobSize: original.size, readable: true, preview: heicPreview });
+  });
+
+  it("persists original bytes for a retained file while a normal cache entry keeps the decoded payload", async () => {
+    vi.stubGlobal("Blob", NodeBlob);
+    const namespace = "preview-adapter-retained-original";
+    const decoded = new Blob(["jpeg"], { type: "image/jpeg" });
+    const original = new Blob(["heic"], { type: "image/heic" });
+    const heicPreview = preview({ path: "Archive/photo.heic", name: "photo.heic", mimeType: "image/heic" });
+    const browser = runtime({
+      cachePayload: vi.fn(async () => ({
+        kind: "payload" as const,
+        payload: {
+          preview: heicPreview,
+          blob: decoded,
+          mimeType: "image/jpeg",
+          filename: "photo.heic.jpg",
+          original: { blob: original, mimeType: "image/heic", filename: "photo.heic" }
+        }
+      }))
+    });
+    const repository = createOpenedFileRepository();
+    const adapter = createRetentionPreviewCacheAdapter(repository, browser);
+    const retainedAccount = { accountId: "account-a", cacheNamespace: `${namespace}-retained` };
+    const cachedAccount = { accountId: "account-a", cacheNamespace: `${namespace}-cached` };
+    const retainedKey = key({ cacheNamespace: retainedAccount.cacheNamespace, path: "Archive/photo.heic" });
+    const cachedKey = key({ cacheNamespace: cachedAccount.cacheNamespace, path: "Archive/photo.heic" });
+
+    try {
+      const root = await repository.beginRoot(retainedAccount, { rootPath: "Archive/photo.heic", rootName: "photo.heic", kind: "file", folderRoots: [] });
+      if (root.kind === "failure") throw new Error(root.message);
+      const rootId = root.value.roots[0]?.id;
+      if (rootId === undefined) throw new Error("Expected a retained root.");
+      await repository.persistRetainedFile(retainedAccount, {
+        rootId,
+        file: { path: "Archive/photo.heic", name: "photo.heic", mimeType: "image/heic", size: original.size, preview: heicPreview, blobSize: original.size, readable: true, normalCacheOwnership: "none" },
+        blob: original
+      });
+
+      await adapter.write(retainedKey, acquisition(), abort());
+      const retained = await repository.readPreview(retainedAccount, "Archive/photo.heic");
+      if (retained.kind === "failure" || !retained.value) throw new Error("Expected the retained record to stay readable.");
+      expect(retained.value.blob).toEqual(original);
+      expect(retained.value.file).toMatchObject({ name: "photo.heic", mimeType: "image/heic", blobSize: original.size });
+
+      await adapter.write(cachedKey, acquisition(), abort());
+      const cached = await repository.readPreview(cachedAccount, "Archive/photo.heic");
+      if (cached.kind === "failure" || !cached.value) throw new Error("Expected the cached record to stay readable.");
+      expect(cached.value.blob).toEqual(decoded);
+      expect(cached.value.file).toMatchObject({ name: "photo.heic.jpg", mimeType: "image/jpeg", blobSize: decoded.size });
+    } finally {
+      vi.unstubAllGlobals();
+      await repository.purgeAccountNamespace(retainedAccount);
+      await repository.purgeAccountNamespace(cachedAccount);
+    }
   });
 
   it("returns an oversized runtime skip without any repository read or write", async () => {

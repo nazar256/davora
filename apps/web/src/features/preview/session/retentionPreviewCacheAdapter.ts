@@ -36,6 +36,11 @@ export interface RetentionPreviewCachePayload {
   readonly blob?: Blob;
   readonly mimeType: string;
   readonly filename: string;
+  /**
+   * True original bytes when `blob` is derived preview material (e.g. decoded
+   * HEIC). Retained records must always hold the file's own bytes.
+   */
+  readonly original?: { readonly blob: Blob; readonly mimeType: string; readonly filename: string };
 }
 
 export type RetentionPreviewCachePayloadResult =
@@ -202,9 +207,15 @@ export class RetentionPreviewCacheAdapter implements PreviewCachePort {
     if (result.kind === "skipped") {
       return Object.freeze({ kind: "skipped", reason: result.reason });
     }
+    const { payload } = result;
+    const retainedOriginal = payload.original === undefined ? undefined : {
+      file: writeFile({ preview: payload.preview, blob: payload.original.blob, mimeType: payload.original.mimeType, filename: payload.original.filename }),
+      blob: payload.original.blob
+    };
     const snapshot = unwrap(await this.repository.writePreview(accountFor(key), {
-      file: writeFile(result.payload),
-      ...(result.payload.blob === undefined ? {} : { blob: result.payload.blob })
+      file: writeFile(payload),
+      ...(payload.blob === undefined ? {} : { blob: payload.blob }),
+      ...(retainedOriginal === undefined ? {} : { retainedOriginal })
     }));
     assertNotAborted(abort);
     return Object.freeze({ kind: "stored", snapshot: cacheSnapshot(snapshot) });
