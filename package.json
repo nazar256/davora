@@ -15,7 +15,7 @@
     "build": "npm run build --workspaces --if-present",
     "test": "npm run check:architecture && npm run test:deploy && npm run test:quality && npm run test:workspaces",
     "test:workspaces": "npm run test --workspaces --if-present",
-    "test:deploy": "vitest run scripts/deploy.test.ts scripts/real-validation-runtime.test.ts --exclude '.tmp/**'",
+    "test:deploy": "vitest run scripts/deploy.test.ts scripts/real-validation-runtime.test.ts scripts/diagnostics-inbox.test.ts --exclude '.tmp/**'",
     "test:quality": "vitest run scripts/quality/*.test.ts --exclude '.tmp/**' --testTimeout=20000",
     "test:coverage:pure": "npm run test:coverage:pure --workspace=@davora/shared && npm run test:coverage:pure --workspace=@davora/worker && npm run test:coverage:pure --workspace=@davora/web",
     "check:architecture": "npm run check:architecture:semantic && npm run check:dependencies",
@@ -39,6 +39,7 @@
     "deploy": "node --env-file-if-exists=.env --import ./node_modules/tsx/dist/loader.mjs scripts/deploy.ts all",
     "test:e2e": "npm run test:playwright --workspace=@davora/web && npm run test:screenshots --workspace=@davora/web",
     "validate:real": "tsx scripts/validate-real.ts",
+    "diagnostics:inbox": "node --import ./node_modules/tsx/dist/loader.mjs scripts/diagnostics-inbox.ts",
     "dev": "concurrently -k \"npm run dev:worker\" \"npm run dev:web\"",
     "test:screenshots": "npm run test:screenshots --workspace=@davora/web",
     "test:pwa": "npm run test:pwa --workspace=@davora/web"

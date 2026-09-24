@@ -4,13 +4,18 @@ import { dirname, resolve } from "node:path";
 
 type DeployTarget = "web" | "worker" | "all";
 type WorkerSecretSummary = { name?: string; type?: string };
+type DiagnosticBucketInfo = { name?: string };
 
 export const DEFAULT_DEPLOYED_WORKER_ORIGIN = "https://api.example.invalid";
 export const DEFAULT_PAGES_PROJECT_NAME = "davora";
 export const DEFAULT_PAGES_BRANCH = "main";
-export const REQUIRED_WORKER_SECRETS = ["SESSION_SECRET", "ACCOUNT_STATE_SECRET", "SESSION_TOKEN_SECRET"];
-const WORKER_SECRET_LIST_VALUE_FLAGS = new Set(["--config", "-c", "--cwd", "--env", "-e", "--env-file", "--name"]);
-const WORKER_SECRET_LIST_INLINE_FLAGS = ["--config=", "-c=", "--cwd=", "--env=", "-e=", "--env-file=", "--name="];
+export const REQUIRED_WORKER_SECRETS = ["SESSION_SECRET", "ACCOUNT_STATE_SECRET", "SESSION_TOKEN_SECRET", "DIAGNOSTIC_QUOTA_SECRET"];
+export const DIAGNOSTIC_REPORTS_BUCKET = "davora-local-diagnostic-reports";
+export const DIAGNOSTIC_REPORTS_JURISDICTION = "eu";
+const WORKER_SECRET_LIST_VALUE_FLAGS = new Set(["--config", "-c", "--cwd", "--env", "-e", "--env-file", "--name", "--profile"]);
+const WORKER_SECRET_LIST_INLINE_FLAGS = ["--config=", "-c=", "--cwd=", "--env=", "-e=", "--env-file=", "--name=", "--profile="];
+const R2_SCOPE_VALUE_FLAGS = new Set(["--config", "-c", "--cwd", "--env", "-e", "--env-file", "--profile"]);
+const R2_SCOPE_INLINE_FLAGS = ["--config=", "-c=", "--cwd=", "--env=", "-e=", "--env-file=", "--profile="];
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
@@ -69,6 +74,22 @@ function runJson<T>(command: string, args: string[], options: { cwd?: string; en
   return parseCommandJson<T>(rendered, result.stdout);
 }
 
+function runText(command: string, args: string[], options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}): string {
+  const rendered = [command, ...args].join(" ");
+  const result = spawnSync(command, args, {
+    cwd: options.cwd ?? repoRoot,
+    env: options.env ?? process.env,
+    encoding: "utf8",
+    stdio: ["inherit", "pipe", "pipe"]
+  });
+  if (result.error) throw result.error;
+  if ((result.status ?? 0) !== 0) {
+    const stderr = result.stderr?.trim();
+    fail(stderr ? `${rendered} failed: ${stderr}` : `${rendered} failed with status ${result.status ?? 1}`);
+  }
+  return result.stdout;
+}
+
 function readEnv(name: string, env: NodeJS.ProcessEnv = process.env): string | undefined {
   const value = env[name]?.trim();
   return value ? value : undefined;
@@ -103,6 +124,11 @@ export function readGitDeployMetadata(): GitDeployMetadata {
   const commitMessage = probeGit(["log", "-1", "--pretty=%s", "HEAD"])?.trim() || undefined;
   const status = probeGit(["status", "--porcelain"]);
   return { commitHash, commitMessage, dirty: status === undefined ? undefined : status.trim().length > 0 };
+}
+
+export function resolveBuildLabel(metadata: GitDeployMetadata): string {
+  const commit = metadata.commitHash?.trim().slice(0, 12) || "unknown";
+  return metadata.dirty ? `${commit}-dirty` : commit;
 }
 
 export function resolveWebDeployConfig(
@@ -189,6 +215,71 @@ export function buildWorkerSecretListArgs(extraArgs: string[]): string[] {
   return args;
 }
 
+function workerScopeArgs(extraArgs: string[]): string[] {
+  const args: string[] = [];
+  for (let index = 0; index < extraArgs.length; index += 1) {
+    const arg = extraArgs[index];
+    if (R2_SCOPE_INLINE_FLAGS.some((flag) => arg.startsWith(flag))) {
+      args.push(arg);
+      continue;
+    }
+    if (!R2_SCOPE_VALUE_FLAGS.has(arg)) continue;
+    const value = extraArgs[index + 1];
+    if (!value) fail(`${arg} requires a value.`);
+    args.push(arg, value);
+    index += 1;
+  }
+  return args;
+}
+
+export function buildDiagnosticBucketInfoArgs(extraArgs: string[]): string[] {
+  return [
+    "r2", "bucket", "info", DIAGNOSTIC_REPORTS_BUCKET,
+    "--jurisdiction", DIAGNOSTIC_REPORTS_JURISDICTION,
+    "--json",
+    ...workerScopeArgs(extraArgs)
+  ];
+}
+
+export function buildDiagnosticLifecycleListArgs(extraArgs: string[]): string[] {
+  return [
+    "r2", "bucket", "lifecycle", "list", DIAGNOSTIC_REPORTS_BUCKET,
+    "--jurisdiction", DIAGNOSTIC_REPORTS_JURISDICTION,
+    ...workerScopeArgs(extraArgs)
+  ];
+}
+
+export function assertDiagnosticStoragePreflight(
+  bucketInfo: DiagnosticBucketInfo,
+  lifecycleOutput: string
+): void {
+  if (bucketInfo.name !== DIAGNOSTIC_REPORTS_BUCKET) {
+    fail(`Diagnostic R2 preflight expected bucket ${DIAGNOSTIC_REPORTS_BUCKET}.`);
+  }
+  const plainOutput = lifecycleOutput.replaceAll(/\x1b\[[0-9;]*m/g, "").replaceAll("\r", "");
+  const rules = plainOutput.split(/\n\s*\n/).map((block) => {
+    const values = new Map<string, string>();
+    for (const line of block.split("\n")) {
+      const match = line.match(/^\s*(name|enabled|prefix|action):\s*(.*?)\s*$/i);
+      if (match?.[1] && match[2] !== undefined) values.set(match[1].toLowerCase(), match[2]);
+    }
+    return values;
+  });
+  const expected = [
+    { name: "davora-reports-30d", prefix: "reports/v1/" },
+    { name: "davora-quota-30d", prefix: "quota/v1/" }
+  ];
+  for (const requirement of expected) {
+    const matching = rules.filter((rule) => rule.get("name") === requirement.name);
+    const rule = matching.length === 1 ? matching[0] : undefined;
+    if (rule?.get("enabled") !== "Yes"
+      || rule.get("prefix") !== requirement.prefix
+      || rule.get("action") !== "Expire objects after 30 days") {
+      fail(`Diagnostic R2 lifecycle rule ${requirement.name} must be enabled, target ${requirement.prefix}, and expire objects after 30 days.`);
+    }
+  }
+}
+
 export function assertWorkerDestinationPolicy(env: NodeJS.ProcessEnv = process.env): void {
   const runtimeMode = readEnv("RUNTIME_MODE", env)?.toLowerCase() === "development" ? "development" : "production";
   const allowLocal = readEnv("ALLOW_LOCAL_NEXTCLOUD", env)?.toLowerCase() === "true";
@@ -202,6 +293,9 @@ function verifyWorkerDeployPreflight(extraArgs: string[]): void {
   assertWorkerDestinationPolicy();
   const secrets = runJson<WorkerSecretSummary[]>("wrangler", buildWorkerSecretListArgs(extraArgs), { cwd: workerDir });
   assertRequiredWorkerSecrets(secrets);
+  const bucketInfo = runJson<DiagnosticBucketInfo>("wrangler", buildDiagnosticBucketInfoArgs(extraArgs), { cwd: workerDir });
+  const lifecycleOutput = runText("wrangler", buildDiagnosticLifecycleListArgs(extraArgs), { cwd: workerDir });
+  assertDiagnosticStoragePreflight(bucketInfo, lifecycleOutput);
 }
 
 function deployWeb(extraArgs: string[]): void {
@@ -221,11 +315,13 @@ function deployWeb(extraArgs: string[]): void {
     console.log(`ℹ Using default CLOUDFLARE_PAGES_BRANCH=${config.branch}`);
   }
 
+  const buildLabel = resolveBuildLabel(readGitDeployMetadata());
   run("npm", ["run", "build", "--workspace=@davora/web"], {
     cwd: repoRoot,
     env: {
       ...process.env,
-      VITE_API_BASE_URL: config.apiBaseUrl
+      VITE_API_BASE_URL: config.apiBaseUrl,
+      VITE_APP_BUILD_LABEL: buildLabel
     }
   });
 
@@ -236,7 +332,8 @@ function deployWeb(extraArgs: string[]): void {
 
 function deployWorker(extraArgs: string[]): void {
   verifyWorkerDeployPreflight(extraArgs);
-  const args = ["deploy", ...extraArgs];
+  const buildLabel = resolveBuildLabel(readGitDeployMetadata());
+  const args = ["deploy", "--keep-vars", "--var", "DIAGNOSTIC_UPLOAD_ENABLED:true", "--var", `WORKER_BUILD_LABEL:${buildLabel}`, ...extraArgs];
   if (extraArgs.includes("--dry-run") && !extraArgs.includes("--outdir")) {
     args.push("--outdir", defaultWorkerDryRunOutdir);
   }

@@ -4,6 +4,7 @@ import { CHROME_SURFACE_KEYS } from "../../navigation";
 import type { TransferTask } from "../../transfers";
 import {
   isDiagnosticsSessionRecord,
+  DIAGNOSTICS_SCHEMA_VERSION,
   summaryCategories,
   type DiagnosticsSessionContext,
   type DiagnosticsSessionRecord,
@@ -14,9 +15,12 @@ import { categorizeApiRoute, createDiagnosticsRedactor } from "../redaction";
 import { buildBugReportBundle } from "../report/bundle";
 import {
   buildSessionPickerEntries,
+  normalizeBugReportForm,
   type BugReportForm,
   type ReportBundlePreview
 } from "../report/reportModel";
+import type { DiagnosticReportReceipt } from "@davora/shared";
+import type { DiagnosticsReportUploadInput } from "../ports";
 import type {
   DiagnosticsObservedContext,
   DiagnosticsWorkspace,
@@ -46,6 +50,11 @@ const errorKindOf = (error: unknown): string =>
 /** Redactor used for call-site redaction when no live session exists. */
 const fallbackRedactor = createDiagnosticsRedactor();
 
+interface PendingDiagnosticUpload {
+  readonly fingerprint: string;
+  readonly input: Omit<DiagnosticsReportUploadInput, "token">;
+}
+
 export function useDiagnosticsWorkspace(input: DiagnosticsWorkspaceInput): DiagnosticsWorkspace {
   const { enabled, ports } = input;
   const inputRef = useRef(input);
@@ -58,8 +67,10 @@ export function useDiagnosticsWorkspace(input: DiagnosticsWorkspaceInput): Diagn
   const [selectedSessionIds, setSelectedSessionIds] = useState<ReadonlySet<string>>(new Set());
   const selectedSessionIdsRef = useRef(selectedSessionIds);
   selectedSessionIdsRef.current = selectedSessionIds;
+  const pendingUploadRef = useRef<PendingDiagnosticUpload | undefined>(undefined);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | undefined>(undefined);
+  const [uploadReceipt, setUploadReceipt] = useState<DiagnosticReportReceipt | undefined>(undefined);
 
   const refreshSessions = useCallback(async () => {
     const result = await inputRef.current.ports.store.listSessions();
@@ -105,6 +116,11 @@ export function useDiagnosticsWorkspace(input: DiagnosticsWorkspaceInput): Diagn
       };
       recorder.setContext(context);
       recorder.record({ kind: "session.started", environment, context });
+      recorder.record({
+        kind: "navigation.folder",
+        path: recorder.redactor.path(observed.currentPath, "folder")
+      });
+      observedContextRef.current = observed;
       const startupMs = ports.lifecycle.startupDurationMs?.();
       if (typeof startupMs === "number" && Number.isFinite(startupMs)) {
         recorder.record({ kind: "perf.marker", name: "app.startup", durationMs: Math.round(startupMs) });
@@ -261,14 +277,18 @@ export function useDiagnosticsWorkspace(input: DiagnosticsWorkspaceInput): Diagn
       void refreshSessions();
     }
     setExportError(undefined);
+    setUploadReceipt(undefined);
+    pendingUploadRef.current = undefined;
     inputRef.current.navigation.openReportBugSurface();
   }, [refreshSessions]);
 
   const closeReport = useCallback(() => {
+    pendingUploadRef.current = undefined;
     inputRef.current.navigation.closeReportBugSurface();
   }, []);
 
   const toggleSession = useCallback((sessionId: string) => {
+    pendingUploadRef.current = undefined;
     setSelectedSessionIds((previous) => {
       const next = new Set(previous);
       if (next.has(sessionId)) {
@@ -297,7 +317,7 @@ export function useDiagnosticsWorkspace(input: DiagnosticsWorkspaceInput): Diagn
         }
       }
       const bundle = await buildBugReportBundle({
-        form,
+        form: normalizeBugReportForm(form),
         sessions: records,
         generatedAt: current.ports.clock.nowIso(),
         appBuild: current.appBuild
@@ -326,6 +346,61 @@ export function useDiagnosticsWorkspace(input: DiagnosticsWorkspaceInput): Diagn
     }
   }, []);
 
+  const uploadReport = useCallback(async (form: BugReportForm) => {
+    const current = inputRef.current;
+    const context = current.getContext();
+    if (!current.sessionToken || context.browserOffline || context.explicitOfflineMode || context.workerUnavailable) {
+      setExportError("UploadUnavailable");
+      return;
+    }
+    setExporting(true);
+    setExportError(undefined);
+    setUploadReceipt(undefined);
+    try {
+      const recorder = recorderRef.current;
+      const normalizedForm = normalizeBugReportForm(form);
+      const selectedIds = [...selectedSessionIdsRef.current].sort();
+      const fingerprint = JSON.stringify({ form: normalizedForm, selectedIds });
+      let pending = pendingUploadRef.current;
+      if (!pending || pending.fingerprint !== fingerprint) {
+        if (recorder) await recorder.flush();
+        const records: DiagnosticsSessionRecord[] = [];
+        for (const sessionId of selectedIds) {
+          const result = await current.ports.store.readSession(sessionId);
+          if (result.ok && isDiagnosticsSessionRecord(result.value)) records.push(result.value);
+        }
+        const generatedAt = current.ports.clock.nowIso();
+        const bundle = await buildBugReportBundle({
+          form: normalizedForm,
+          sessions: records,
+          generatedAt,
+          appBuild: current.appBuild
+        });
+        pending = {
+          fingerprint,
+          input: {
+            reportId: current.ports.uploadPort.createReportId(),
+            blob: bundle.blob,
+            generatedAt,
+            diagnosticsSchema: DIAGNOSTICS_SCHEMA_VERSION,
+            appBuild: current.appBuild
+          }
+        };
+        pendingUploadRef.current = pending;
+      }
+      const accepted = await current.ports.uploadPort.upload({ ...pending.input, token: current.sessionToken });
+      pendingUploadRef.current = undefined;
+      setUploadReceipt(accepted);
+      recorder?.recordActionResult("export-report", "success", undefined, undefined);
+      current.announce(`Bug report sent. Report ID: ${accepted.reportId}.`);
+    } catch (error) {
+      recorderRef.current?.recordActionResult("export-report", "failure", undefined, errorKindOf(error));
+      setExportError(errorKindOf(error));
+    } finally {
+      setExporting(false);
+    }
+  }, []);
+
   const clearData = useCallback(() => {
     const current = inputRef.current;
     current.ports.store.clear()
@@ -333,6 +408,7 @@ export function useDiagnosticsWorkspace(input: DiagnosticsWorkspaceInput): Diagn
         if (result.ok) {
           setSessions([]);
           setSelectedSessionIds(new Set());
+          pendingUploadRef.current = undefined;
           recorderRef.current?.recordAction("clear-diagnostics");
           current.announce("Diagnostic data cleared from this device.");
         } else {
@@ -351,6 +427,12 @@ export function useDiagnosticsWorkspace(input: DiagnosticsWorkspaceInput): Diagn
       return false;
     }
   }, [ports.exportPort]);
+
+  const observed = input.getContext();
+  const canUpload = Boolean(input.sessionToken)
+    && !observed.browserOffline
+    && !observed.explicitOfflineMode
+    && !observed.workerUnavailable;
 
   const listedSessions = useMemo<readonly DiagnosticsSessionSummary[]>(() => {
     const recorder = recorderRef.current;
@@ -403,11 +485,14 @@ export function useDiagnosticsWorkspace(input: DiagnosticsWorkspaceInput): Diagn
       sessions: pickerSessions,
       preview,
       canShare,
+      canUpload,
       exporting,
       exportError,
+      uploadReceipt,
       onClose: closeReport,
       onToggleSession: toggleSession,
-      onExport: (form, mode) => { void exportReport(form, mode); }
+      onExport: (form, mode) => { void exportReport(form, mode); },
+      onUpload: (form) => { void uploadReport(form); }
     },
     reportBugQuickAction: {
       id: "report-bug",
@@ -421,6 +506,7 @@ export function useDiagnosticsWorkspace(input: DiagnosticsWorkspaceInput): Diagn
       closeReport,
       clearData,
       exportReport,
+      uploadReport,
       recordAction: (action, detail) => { recorderRef.current?.recordAction(action, detail); },
       recordActionResult: (action, outcome, durationMs, errorKind) => {
         recorderRef.current?.recordActionResult(action, outcome, durationMs, errorKind);

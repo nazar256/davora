@@ -34,5 +34,9 @@ export async function handleRequest(request: Request, rawEnv: Record<string, unk
     }
   }
 
-  return withCors(response, bootstrap.origin, [...bootstrap.allowedOrigins]);
+  const enriched = new Response(response.body, response);
+  const rawBuild = typeof rawEnv.WORKER_BUILD_LABEL === "string" ? rawEnv.WORKER_BUILD_LABEL.trim() : "";
+  enriched.headers.set("x-davora-worker-build", /^[A-Za-z0-9._-]{1,64}$/.test(rawBuild) ? rawBuild : "unknown");
+  enriched.headers.set("x-davora-api-contract", "2");
+  return withCors(enriched, bootstrap.origin, [...bootstrap.allowedOrigins]);
 }

@@ -6,7 +6,8 @@
  * entering application state.
  */
 
-export const DIAGNOSTICS_SCHEMA_VERSION = 1;
+export const DIAGNOSTICS_SCHEMA_VERSION = 2;
+export const DIAGNOSTICS_SUPPORTED_SCHEMA_VERSIONS = [1, 2] as const;
 
 /** Keep the live session plus this many ended sessions. */
 export const DIAGNOSTICS_MAX_KEPT_SESSIONS = 4;
@@ -48,6 +49,65 @@ export interface DiagnosticsSessionContext {
   readonly backendKind?: string;
   readonly themeMode?: string;
   readonly explicitOffline?: boolean;
+}
+
+export type DiagnosticValueType = "undefined" | "null" | "boolean" | "number" | "string" | "array" | "object";
+export type FolderNameDifferenceCategory = "end" | "control" | "whitespace" | "letter" | "number" | "mark" | "punctuation" | "symbol" | "other";
+
+export interface FolderBasenameComparisonEvidence {
+  readonly basenameLength: number;
+  readonly equalAfterTrim: boolean;
+  readonly equalAfterNfc: boolean;
+  readonly equalIgnoringCase: boolean;
+  readonly firstDifferenceIndex: number;
+  readonly basenameDifferenceCategory: FolderNameDifferenceCategory;
+  readonly nameDifferenceCategory: FolderNameDifferenceCategory;
+}
+
+export interface FolderResponseIssueEvidence {
+  readonly path: readonly (string | number)[];
+  readonly code: string;
+  readonly expectedType?: string;
+  readonly actualType: DiagnosticValueType;
+}
+
+export interface FolderItemShapeEvidence {
+  readonly presentKeys: readonly string[];
+  readonly fieldTypes: Readonly<Record<string, DiagnosticValueType>>;
+  readonly isFolder?: boolean;
+  readonly pathDepth?: number;
+  readonly nameLength?: number;
+  readonly basenameComparison?: FolderBasenameComparisonEvidence;
+  readonly flags: {
+    readonly hasControl: boolean;
+    readonly hasEdgeWhitespace: boolean;
+    readonly nonNfc: boolean;
+    readonly hasEncodedSeparator?: boolean;
+    readonly hasDotSegment?: boolean;
+  };
+}
+
+export interface FolderResponseRejectionEvidence {
+  readonly phase:
+    | "json-decode"
+    | "envelope-schema"
+    | "response-path-mismatch"
+    | "items-not-array"
+    | "item-schema"
+    | "noncanonical-item-path"
+    | "basename-mismatch"
+    | "item-outside-folder";
+  readonly status?: number;
+  readonly contentType?: "json" | "html" | "text" | "binary" | "other" | "missing";
+  readonly payloadBytes?: number;
+  readonly workerBuild?: string;
+  readonly apiContract?: string;
+  readonly itemIndex?: number;
+  readonly issues?: readonly FolderResponseIssueEvidence[];
+  readonly truncatedIssueCount?: number;
+  readonly itemShape?: FolderItemShapeEvidence;
+  readonly rejectedCount?: number;
+  readonly truncatedCount?: number;
 }
 
 export type DiagnosticActionName =
@@ -118,6 +178,12 @@ export type DiagnosticEvent =
       readonly errorKind?: string;
       readonly durationMs?: number;
       readonly itemCount?: number;
+    }
+  | {
+      readonly kind: "folder.response.rejected";
+      readonly at: string;
+      readonly path: RedactedPathRef;
+      readonly rejection: FolderResponseRejectionEvidence;
     }
   | {
       readonly kind: "action.invoked";
@@ -216,6 +282,7 @@ const EVENT_KIND_CATEGORY: Readonly<Record<string, string>> = {
   "navigation.search": "User actions and navigation",
   "navigation.surface": "User actions and navigation",
   "folder.load": "User actions and navigation",
+  "folder.response.rejected": "Errors and performance",
   "action.invoked": "User actions and navigation",
   "action.result": "User actions and navigation",
   "transfer.finished": "Cache, storage, and sync",
@@ -250,8 +317,122 @@ const isOptionalString = (value: unknown): value is string | undefined =>
 const isOptionalFiniteNumber = (value: unknown): value is number | undefined =>
   value === undefined || isFiniteNumber(value);
 
+const isOptionalBoolean = (value: unknown): value is boolean | undefined =>
+  value === undefined || typeof value === "boolean";
+
+const DIAGNOSTIC_VALUE_TYPES = new Set(["undefined", "null", "boolean", "number", "string", "array", "object"]);
+const REJECTION_PHASES = new Set([
+  "json-decode", "envelope-schema", "response-path-mismatch", "items-not-array",
+  "item-schema", "noncanonical-item-path", "basename-mismatch", "item-outside-folder"
+]);
+const CONTENT_TYPE_CLASSES = new Set(["json", "html", "text", "binary", "other", "missing"]);
+const NAME_DIFFERENCE_CATEGORIES = new Set([
+  "end", "control", "whitespace", "letter", "number", "mark", "punctuation", "symbol", "other"
+]);
+const PROTOCOL_KEYS = new Set([
+  "etag", "isFolder", "lastModified", "mimeType", "name", "ownerDisplayName",
+  "path", "permissions", "size"
+]);
+const RESPONSE_ISSUE_KEYS = new Set(["path", "code", "expectedType", "actualType"]);
+const BASENAME_COMPARISON_KEYS = new Set([
+  "basenameLength", "equalAfterTrim", "equalAfterNfc", "equalIgnoringCase",
+  "firstDifferenceIndex", "basenameDifferenceCategory", "nameDifferenceCategory"
+]);
+const ITEM_SHAPE_KEYS = new Set([
+  "presentKeys", "fieldTypes", "isFolder", "pathDepth", "nameLength", "basenameComparison", "flags"
+]);
+const ITEM_SHAPE_FLAG_KEYS = new Set([
+  "hasControl", "hasEdgeWhitespace", "nonNfc", "hasEncodedSeparator", "hasDotSegment"
+]);
+const REJECTION_KEYS = new Set([
+  "phase", "status", "contentType", "payloadBytes", "workerBuild", "apiContract", "itemIndex",
+  "issues", "truncatedIssueCount", "itemShape", "rejectedCount", "truncatedCount"
+]);
+const REDACTED_PATH_KEYS = new Set(["alias", "depth", "extension", "kind"]);
+const FOLDER_REJECTION_EVENT_KEYS = new Set(["kind", "at", "path", "rejection"]);
+
+const hasOnlyKeys = (value: Record<string, unknown>, allowedKeys: ReadonlySet<string>): boolean =>
+  Object.keys(value).every((key) => allowedKeys.has(key));
+
+const isDiagnosticValueType = (value: unknown): value is DiagnosticValueType =>
+  typeof value === "string" && DIAGNOSTIC_VALUE_TYPES.has(value);
+
+const isIssuePath = (value: unknown): value is readonly (string | number)[] =>
+  Array.isArray(value)
+    && value.length <= 8
+    && value.every((segment) => (typeof segment === "number" && Number.isSafeInteger(segment) && segment >= 0)
+      || (typeof segment === "string" && /^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(segment)));
+
+const isResponseIssueEvidence = (value: unknown): value is FolderResponseIssueEvidence =>
+  isRecord(value)
+    && hasOnlyKeys(value, RESPONSE_ISSUE_KEYS)
+    && isIssuePath(value.path)
+    && typeof value.code === "string"
+    && value.code.length <= 40
+    && isOptionalString(value.expectedType)
+    && isDiagnosticValueType(value.actualType);
+
+const isNonNegativeSafeInteger = (value: unknown): value is number =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+
+const isNameDifferenceCategory = (value: unknown): value is FolderNameDifferenceCategory =>
+  typeof value === "string" && NAME_DIFFERENCE_CATEGORIES.has(value);
+
+const isBasenameComparisonEvidence = (value: unknown): value is FolderBasenameComparisonEvidence =>
+  isRecord(value)
+    && hasOnlyKeys(value, BASENAME_COMPARISON_KEYS)
+    && isNonNegativeSafeInteger(value.basenameLength)
+    && typeof value.equalAfterTrim === "boolean"
+    && typeof value.equalAfterNfc === "boolean"
+    && typeof value.equalIgnoringCase === "boolean"
+    && isNonNegativeSafeInteger(value.firstDifferenceIndex)
+    && isNameDifferenceCategory(value.basenameDifferenceCategory)
+    && isNameDifferenceCategory(value.nameDifferenceCategory);
+
+const isItemShapeEvidence = (value: unknown): value is FolderItemShapeEvidence => {
+  if (!isRecord(value) || !Array.isArray(value.presentKeys) || value.presentKeys.length > 16
+    || !hasOnlyKeys(value, ITEM_SHAPE_KEYS)
+    || !value.presentKeys.every((key) => typeof key === "string" && PROTOCOL_KEYS.has(key))
+    || !isRecord(value.fieldTypes)
+    || Object.keys(value.fieldTypes).length > PROTOCOL_KEYS.size
+    || !Object.keys(value.fieldTypes).every((key) => PROTOCOL_KEYS.has(key))
+    || !Object.values(value.fieldTypes).every(isDiagnosticValueType)
+    || !isRecord(value.flags)
+    || !hasOnlyKeys(value.flags, ITEM_SHAPE_FLAG_KEYS)) {
+    return false;
+  }
+  return isOptionalBoolean(value.isFolder)
+    && (value.pathDepth === undefined || isNonNegativeSafeInteger(value.pathDepth))
+    && (value.nameLength === undefined || isNonNegativeSafeInteger(value.nameLength))
+    && (value.basenameComparison === undefined || isBasenameComparisonEvidence(value.basenameComparison))
+    && typeof value.flags.hasControl === "boolean"
+    && typeof value.flags.hasEdgeWhitespace === "boolean"
+    && typeof value.flags.nonNfc === "boolean"
+    && isOptionalBoolean(value.flags.hasEncodedSeparator)
+    && isOptionalBoolean(value.flags.hasDotSegment);
+};
+
+const isFolderResponseRejectionEvidence = (value: unknown): value is FolderResponseRejectionEvidence => {
+  if (!isRecord(value) || !hasOnlyKeys(value, REJECTION_KEYS)
+    || typeof value.phase !== "string" || !REJECTION_PHASES.has(value.phase)) return false;
+  if (!isOptionalFiniteNumber(value.status)
+    || (value.contentType !== undefined && (typeof value.contentType !== "string" || !CONTENT_TYPE_CLASSES.has(value.contentType)))
+    || !isOptionalFiniteNumber(value.payloadBytes)
+    || !isOptionalString(value.workerBuild)
+    || !isOptionalString(value.apiContract)
+    || !isOptionalFiniteNumber(value.itemIndex)
+    || !isOptionalFiniteNumber(value.truncatedIssueCount)
+    || !isOptionalFiniteNumber(value.rejectedCount)
+    || !isOptionalFiniteNumber(value.truncatedCount)) {
+    return false;
+  }
+  return (value.issues === undefined
+      || (Array.isArray(value.issues) && value.issues.length <= 10 && value.issues.every(isResponseIssueEvidence)))
+    && (value.itemShape === undefined || isItemShapeEvidence(value.itemShape));
+};
+
 const isRedactedPathRef = (value: unknown): value is RedactedPathRef => {
-  if (!isRecord(value)) {
+  if (!isRecord(value) || !hasOnlyKeys(value, REDACTED_PATH_KEYS)) {
     return false;
   }
   return typeof value.alias === "string"
@@ -309,6 +490,10 @@ export const isDiagnosticEvent = (value: unknown): value is DiagnosticEvent => {
         && isOptionalString(value.errorKind)
         && isOptionalFiniteNumber(value.durationMs)
         && isOptionalFiniteNumber(value.itemCount);
+    case "folder.response.rejected":
+      return hasOnlyKeys(value, FOLDER_REJECTION_EVENT_KEYS)
+        && isRedactedPathRef(value.path)
+        && isFolderResponseRejectionEvidence(value.rejection);
     case "action.invoked":
       return typeof value.action === "string" && (value.detail === undefined || isRecord(value.detail));
     case "action.result":
@@ -372,7 +557,7 @@ const isSessionMeta = (value: unknown): value is DiagnosticsSessionMeta => {
  * log must never surface as trusted application state.
  */
 export const isDiagnosticsSessionRecord = (value: unknown): value is DiagnosticsSessionRecord => {
-  if (!isRecord(value) || value.version !== DIAGNOSTICS_SCHEMA_VERSION) {
+  if (!isRecord(value) || (value.version !== 1 && value.version !== DIAGNOSTICS_SCHEMA_VERSION)) {
     return false;
   }
   if (!isSessionMeta(value.meta) || !Array.isArray(value.events)) {
@@ -384,7 +569,8 @@ export const isDiagnosticsSessionRecord = (value: unknown): value is Diagnostics
   if (value.context !== undefined && !isSessionContext(value.context)) {
     return false;
   }
-  return value.events.every(isDiagnosticEvent);
+  return value.events.every((event) => isDiagnosticEvent(event)
+    && (value.version !== 1 || event.kind !== "folder.response.rejected"));
 };
 
 export const summarizeSessionRecord = (

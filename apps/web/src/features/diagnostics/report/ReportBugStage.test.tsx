@@ -26,10 +26,13 @@ const buildProps = (overrides: Partial<ReportBugStageProps> = {}): ReportBugStag
   },
   canShare: true,
   exporting: false,
+  canUpload: true,
+  uploadReceipt: undefined,
   fileSizeDisplayMode: "human",
   onClose: vi.fn(),
   onToggleSession: vi.fn(),
   onExport: vi.fn(),
+  onUpload: vi.fn(),
   ...overrides
 });
 
@@ -88,6 +91,37 @@ describe("ReportBugStage", () => {
     expect(onExport).toHaveBeenCalledWith(expect.anything(), "share");
   });
 
+  it("uploads only after the user presses the explicit send action and explains retention", () => {
+    const onUpload = vi.fn();
+    render(<ReportBugStage {...buildProps({ onUpload })} />);
+
+    expect(screen.getByText(/secure diagnostic inbox/i)).toBeInTheDocument();
+    expect(screen.getByText(/30 days/i)).toBeInTheDocument();
+    expect(onUpload).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Bug summary"), { target: { value: "Folder missing" } });
+    fireEvent.click(screen.getByRole("button", { name: /Send report/i }));
+    expect(onUpload).toHaveBeenCalledWith(expect.objectContaining({ summary: "Folder missing" }));
+  });
+
+  it("keeps the dialog open and shows the receipt after upload", () => {
+    render(<ReportBugStage {...buildProps({
+      uploadReceipt: {
+        reportId: "123e4567-e89b-42d3-a456-426614174000",
+        acceptedAt: "2026-09-24T09:27:58.000Z",
+        expiresAfterDays: 30,
+        duplicate: false
+      }
+    })} />);
+    expect(screen.getByRole("status")).toHaveTextContent("123e4567-e89b-42d3-a456-426614174000");
+  });
+
+  it("disables sending without an eligible authenticated online session and caps form fields", () => {
+    render(<ReportBugStage {...buildProps({ canUpload: false })} />);
+    expect(screen.getByRole("button", { name: /Send report/i })).toBeDisabled();
+    expect(screen.getByLabelText("Bug summary")).toHaveAttribute("maxLength", "160");
+    expect(screen.getByLabelText("What happened")).toHaveAttribute("maxLength", "4000");
+  });
+
   it("toggles session selection", () => {
     const onToggleSession = vi.fn();
     render(<ReportBugStage {...buildProps({ onToggleSession })} />);
@@ -103,6 +137,7 @@ describe("ReportBugStage", () => {
 
   it("disables export buttons while exporting", () => {
     render(<ReportBugStage {...buildProps({ exporting: true })} />);
-    expect(screen.getByRole("button", { name: /Preparing/ })).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: /Preparing/ })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /Preparing/ }).every((button) => button.hasAttribute("disabled"))).toBe(true);
   });
 });

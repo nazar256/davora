@@ -40,6 +40,7 @@ describe("catalog Worker router", () => {
     ["move", request("/api/move", "POST", JSON.stringify({ path: "Docs/a.txt", destinationPath: "Archive/a.txt" }))],
     ["copy", request("/api/copy", "POST", JSON.stringify({ path: "Docs/a.txt", destinationPath: "Archive/a.txt" }))],
     ["delete", request("/api/delete", "POST", JSON.stringify({ path: "Docs/a.txt", confirmName: "a.txt" }))],
+    ["diagnosticReport", request("/api/diagnostic-reports", "POST", new Uint8Array([0x50, 0x4b, 0x03, 0x04]), "application/zip")],
     ["reset", request("/api/mock/reset", "POST")]
   ] as const)("matches and parses %s exactly once", async (id, input) => {
     await expect(matchWorkerRoute(input)).resolves.toMatchObject({ id });

@@ -65,14 +65,22 @@ export const wrapDiagnosticsFolderPorts = (
       commandsNow.record({ kind: "folder.load", outcome: "cancelled", durationMs });
     } else {
       const offline = outcome.error instanceof BackendNetworkBlockedError;
+      if (outcome.diagnostic) {
+        commandsNow.record({
+          kind: "folder.response.rejected",
+          path: commandsNow.redactPath(input.path, "folder"),
+          rejection: outcome.diagnostic
+        });
+      }
+      const errorKind = outcome.diagnostic?.phase ?? outcome.kind;
       commandsNow.record({
         kind: "folder.load",
         outcome: offline ? "offline" : "failed",
-        errorKind: outcome.kind,
+        errorKind,
         durationMs
       });
       if (!offline) {
-        commandsNow.record({ kind: "error.reported", area: "list", errorKind: outcome.kind });
+        commandsNow.record({ kind: "error.reported", area: "list", errorKind });
       }
     }
     return outcome;

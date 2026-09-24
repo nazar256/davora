@@ -25,7 +25,7 @@ import type { ParsedWorkerRoute } from "../http/router";
 import { json } from "../security/http";
 import type { FileBackend } from "./backend";
 
-export type FileApplicationRoute = Exclude<ParsedWorkerRoute, { id: "health" | "reset" | "connectAccount" | "deleteAccount" | "session" | "streamToken" }>;
+export type FileApplicationRoute = Exclude<ParsedWorkerRoute, { id: "health" | "reset" | "connectAccount" | "deleteAccount" | "session" | "streamToken" | "diagnosticReport" }>;
 
 function inlineHeaders(contentType: string | undefined, filename: string): Headers {
   return new Headers({

@@ -1,6 +1,31 @@
 import type { CapabilitySet, ConnectedAccount } from "@davora/shared";
 import type { AccountStateStorage } from "./accounts/storage";
 
+export interface DiagnosticRateLimiter {
+  limit(input: { key: string }): Promise<{ success: boolean }>;
+}
+
+export interface DiagnosticR2Object {
+  readonly key: string;
+  readonly size: number;
+  readonly customMetadata?: Record<string, string>;
+}
+
+export interface DiagnosticR2Bucket {
+  head(key: string): Promise<DiagnosticR2Object | null>;
+  delete(key: string): Promise<void>;
+  put(
+    key: string,
+    value: ArrayBuffer | ArrayBufferView | string | null,
+    options?: {
+      onlyIf?: Headers | { etagDoesNotMatch?: string };
+      customMetadata?: Record<string, string>;
+      httpMetadata?: Record<string, string>;
+      sha256?: ArrayBuffer | string;
+    }
+  ): Promise<DiagnosticR2Object | null>;
+}
+
 export interface WorkerEnv {
   SESSION_SECRET: string;
   ACCOUNT_STATE_SECRET?: string;
@@ -23,6 +48,12 @@ export interface WorkerEnv {
     };
   };
   ACCOUNT_STATE_STORAGE?: AccountStateStorage;
+  DIAGNOSTIC_UPLOAD_ENABLED?: boolean;
+  DIAGNOSTIC_QUOTA_SECRET?: string;
+  WORKER_BUILD_LABEL?: string;
+  DAVORA_DIAGNOSTIC_REPORTS?: DiagnosticR2Bucket;
+  DIAGNOSTIC_UPLOAD_ACCOUNT_RATE_LIMITER?: DiagnosticRateLimiter;
+  DIAGNOSTIC_UPLOAD_GLOBAL_RATE_LIMITER?: DiagnosticRateLimiter;
 }
 
 export interface SessionPayload {

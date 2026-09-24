@@ -22,6 +22,10 @@ export const apiErrorCodeSchema = z.enum([
   "invalid_unlock_code",
   "session_creation_failed",
   "session_mismatch",
+  "invalid_diagnostic_report",
+  "diagnostic_report_too_large",
+  "diagnostic_report_rate_limited",
+  "diagnostic_report_unavailable",
   "unauthorized",
   "bad_request",
   "unexpected_error"

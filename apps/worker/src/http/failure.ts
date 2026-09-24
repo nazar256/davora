@@ -28,6 +28,10 @@ export type WorkerFailureKind =
   | "token_expired"
   | "stream_path_mismatch"
   | "session_mismatch"
+  | "invalid_diagnostic_report"
+  | "diagnostic_report_too_large"
+  | "diagnostic_report_rate_limited"
+  | "diagnostic_report_unavailable"
   | "invalid_file_query"
   | "invalid_stream_token_path"
   | "invalid_mutation_body"
@@ -72,6 +76,10 @@ const specs: Record<WorkerFailureKind, WorkerFailureSpec> = {
   token_expired: { status: 401, code: "unauthorized", message: "Token expired." },
   stream_path_mismatch: { status: 401, code: "unauthorized", message: "Stream token does not match the requested path." },
   session_mismatch: { status: 401, code: "session_mismatch", message: "Session no longer matches the selected account configuration." },
+  invalid_diagnostic_report: { status: 400, code: "invalid_diagnostic_report", message: "Diagnostic report is invalid." },
+  diagnostic_report_too_large: { status: 413, code: "diagnostic_report_too_large", message: "Diagnostic report is too large." },
+  diagnostic_report_rate_limited: { status: 429, code: "diagnostic_report_rate_limited", message: "Diagnostic report upload limit reached." },
+  diagnostic_report_unavailable: { status: 503, code: "diagnostic_report_unavailable", message: "Diagnostic report upload is unavailable." },
   invalid_file_query: { status: 400, code: "invalid_request", message: "File path query was invalid." },
   invalid_stream_token_path: { status: 400, code: "invalid_request", message: "File path query was invalid." },
   invalid_mutation_body: { status: 400, code: "invalid_request", message: "Request body is invalid." },

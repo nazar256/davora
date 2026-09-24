@@ -34,6 +34,7 @@ import { createBrowserDiagnosticsEnvironment } from "../platform/diagnostics/bro
 import { createBrowserDiagnosticsErrorCapture } from "../platform/diagnostics/browserDiagnosticsErrorCapture";
 import { createBrowserDiagnosticsLifecycle } from "../platform/diagnostics/browserDiagnosticsLifecycle";
 import { createBrowserDiagnosticsExport } from "../platform/diagnostics/browserDiagnosticsExport";
+import { createBrowserDiagnosticsUpload } from "../platform/diagnostics/browserDiagnosticsUpload";
 import { createBrowserDiagnosticsClock, createBrowserDiagnosticsIds } from "../platform/diagnostics/browserDiagnosticsClock";
 import { setBackendRequestObserver } from "../lib/networkPolicy";
 import { APP_BUILD_LABEL } from "../lib/appBuild";
@@ -75,6 +76,7 @@ export const createBrowserAppServices = (): AppServices => {
     errorCapture: createBrowserDiagnosticsErrorCapture(),
     lifecycle: createBrowserDiagnosticsLifecycle(),
     exportPort: createBrowserDiagnosticsExport(),
+    uploadPort: createBrowserDiagnosticsUpload(),
     network: { setObserver: setBackendRequestObserver },
     clock: createBrowserDiagnosticsClock(),
     ids: createBrowserDiagnosticsIds()

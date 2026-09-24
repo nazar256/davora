@@ -11,6 +11,7 @@ import { AccountRepositoryError } from "../accounts/repository";
 import { createFileBackend } from "../files/createFileBackend";
 import { executeFileRoute } from "../files/service";
 import { resetMockEntries } from "../mock/data";
+import { uploadDiagnosticReport } from "../diagnostics/reportInbox";
 import { signSessionToken, signStreamToken, verifySessionToken, verifyStreamToken } from "../security/token";
 import { json } from "../security/http";
 import type { FileBackend } from "../files/backend";
@@ -171,6 +172,10 @@ async function executeApplicationRoute(
   }
   if (route.id === "streamToken") {
     return executeStreamTokenRoute(route, sessionContext(context), dependencies);
+  }
+  if (route.id === "diagnosticReport") {
+    const authenticated = sessionContext(context);
+    return uploadDiagnosticReport(request, route.input, authenticated.account.account, env);
   }
   const authorized = authorizedContext(context);
   return executeFileRoute(route, request, dependencies.createFileBackend(authorized.account));

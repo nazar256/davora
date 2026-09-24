@@ -66,6 +66,7 @@ const noopDiagnosticsCommands: DiagnosticsWorkspaceCommands = {
   closeReport: () => undefined,
   clearData: () => undefined,
   exportReport: async () => undefined,
+  uploadReport: async () => undefined,
   recordAction: () => undefined,
   recordActionResult: () => undefined,
   record: () => undefined,
@@ -503,6 +504,7 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
   const diagnosticsWorkspace = useDiagnosticsWorkspace({
     enabled: uiSettings.diagnosticsEnabled,
     appBuild: APP_BUILD_LABEL,
+    sessionToken: token,
     getContext: () => diagnosticsContextRef.current,
     ports: services.diagnostics,
     navigation: {

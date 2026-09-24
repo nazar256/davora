@@ -32,7 +32,7 @@ describe("diagnostics recorder", () => {
     await recorder.end("disabled");
 
     const record = store.records.get(recorder.sessionId);
-    expect(record?.version).toBe(1);
+    expect(record?.version).toBe(2);
     expect(record?.meta.id).toBe(recorder.sessionId);
     expect(record?.meta.endReason).toBe("disabled");
     expect(record?.environment?.appBuild).toBe("test");

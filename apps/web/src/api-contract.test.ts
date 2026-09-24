@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  ApiRequestError,
   copyFile,
   createFolder,
   deleteFile,
@@ -86,6 +87,53 @@ class ControlledUploadRequest {
 }
 
 describe("browser API contract", () => {
+  it("classifies invalid JSON without retaining the response body", async () => {
+    const body = '{"private-sentinel":';
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(body, {
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "x-davora-worker-build": "worker-abc123",
+        "x-davora-api-contract": "2"
+      }
+    })));
+
+    const error = await listFiles("Docs", "token").catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(ApiRequestError);
+    expect(error).toMatchObject({
+      code: "invalid_response",
+      responseDiagnostic: {
+        phase: "json-decode",
+        status: 200,
+        contentType: "json",
+        payloadBytes: new TextEncoder().encode(body).byteLength,
+        workerBuild: "worker-abc123",
+        apiContract: "2"
+      }
+    });
+    expect(JSON.stringify(error)).not.toContain("private-sentinel");
+  });
+
+  it("summarizes invalid envelope issues without retaining rejected values", async () => {
+    const body = JSON.stringify({ data: { path: "Docs", items: [{ path: "../private-sentinel", name: "x", isFolder: false }] } });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(body, {
+      status: 200,
+      headers: { "content-type": "application/json" }
+    })));
+
+    const error = await listFiles("Docs", "token").catch((value: unknown) => value);
+    expect(error).toMatchObject({
+      code: "invalid_response",
+      responseDiagnostic: {
+        phase: "envelope-schema",
+        status: 200,
+        contentType: "json",
+        issues: [{ path: ["data", "items", 0, "path"], code: "custom", actualType: "string" }]
+      }
+    });
+    expect(JSON.stringify(error)).not.toContain("private-sentinel");
+  });
+
   it("rejects malformed successful health responses at the browser trust boundary", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
       data: {

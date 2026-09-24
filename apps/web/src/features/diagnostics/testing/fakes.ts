@@ -13,6 +13,8 @@ import type {
   DiagnosticsLifecyclePort,
   DiagnosticsNetworkObservation,
   DiagnosticsNetworkObservationPort,
+  DiagnosticsReportUploadInput,
+  DiagnosticsReportUploadPort,
   DiagnosticsRuntimePorts,
   DiagnosticsStore,
   DiagnosticsStoreResult
@@ -177,24 +179,43 @@ export const createFakeDiagnosticsNetwork = (): DiagnosticsNetworkObservationPor
   };
 };
 
+export const createFakeDiagnosticsUpload = (): DiagnosticsReportUploadPort & {
+  readonly uploaded: DiagnosticsReportUploadInput[];
+} => ({
+  uploaded: [],
+  createReportId: () => "123e4567-e89b-42d3-a456-426614174000",
+  async upload(input) {
+    this.uploaded.push(input);
+    return {
+      reportId: "123e4567-e89b-42d3-a456-426614174000",
+      acceptedAt: "2026-09-24T09:27:58.000Z",
+      expiresAfterDays: 30,
+      duplicate: false
+    };
+  }
+});
+
 export const createFakeDiagnosticsRuntimePorts = (): DiagnosticsRuntimePorts & {
   readonly fakeStore: FakeDiagnosticsStore;
   readonly fakeErrors: ReturnType<typeof createFakeDiagnosticsErrorCapture>;
   readonly fakeLifecycle: ReturnType<typeof createFakeDiagnosticsLifecycle>;
   readonly fakeExport: ReturnType<typeof createFakeDiagnosticsExport>;
   readonly fakeNetwork: ReturnType<typeof createFakeDiagnosticsNetwork>;
+  readonly fakeUpload: ReturnType<typeof createFakeDiagnosticsUpload>;
 } => {
   const fakeStore = createFakeDiagnosticsStore();
   const fakeErrors = createFakeDiagnosticsErrorCapture();
   const fakeLifecycle = createFakeDiagnosticsLifecycle();
   const fakeExport = createFakeDiagnosticsExport();
   const fakeNetwork = createFakeDiagnosticsNetwork();
+  const fakeUpload = createFakeDiagnosticsUpload();
   return {
     store: fakeStore,
     environment: createFakeDiagnosticsEnvironment(),
     errorCapture: fakeErrors,
     lifecycle: fakeLifecycle,
     exportPort: fakeExport,
+    uploadPort: fakeUpload,
     network: fakeNetwork,
     clock: createFakeDiagnosticsClock(),
     ids: createFakeDiagnosticsIds(),
@@ -202,6 +223,7 @@ export const createFakeDiagnosticsRuntimePorts = (): DiagnosticsRuntimePorts & {
     fakeErrors,
     fakeLifecycle,
     fakeExport,
-    fakeNetwork
+    fakeNetwork,
+    fakeUpload
   };
 };

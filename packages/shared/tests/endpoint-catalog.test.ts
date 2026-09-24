@@ -9,8 +9,8 @@ import {
 
 describe("API endpoint catalog", () => {
   it("contains every public Worker endpoint exactly once", () => {
-    expect(Object.keys(apiEndpoints)).toHaveLength(17);
-    expect(new Set(Object.values(apiEndpoints).map((endpoint) => endpoint.id)).size).toBe(17);
+    expect(Object.keys(apiEndpoints)).toHaveLength(18);
+    expect(new Set(Object.values(apiEndpoints).map((endpoint) => endpoint.id)).size).toBe(18);
     expect(apiEndpoints.connectAccount).toBe(connectAccountEndpoint);
     expect(apiEndpoints.deleteAccount).toBe(deleteAccountEndpoint);
     expect(apiEndpoints.session).toBe(sessionEndpoint);

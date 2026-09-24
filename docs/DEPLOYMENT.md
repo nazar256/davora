@@ -22,7 +22,7 @@ npm run deploy
 - `npm run deploy:worker` runs `wrangler deploy` inside `apps/worker`.
 - `npm run deploy` runs the worker deploy first and the web deploy second so a new web build is not exposed before the target API/runtime is ready.
 - `npm run deploy:worker:dry-run` is the required preflight for bundle/runtime validation.
-- `npm run deploy:worker` and `npm run deploy` now fail fast before publish when any required Worker key role (`SESSION_SECRET`, `ACCOUNT_STATE_SECRET`, or `SESSION_TOKEN_SECRET`) is missing from the target runtime (`wrangler secret list` preflight).
+- `npm run deploy:worker` and `npm run deploy` fail fast before publish when any required Worker key role (`SESSION_SECRET`, `ACCOUNT_STATE_SECRET`, `SESSION_TOKEN_SECRET`, or `DIAGNOSTIC_QUOTA_SECRET`) is missing from the target runtime (`wrangler secret list` preflight).
 - `npm run deploy:web` and `npm run deploy` default `VITE_API_BASE_URL` to `https://api.example.invalid` and default `CLOUDFLARE_PAGES_PROJECT_NAME` to `davora` when those env vars are unset, so the bare root command path matches the documented operator flow.
 
 ## Required environment for web → Pages
@@ -85,10 +85,29 @@ npm run deploy:web
   ```
   The Worker decrypts the existing envelope with the legacy `SESSION_SECRET`, writes it encrypted under `ACCOUNT_STATE_SECRET`, and signs new sessions with `SESSION_TOKEN_SECRET`. Only after successful migration should the legacy key be retired through a separately verified rollout.
 - `APP_UNLOCK_CODE` is development-only. Production rejects any non-empty value; do not use it as a production rate-control or authentication mechanism.
-- The deploy script now checks `wrangler secret list --format json` inside `apps/worker` and aborts before publish when any of the three production key roles is absent. This prevents deploying the strict policy between the legacy state-key and migrated-key steps.
+- The deploy script checks `wrangler secret list --format json` inside `apps/worker` and aborts before publish when any required production key role is absent. It also reads `davora-local-diagnostic-reports` through Wrangler's EU jurisdiction and fails closed unless both exact enabled 30-day lifecycle rules are present. It passes `--keep-vars`, explicitly enables diagnostic upload, and stamps matching dirty-aware build labels into Worker and web artifacts.
 - `NEXTCLOUD_ALLOWED_HOSTS` is optional in real production mode. When it is empty, users may connect to any public HTTPS Nextcloud hostname; when set, it is an exact normalized hostname allowlist (for example `nextcloud.example.invalid`). `RUNTIME_MODE` defaults to `production`; `ALLOW_LOCAL_NEXTCLOUD=true` is valid only with `RUNTIME_MODE=development` and permits only explicit localhost/loopback destinations. Production always rejects HTTP, IP literals, special-use/private/link-local/metadata destinations, credentials, query/fragment syntax, wildcard/suffix matches, and invalid ports. Cloudflare's Worker egress restrictions remain an additional platform boundary.
 - Worker observability keeps application logs and errors available, while request invocation logs and traces are disabled in `apps/worker/wrangler.toml` so short-lived stream tokens in media URLs are not retained.
 - Operator live-log path: `cd apps/worker && wrangler tail davora --format pretty`.
+
+## Private diagnostic report inbox
+
+- `POST /api/diagnostic-reports` accepts only an authenticated session and only after the user explicitly presses **Send report**. Download and Share remain local alternatives.
+- The Worker streams at most 3 MiB, requires ZIP magic plus a matching SHA-256, rate-limits per account and globally, and allows at most three accepted report IDs per account-derived HMAC and UTC day. R2 metadata contains no raw account ID, username, path, description, token, or file content.
+- `DAVORA_DIAGNOSTIC_REPORTS` binds the private EU-jurisdiction bucket `davora-local-diagnostic-reports`. There is no public list or download endpoint.
+- Provision the independent quota-HMAC secret without placing it in a file or shell variable:
+  ```bash
+  (cd apps/worker && head -c 32 /dev/urandom | base64 | tr -d '\n' | wrangler secret put DIAGNOSTIC_QUOTA_SECRET)
+  ```
+- The bucket has two enabled 30-day expiry rules, one each for `reports/v1/` and `quota/v1/`. Every Worker deploy verifies both rules and that the bucket is reachable only through the configured EU jurisdiction before upload can be enabled. Inspect them manually with:
+  ```bash
+  cd apps/worker && wrangler r2 bucket lifecycle list davora-local-diagnostic-reports --jurisdiction eu
+  ```
+- Create a separate Cloudflare API token with only account R2 read permission for operator pulls. Export it interactively as `CLOUDFLARE_DIAGNOSTICS_READ_TOKEN`, set `CLOUDFLARE_ACCOUNT_ID`, then run:
+  ```bash
+  npm run diagnostics:inbox -- pull --since 30d --limit 50
+  ```
+  The command performs only GET requests, accepts only canonical `reports/v1/YYYY/MM/DD/<uuid>.zip` keys, verifies the stored SHA-256, never extracts archive contents, and writes ZIPs plus `manifest.json` only under ignored `.tmp/diagnostic-inbox/`.
 
 ## Worker local runtime smoke path
 
@@ -118,7 +137,7 @@ npm run deploy:worker -- --dry-run
 - The dry-run output should complete without unresolved runtime-compat warnings.
 
 Publish guardrail:
-- `npm run deploy:worker` will now stop before release if `SESSION_SECRET`, `ACCOUNT_STATE_SECRET`, or `SESSION_TOKEN_SECRET` is not provisioned in the target Worker runtime.
+- `npm run deploy:worker` stops before release if `SESSION_SECRET`, `ACCOUNT_STATE_SECRET`, `SESSION_TOKEN_SECRET`, or `DIAGNOSTIC_QUOTA_SECRET` is not provisioned in the target Worker runtime.
 
 ## Pages deploy validation
 

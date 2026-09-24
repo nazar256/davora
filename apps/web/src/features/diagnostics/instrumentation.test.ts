@@ -11,19 +11,22 @@ import {
 import type { DiagnosticsWorkspaceCommands } from "./workspace/ports";
 import { createFakeDiagnosticsClock } from "./testing/fakes";
 
-const commands = (): DiagnosticsWorkspaceCommands & { calls: string[] } => {
+const commands = (): DiagnosticsWorkspaceCommands & { calls: string[]; events: unknown[] } => {
   const calls: string[] = [];
+  const events: unknown[] = [];
   return {
     calls,
+    events,
     openReport: vi.fn(),
     closeReport: vi.fn(),
     clearData: vi.fn(),
     exportReport: vi.fn(async () => undefined),
+    uploadReport: vi.fn(async () => undefined),
     recordAction: (action) => { calls.push(`invoke:${action}`); },
     recordActionResult: (action, outcome, _duration, errorKind) => {
       calls.push(`result:${action}:${outcome}${errorKind ? `:${errorKind}` : ""}`);
     },
-    record: (event) => { calls.push(`event:${event.kind}`); },
+    record: (event) => { calls.push(`event:${event.kind}`); events.push(event); },
     redactPath: (_path) => ({ alias: "path-1", depth: 1, kind: undefined })
   };
 };
@@ -81,6 +84,44 @@ describe("diagnostics instrumentation", () => {
 
     await wrapped.loadFolder({ path: "Docs", token: "t", signal: new AbortController().signal });
     expect(spy.calls).toEqual(["event:folder.load", "event:error.reported"]);
+  });
+
+  it("records sanitized folder response rejection evidence before the terminal load event", async () => {
+    const spy = commands();
+    const base = folderPorts({
+      loadFolder: async () => ({
+        kind: "failure" as const,
+        error: new Error("invalid"),
+        diagnostic: {
+          phase: "basename-mismatch" as const,
+          itemIndex: 2,
+          itemShape: {
+            presentKeys: ["isFolder", "name", "path"],
+            fieldTypes: { isFolder: "boolean" as const, name: "string" as const, path: "string" as const },
+            isFolder: false,
+            pathDepth: 2,
+            nameLength: 4,
+            flags: { hasControl: false, hasEdgeWhitespace: false, nonNfc: false }
+          }
+        }
+      })
+    });
+    const wrapped = wrapDiagnosticsFolderPorts(base, { current: spy }, createFakeDiagnosticsClock());
+
+    await wrapped.loadFolder({ path: "Private/Folder", token: "t", signal: new AbortController().signal });
+
+    expect(spy.calls).toEqual([
+      "event:folder.response.rejected",
+      "event:folder.load",
+      "event:error.reported"
+    ]);
+    expect(spy.events[0]).toMatchObject({
+      kind: "folder.response.rejected",
+      path: { alias: "path-1", depth: 1 },
+      rejection: { phase: "basename-mismatch", itemIndex: 2 }
+    });
+    expect(spy.events[1]).toMatchObject({ kind: "folder.load", errorKind: "basename-mismatch" });
+    expect(JSON.stringify(spy.events)).not.toContain("Private/Folder");
   });
 
   it("records search outcomes through action results", async () => {

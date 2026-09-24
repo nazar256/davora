@@ -17,13 +17,43 @@ const baseRecord = (): DiagnosticsSessionRecord => ({
   events: []
 });
 
+const validRejectedEvent = () => ({
+  kind: "folder.response.rejected",
+  at: "2026-01-01T00:00:00.000Z",
+  path: { alias: "path-1", depth: 1, kind: "folder" },
+  rejection: {
+    phase: "basename-mismatch",
+    itemShape: {
+      presentKeys: ["isFolder", "name", "path"],
+      fieldTypes: { path: "string", name: "string", isFolder: "boolean" },
+      pathDepth: 2,
+      nameLength: 8,
+      basenameComparison: {
+        basenameLength: 8,
+        equalAfterTrim: false,
+        equalAfterNfc: false,
+        equalIgnoringCase: true,
+        firstDifferenceIndex: 0,
+        basenameDifferenceCategory: "letter",
+        nameDifferenceCategory: "letter"
+      },
+      flags: { hasControl: false, hasEdgeWhitespace: false, nonNfc: false }
+    }
+  }
+});
+
 describe("diagnostics model", () => {
+  it("writes schema v2 while continuing to accept persisted v1 sessions", () => {
+    expect(DIAGNOSTICS_SCHEMA_VERSION).toBe(2);
+    expect(isDiagnosticsSessionRecord({ ...baseRecord(), version: 1 })).toBe(true);
+  });
+
   it("accepts a well-formed empty session record", () => {
     expect(isDiagnosticsSessionRecord(baseRecord())).toBe(true);
   });
 
   it("rejects records with a foreign schema version", () => {
-    expect(isDiagnosticsSessionRecord({ ...baseRecord(), version: 2 })).toBe(false);
+    expect(isDiagnosticsSessionRecord({ ...baseRecord(), version: 3 })).toBe(false);
     expect(isDiagnosticsSessionRecord({ ...baseRecord(), version: "1" })).toBe(false);
   });
 
@@ -64,6 +94,92 @@ describe("diagnostics model", () => {
     })).toBe(true);
     expect(isDiagnosticEvent({ kind: "unknown.kind", at })).toBe(false);
     expect(isDiagnosticEvent({ kind: "session.ended", at, reason: "crash", durationMs: 1 })).toBe(false);
+    expect(isDiagnosticEvent({
+      kind: "folder.response.rejected",
+      at,
+      path: { alias: "path-1", depth: 1, kind: "folder" },
+      rejection: {
+        phase: "item-schema",
+        status: 200,
+        contentType: "json",
+        payloadBytes: 120,
+        workerBuild: "abc123",
+        apiContract: "2",
+        itemIndex: 0,
+        issues: [{ path: ["size"], code: "invalid_type", expectedType: "number", actualType: "string" }],
+        itemShape: {
+          presentKeys: ["isFolder", "name", "path", "size"],
+          fieldTypes: { path: "string", name: "string", isFolder: "boolean", size: "string" },
+          isFolder: false,
+          pathDepth: 2,
+          nameLength: 8,
+          basenameComparison: {
+            basenameLength: 8,
+            equalAfterTrim: false,
+            equalAfterNfc: false,
+            equalIgnoringCase: true,
+            firstDifferenceIndex: 0,
+            basenameDifferenceCategory: "letter",
+            nameDifferenceCategory: "letter"
+          },
+          flags: { hasControl: false, hasEdgeWhitespace: false, nonNfc: false }
+        }
+      }
+    })).toBe(true);
+    expect(isDiagnosticEvent({
+      kind: "folder.response.rejected",
+      at,
+      path: { alias: "path-1", depth: 1, kind: "folder" },
+      rejection: {
+        phase: "basename-mismatch",
+        itemShape: {
+          presentKeys: ["isFolder", "name", "path"],
+          fieldTypes: { path: "string", name: "string", isFolder: "boolean" },
+          basenameComparison: { basenameLength: "8" },
+          flags: { hasControl: false, hasEdgeWhitespace: false, nonNfc: false }
+        }
+      }
+    })).toBe(false);
+  });
+
+  it.each([
+    ["raw present key", (event: ReturnType<typeof validRejectedEvent>) => {
+      event.rejection.itemShape.presentKeys.push("Docs/private-name.txt");
+    }],
+    ["raw field-type key", (event: ReturnType<typeof validRejectedEvent>) => {
+      Object.assign(event.rejection.itemShape.fieldTypes, { "Docs/private-name.txt": "string" });
+    }],
+    ["extra item-shape field", (event: ReturnType<typeof validRejectedEvent>) => {
+      Object.assign(event.rejection.itemShape, { rawPath: "Docs/private-name.txt" });
+    }],
+    ["extra comparison field", (event: ReturnType<typeof validRejectedEvent>) => {
+      Object.assign(event.rejection.itemShape.basenameComparison, { rawName: "private-name.txt" });
+    }],
+    ["extra flags field", (event: ReturnType<typeof validRejectedEvent>) => {
+      Object.assign(event.rejection.itemShape.flags, { rawName: "private-name.txt" });
+    }],
+    ["extra redacted-path field", (event: ReturnType<typeof validRejectedEvent>) => {
+      Object.assign(event.path, { rawPath: "Docs/private-name.txt" });
+    }],
+    ["extra rejection field", (event: ReturnType<typeof validRejectedEvent>) => {
+      Object.assign(event.rejection, { rawPath: "Docs/private-name.txt" });
+    }],
+    ["extra event field", (event: ReturnType<typeof validRejectedEvent>) => {
+      Object.assign(event, { rawPath: "Docs/private-name.txt" });
+    }]
+  ])("rejects %s in folder rejection evidence", (_case, mutate) => {
+    const event = validRejectedEvent();
+    mutate(event);
+    expect(isDiagnosticEvent(event)).toBe(false);
+  });
+
+  it.each([
+    ["negative path depth", "pathDepth", -1],
+    ["fractional name length", "nameLength", 1.5]
+  ])("rejects %s", (_case, field, value) => {
+    const event = validRejectedEvent();
+    Object.assign(event.rejection.itemShape, { [field]: value });
+    expect(isDiagnosticEvent(event)).toBe(false);
   });
 
   it("summarizes records with event kinds for report previews", () => {

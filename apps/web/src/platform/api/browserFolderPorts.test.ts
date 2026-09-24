@@ -27,11 +27,115 @@ describe("browser folder ports", () => {
   });
 
   it("rejects malformed live entries at the browser trust boundary", async () => {
-    listFiles.mockResolvedValue({ path: "Docs", items: [{ path: "../escape", name: "escape", isFolder: false }] });
+    listFiles.mockResolvedValue({ path: "Docs", items: [{ path: "Docs/escape", name: "escape", isFolder: false, size: "large" }] });
     const ports = createBrowserFolderPorts(cache, { listFiles });
 
     await expect(ports.loadFolder({ path: "Docs", token: "token", signal: new AbortController().signal }))
-      .resolves.toMatchObject({ kind: "failure", error: new Error("The server returned invalid folder entries.") });
+      .resolves.toMatchObject({
+        kind: "failure",
+        error: new Error("The server returned invalid folder entries."),
+        diagnostic: {
+          phase: "item-schema",
+          itemIndex: 0,
+          itemShape: {
+            presentKeys: ["isFolder", "name", "path", "size"],
+            fieldTypes: { isFolder: "boolean", name: "string", path: "string", size: "string" }
+          }
+        }
+      });
+  });
+
+  it.each([
+    [{ path: "Elsewhere", items: [] }, "response-path-mismatch"],
+    [{ path: "Docs", items: {} }, "items-not-array"],
+    [{ path: "Docs", items: [{ path: "Docs/a.txt", name: "b.txt", isFolder: false }] }, "basename-mismatch"],
+    [{ path: "Docs", items: [buildFileEntry("Elsewhere/a.txt")] }, "item-outside-folder"]
+  ])("reports the safe rejection phase for %s", async (response, phase) => {
+    listFiles.mockResolvedValue(response);
+    const ports = createBrowserFolderPorts(cache, { listFiles });
+
+    const outcome = await ports.loadFolder({ path: "Docs", token: "token", signal: new AbortController().signal });
+    expect(outcome).toMatchObject({ kind: "failure", diagnostic: { phase } });
+    expect(JSON.stringify(outcome)).not.toContain("Elsewhere/a.txt");
+    expect(JSON.stringify(outcome)).not.toContain("Docs/a.txt");
+  });
+
+  it("reports a redacted basename comparison without inventing control characters", async () => {
+    listFiles.mockResolvedValue({
+      path: "Docs",
+      items: [{ path: "Docs/Report.txt", name: "report.txt", isFolder: false }]
+    });
+    const ports = createBrowserFolderPorts(cache, { listFiles });
+
+    const outcome = await ports.loadFolder({
+      path: "Docs",
+      token: "token",
+      signal: new AbortController().signal
+    });
+
+    expect(outcome).toMatchObject({
+      kind: "failure",
+      diagnostic: {
+        phase: "basename-mismatch",
+        itemShape: {
+          nameLength: 10,
+          basenameComparison: {
+            basenameLength: 10,
+            equalAfterTrim: false,
+            equalAfterNfc: false,
+            equalIgnoringCase: true,
+            firstDifferenceIndex: 0,
+            basenameDifferenceCategory: "letter",
+            nameDifferenceCategory: "letter"
+          },
+          flags: { hasControl: false }
+        }
+      }
+    });
+    expect(JSON.stringify(outcome)).not.toContain("Report.txt");
+    expect(JSON.stringify(outcome)).not.toContain("report.txt");
+  });
+
+  it("classifies C1 characters as controls without retaining the value", async () => {
+    listFiles.mockResolvedValue({
+      path: "Docs",
+      items: [{ path: "Docs/report.txt", name: "report\u0085.txt", isFolder: false }]
+    });
+    const ports = createBrowserFolderPorts(cache, { listFiles });
+
+    const outcome = await ports.loadFolder({
+      path: "Docs",
+      token: "token",
+      signal: new AbortController().signal
+    });
+
+    expect(outcome).toMatchObject({
+      kind: "failure",
+      diagnostic: {
+        itemShape: {
+          basenameComparison: { nameDifferenceCategory: "control" },
+          flags: { hasControl: true }
+        }
+      }
+    });
+    expect(JSON.stringify(outcome)).not.toContain("report\u0085.txt");
+  });
+
+  it("preserves sanitized HTTP response diagnostics without retaining response values", async () => {
+    const diagnostic = {
+      phase: "envelope-schema" as const,
+      status: 200,
+      contentType: "json" as const,
+      payloadBytes: 91,
+      workerBuild: "worker-abc",
+      apiContract: "2",
+      issues: [{ path: ["data", "items", 0, "path"], code: "custom", actualType: "string" as const }]
+    };
+    listFiles.mockRejectedValue(new ApiRequestError("invalid", 200, "invalid_response", undefined, diagnostic));
+    const ports = createBrowserFolderPorts(cache, { listFiles });
+
+    await expect(ports.loadFolder({ path: "Docs", token: "token", signal: new AbortController().signal }))
+      .resolves.toMatchObject({ kind: "failure", diagnostic });
   });
 
   it.each([
