@@ -55,10 +55,18 @@ describe("decodeHeicToRgba", () => {
     expect(decoded.height).toBe(854);
   });
 
-  it("rejects non-HEIC bytes with a descriptive error", async () => {
+  it("rejects non-HEIC bytes with libheif's real parse error and a byte fingerprint", async () => {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- jsdom's Blob has no arrayBuffer(); Node's Blob satisfies the decoder contract.
     const notHeic = new NodeBlob([new Uint8Array(64).fill(0x41)]) as unknown as Blob;
-    await expect(decodeHeicToRgba(notHeic)).rejects.toThrow("HEIC image not found");
+    await expect(decodeHeicToRgba(notHeic)).rejects.toThrow(/ftyp/);
+    await expect(decodeHeicToRgba(notHeic)).rejects.toThrow(/bytes=64 head="AAAAAAAAAAAAAAAA"/);
+  });
+
+  it("rejects a truncated HEIC with libheif's real pixel-decode error", async () => {
+    const truncated = readFileSync(HEIC_FIXTURE).subarray(0, 8192);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- jsdom's Blob has no arrayBuffer(); Node's Blob satisfies the decoder contract.
+    const truncatedBlob = new NodeBlob([truncated]) as unknown as Blob;
+    await expect(decodeHeicToRgba(truncatedBlob)).rejects.toThrow(/could not be decoded|Unexpected end of file|outside of file bounds/i);
   });
 });
 
