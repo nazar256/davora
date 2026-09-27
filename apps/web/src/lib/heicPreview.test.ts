@@ -1,4 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Blob as NodeBlob } from "node:buffer";
+
+// jsdom's Blob lacks slice().arrayBuffer(); Node's Blob has both.
+// eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- jsdom's Blob has no arrayBuffer(); Node's Blob satisfies the decoder contract.
+const TestBlob = NodeBlob as unknown as typeof Blob;
 
 const decodeHeicToRgbaMock = vi.hoisted(() => vi.fn());
 vi.mock("./heicDecoder", () => ({ decodeHeicToRgba: decodeHeicToRgbaMock }));
@@ -69,7 +74,7 @@ function requestIdAt(worker: FakeHeicWorker, index: number): number {
   return message.id;
 }
 
-function stubHeicDomCanvas(output: Blob | null = new Blob(["main-jpeg"], { type: "image/jpeg" })) {
+function stubHeicDomCanvas(output: Blob | null = new TestBlob(["main-jpeg"], { type: "image/jpeg" })) {
   const putImageData = vi.fn();
   const fakeCanvas = {
     width: 0,
@@ -140,8 +145,9 @@ describe("decodeHeicPreview", () => {
   });
 
   async function flushDecodeQueue(): Promise<void> {
-    await Promise.resolve();
-    await Promise.resolve();
+    for (let index = 0; index < 8; index += 1) {
+      await Promise.resolve();
+    }
   }
 
   afterEach(() => {
@@ -161,7 +167,7 @@ describe("decodeHeicPreview", () => {
 
   it("terminates timed-out HEIC workers and recovers with a fresh worker", async () => {
     stubHeicDomCanvas();
-    const timedOutDecode = decodeHeicPreview(new Blob(["heic"], { type: "image/heic" }));
+    const timedOutDecode = decodeHeicPreview(new TestBlob(["heic"], { type: "image/heic" }));
     const timedOutExpectation = expect(timedOutDecode).rejects.toThrow(/timed out/i);
     await flushDecodeQueue();
     const firstWorker = FakeHeicWorker.instances[0];
@@ -173,7 +179,7 @@ describe("decodeHeicPreview", () => {
     // A hung decode must not be retried on the main thread — it would freeze the UI.
     expect(decodeHeicToRgbaMock).not.toHaveBeenCalled();
 
-    const recoveredDecode = decodeHeicPreview(new Blob(["heic"], { type: "image/heic" }));
+    const recoveredDecode = decodeHeicPreview(new TestBlob(["heic"], { type: "image/heic" }));
     await flushDecodeQueue();
     const secondWorker = FakeHeicWorker.instances[1];
     expect(secondWorker).not.toBe(firstWorker);
@@ -189,7 +195,7 @@ describe("decodeHeicPreview", () => {
 
   it("cleans up worker errors exactly once and recovers with a fresh worker", async () => {
     stubHeicDomCanvas();
-    const failedDecode = decodeHeicPreview(new Blob(["heic"], { type: "image/heic" }));
+    const failedDecode = decodeHeicPreview(new TestBlob(["heic"], { type: "image/heic" }));
     await flushDecodeQueue();
     const failedWorker = lastWorker();
     failedWorker.fail("decode failed");
@@ -200,7 +206,7 @@ describe("decodeHeicPreview", () => {
     expect(failedWorker.listeners.get("error")?.size ?? 0).toBe(0);
     expect(failedWorker.listeners.get("messageerror")?.size ?? 0).toBe(0);
 
-    const recoveredDecode = decodeHeicPreview(new Blob(["heic"], { type: "image/heic" }));
+    const recoveredDecode = decodeHeicPreview(new TestBlob(["heic"], { type: "image/heic" }));
     await flushDecodeQueue();
     const recoveredWorker = lastWorker();
     expect(recoveredWorker).not.toBe(failedWorker);
@@ -210,8 +216,8 @@ describe("decodeHeicPreview", () => {
 
   it("serializes concurrent decodes and keeps late responses from a completed request inert", async () => {
     stubHeicDomCanvas();
-    const firstDecode = decodeHeicPreview(new Blob(["first"], { type: "image/heic" }));
-    const secondDecode = decodeHeicPreview(new Blob(["second"], { type: "image/heic" }));
+    const firstDecode = decodeHeicPreview(new TestBlob(["first"], { type: "image/heic" }));
+    const secondDecode = decodeHeicPreview(new TestBlob(["second"], { type: "image/heic" }));
     await flushDecodeQueue();
     const worker = lastWorker();
     expect(worker.messages).toHaveLength(1);
@@ -226,7 +232,7 @@ describe("decodeHeicPreview", () => {
 
   it("reuses a worker after a decode failure while removing the failed request listeners", async () => {
     stubHeicDomCanvas();
-    const failedDecode = decodeHeicPreview(new Blob(["heic"], { type: "image/heic" }));
+    const failedDecode = decodeHeicPreview(new TestBlob(["heic"], { type: "image/heic" }));
     await flushDecodeQueue();
     const worker = lastWorker();
     const failedRequest = { id: requestIdAt(worker, 0) };
@@ -235,7 +241,7 @@ describe("decodeHeicPreview", () => {
     expect(worker.terminated).toBe(false);
     expect(worker.listeners.get("message")?.size ?? 0).toBe(0);
 
-    const recoveredDecode = decodeHeicPreview(new Blob(["heic"], { type: "image/heic" }));
+    const recoveredDecode = decodeHeicPreview(new TestBlob(["heic"], { type: "image/heic" }));
     await flushDecodeQueue();
     expect(FakeHeicWorker.instances).toHaveLength(1);
     worker.reply(fakeRgbaMessage(worker, 1, 8, 9));
@@ -243,7 +249,7 @@ describe("decodeHeicPreview", () => {
   });
 
   it("makes timeout callbacks and late worker responses inert", async () => {
-    const decode = decodeHeicPreview(new Blob(["heic"], { type: "image/heic" }));
+    const decode = decodeHeicPreview(new TestBlob(["heic"], { type: "image/heic" }));
     await flushDecodeQueue();
     const worker = lastWorker();
     const request = { id: requestIdAt(worker, 0) };
@@ -258,7 +264,7 @@ describe("decodeHeicPreview", () => {
 
   it("encodes worker-transferred RGBA pixels on a DOM canvas", async () => {
     const canvasStub = stubHeicDomCanvas();
-    const decode = decodeHeicPreview(new Blob(["heic"], { type: "image/heic" }));
+    const decode = decodeHeicPreview(new TestBlob(["heic"], { type: "image/heic" }));
     await flushDecodeQueue();
     const worker = lastWorker();
     const pixels = fakePixels(8, 6);
@@ -276,7 +282,7 @@ describe("decodeHeicPreview", () => {
   it("retries the decode on the main thread when the worker reports a failure", async () => {
     const canvasStub = stubHeicDomCanvas();
     decodeHeicToRgbaMock.mockResolvedValue(fakePixels(8, 6));
-    const decode = decodeHeicPreview(new Blob(["heic"], { type: "image/heic" }));
+    const decode = decodeHeicPreview(new TestBlob(["heic"], { type: "image/heic" }));
     await flushDecodeQueue();
     const worker = lastWorker();
     worker.reply({ id: requestIdAt(worker, 0), ok: false, error: "decoder init failed" });
@@ -289,7 +295,7 @@ describe("decodeHeicPreview", () => {
   it("retries the decode on the main thread when the worker errors out", async () => {
     stubHeicDomCanvas();
     decodeHeicToRgbaMock.mockResolvedValue(fakePixels(4, 3));
-    const decode = decodeHeicPreview(new Blob(["heic"], { type: "image/heic" }));
+    const decode = decodeHeicPreview(new TestBlob(["heic"], { type: "image/heic" }));
     await flushDecodeQueue();
     lastWorker().fail("worker script failed");
 
@@ -302,14 +308,14 @@ describe("decodeHeicPreview", () => {
     stubHeicDomCanvas();
     decodeHeicToRgbaMock.mockResolvedValue(fakePixels(4, 3));
 
-    await expect(decodeHeicPreview(new Blob(["heic"], { type: "image/heic" })))
+    await expect(decodeHeicPreview(new TestBlob(["heic"], { type: "image/heic" })))
       .resolves.toMatchObject({ width: 4, height: 3, mimeType: "image/jpeg" });
     expect(FakeHeicWorker.instances).toHaveLength(0);
     expect(decodeHeicToRgbaMock).toHaveBeenCalledTimes(1);
   });
 
   it("does not retry deterministic worker failures on the main thread", async () => {
-    const decode = decodeHeicPreview(new Blob(["heic"], { type: "image/heic" }));
+    const decode = decodeHeicPreview(new TestBlob(["heic"], { type: "image/heic" }));
     await flushDecodeQueue();
     const worker = lastWorker();
     worker.reply({ id: requestIdAt(worker, 0), ok: false, error: "HEIC preview is limited to 40 megapixels.", retryable: false });
@@ -322,14 +328,14 @@ describe("decodeHeicPreview", () => {
     Object.defineProperty(globalThis, "Worker", { value: undefined, configurable: true, writable: true });
     decodeHeicToRgbaMock.mockRejectedValue(new Error("HEIC preview is limited to 40 megapixels."));
 
-    await expect(decodeHeicPreview(new Blob(["heic"], { type: "image/heic" })))
+    await expect(decodeHeicPreview(new TestBlob(["heic"], { type: "image/heic" })))
       .rejects.toThrow("megapixels");
   });
 
   it("reports both failure messages when worker and main-thread decodes fail", async () => {
     stubHeicDomCanvas();
     decodeHeicToRgbaMock.mockRejectedValue(new Error("invalid HEIC structure"));
-    const decode = decodeHeicPreview(new Blob(["heic"], { type: "image/heic" }));
+    const decode = decodeHeicPreview(new TestBlob(["heic"], { type: "image/heic" }));
     const expectation = expect(decode).rejects.toThrow(/worker canvas missing.*invalid HEIC structure/);
     await flushDecodeQueue();
     const worker = lastWorker();
@@ -341,12 +347,49 @@ describe("decodeHeicPreview", () => {
   it("preserves non-Error rejection details in combined failure reports", async () => {
     stubHeicDomCanvas();
     decodeHeicToRgbaMock.mockRejectedValue("Error: worker spawn refused");
-    const decode = decodeHeicPreview(new Blob(["heic"], { type: "image/heic" }));
+    const decode = decodeHeicPreview(new TestBlob(["heic"], { type: "image/heic" }));
     const expectation = expect(decode).rejects.toThrow(/decode unavailable.*worker spawn refused/);
     await flushDecodeQueue();
     const worker = lastWorker();
     worker.reply({ id: requestIdAt(worker, 0), ok: false, error: "decode unavailable" });
 
     await expectation;
+  });
+
+  it("returns JPEG bytes unchanged when a server delivers them under a .heic name", async () => {
+    const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0xaa, 0xbb, 0xcc, 0xdd, 0xff, 0xd9]);
+    const result = await decodeHeicPreview(new TestBlob([jpegBytes], { type: "image/heic" }));
+
+    expect(result.mimeType).toBe("image/jpeg");
+    expect(result.width).toBeUndefined();
+    expect(result.height).toBeUndefined();
+    expect(new Uint8Array(await result.blob.arrayBuffer())).toEqual(jpegBytes);
+    expect(FakeHeicWorker.instances).toHaveLength(0);
+    expect(decodeHeicToRgbaMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["PNG", new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]), "image/png"],
+    ["GIF", new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 1, 2, 3, 4, 5, 6]), "image/gif"],
+    ["WebP", new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50, 1, 2]), "image/webp"],
+    ["AVIF", new Uint8Array([0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66, 1, 2]), "image/avif"]
+  ])("returns %s bytes unchanged instead of decoding them", async (_label, bytes, mimeType) => {
+    const result = await decodeHeicPreview(new TestBlob([bytes], { type: "image/heic" }));
+
+    expect(result.mimeType).toBe(mimeType);
+    expect(new Uint8Array(await result.blob.arrayBuffer())).toEqual(bytes);
+    expect(FakeHeicWorker.instances).toHaveLength(0);
+    expect(decodeHeicToRgbaMock).not.toHaveBeenCalled();
+  });
+
+  it("still routes a real HEIF container through the decoder", async () => {
+    stubHeicDomCanvas();
+    const heicHead = new Uint8Array([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63]);
+    const decode = decodeHeicPreview(new TestBlob([heicHead, new Uint8Array(64)], { type: "image/heic" }));
+    await flushDecodeQueue();
+    const worker = lastWorker();
+    worker.reply(fakeRgbaMessage(worker, 0, 2, 2));
+
+    await expect(decode).resolves.toMatchObject({ width: 2, height: 2, mimeType: "image/jpeg" });
   });
 });

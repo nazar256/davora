@@ -2,6 +2,7 @@ import {
   HEIC_PREVIEW_MAX_SOURCE_BYTES,
   HEIC_PREVIEW_OUTPUT_MIME_TYPE,
   HEIC_PREVIEW_TIMEOUT_MS,
+  classifyHeicInput,
   heicErrorMessage
 } from "./heicPreviewShared";
 import type { HeicDecodedRgba } from "./heicDecoder";
@@ -18,9 +19,10 @@ export {
 
 export interface HeicPreviewResult {
   blob: Blob;
-  width: number;
-  height: number;
-  mimeType: typeof HEIC_PREVIEW_OUTPUT_MIME_TYPE;
+  /** Absent when the source bytes were returned unchanged (see decodeHeicPreview). */
+  width?: number;
+  height?: number;
+  mimeType: string;
 }
 
 interface HeicWorkerRgbaMessage {
@@ -176,6 +178,15 @@ async function decodeHeicPreviewInWorker(blob: Blob): Promise<HeicPreviewResult>
 export async function decodeHeicPreview(blob: Blob): Promise<HeicPreviewResult> {
   if (blob.size > HEIC_PREVIEW_MAX_SOURCE_BYTES) {
     throw new Error(`HEIC preview is limited to files up to ${Math.round(HEIC_PREVIEW_MAX_SOURCE_BYTES / (1024 * 1024))} MB.`);
+  }
+
+  // Some servers deliver a different format under a `.heic` name (e.g. a
+  // transcoded JPEG export). When the bytes are already browser-renderable,
+  // return them unchanged — libheif would only fail on non-HEIF input.
+  const head = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
+  const input = classifyHeicInput(head);
+  if (input.kind === "native") {
+    return { blob: blob.slice(0, blob.size, input.mimeType), mimeType: input.mimeType };
   }
 
   if (typeof Worker === "undefined") {
