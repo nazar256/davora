@@ -72,6 +72,7 @@ After compaction, read this guide and the active goal/session source. Do not inf
 - Do not stream successful per-test logs when pass/fail/count/timing is sufficient.
 - Prefer model/property/contract tests, deterministic fakes, browser state/geometry assertions, and screenshot/hash comparison over manual quick checks.
 - Reserve manual browser inspection for visual qualities that cannot be asserted reliably; UI quality claims still require browser-rendered evidence under `docs/UI_QUALITY_GATE.md`.
+- Diagnostic inbox reports are handled end-to-end: after a report's fix is deployed and verified, always delete it via `npm run diagnostics:inbox -- clear --report <uuid>` so the inbox only ever contains unhandled reports.
 - Screenshot capture writes `docs/screenshots`; isolate it when the active workflow requires preserving an existing dirty evidence baseline.
 - The system browser is normally `/usr/bin/chromium-browser`. Browser suites may require permission to bind localhost ports and launch Chromium.
 - Regular Playwright and screenshot suites share local ports and must run sequentially. PWA and ordinary dev servers also have documented port conflicts in their configs.

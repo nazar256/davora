@@ -132,6 +132,7 @@ npm run deploy
 - `npm run deploy:web` builds the exact Pages artifact with the default deployed Worker origin unless `VITE_API_BASE_URL` is overridden, then runs `wrangler pages deploy apps/web/dist --project-name davora` unless `CLOUDFLARE_PAGES_PROJECT_NAME` overrides it.
 - `npm run deploy` is the combined root entry point.
 - `npm run diagnostics:inbox -- pull --since 30d --limit 50` downloads checksum-verified reports into ignored `.tmp/diagnostic-inbox/…`. It requires `CLOUDFLARE_ACCOUNT_ID` and a separately scoped `CLOUDFLARE_DIAGNOSTICS_READ_TOKEN`; the token must have read-only R2 access and is never stored in the repo.
+- `npm run diagnostics:inbox -- clear --report <uuid>` deletes a handled report. Once a report's fix is deployed and verified, always clear it with a separately scoped `CLOUDFLARE_DIAGNOSTICS_WRITE_TOKEN` (R2 object delete); handled reports must never linger in the inbox.
 - Full operator details, env knobs, and future guardrails live in `docs/DEPLOYMENT.md`.
 
 ## UX source of truth

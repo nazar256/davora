@@ -2,8 +2,9 @@ import {
   HEIC_PREVIEW_MAX_SOURCE_BYTES,
   HEIC_PREVIEW_OUTPUT_MIME_TYPE,
   HEIC_PREVIEW_TIMEOUT_MS,
-  assertHeicPixelBounds
+  heicErrorMessage
 } from "./heicPreviewShared";
+import type { HeicDecodedRgba } from "./heicDecoder";
 
 export {
   HEIC_PREVIEW_MAX_PIXELS,
@@ -22,18 +23,10 @@ export interface HeicPreviewResult {
   mimeType: typeof HEIC_PREVIEW_OUTPUT_MIME_TYPE;
 }
 
-interface HeicWorkerBlobMessage {
+interface HeicWorkerRgbaMessage {
   id: number;
-  ok: true;
-  blob: Blob;
-  width: number;
-  height: number;
-}
-
-interface HeicWorkerBitmapMessage {
-  id: number;
-  ok: "bitmap";
-  bitmap: ImageBitmap;
+  ok: "rgba";
+  rgba: Uint8ClampedArray<ArrayBuffer>;
   width: number;
   height: number;
 }
@@ -45,7 +38,7 @@ interface HeicWorkerErrorMessage {
   retryable?: boolean;
 }
 
-type HeicWorkerMessage = HeicWorkerBlobMessage | HeicWorkerBitmapMessage | HeicWorkerErrorMessage;
+type HeicWorkerMessage = HeicWorkerRgbaMessage | HeicWorkerErrorMessage;
 
 /**
  * A timed-out worker decode is tagged so the caller skips the main-thread
@@ -55,9 +48,6 @@ class HeicWorkerTimeoutError extends Error {}
 
 /** Worker-side failures marked non-retryable (e.g. deterministic source limits). */
 class HeicWorkerPermanentError extends Error {}
-
-const heicErrorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : "Unable to decode HEIC preview.";
 
 let heicWorker: Worker | undefined;
 let nextRequestId = 1;
@@ -90,15 +80,15 @@ async function runQueuedDecode<T>(task: () => Promise<T>): Promise<T> {
   }
 }
 
-async function encodeHeicBitmapOnDomCanvas(bitmap: ImageBitmap): Promise<Blob> {
+async function encodeHeicRgbaOnDomCanvas(pixels: HeicDecodedRgba): Promise<Blob> {
   const canvas = document.createElement("canvas");
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
+  canvas.width = pixels.width;
+  canvas.height = pixels.height;
   const context = canvas.getContext("2d");
   if (!context) {
     throw new Error("HEIC preview could not create a browser canvas.");
   }
-  context.drawImage(bitmap, 0, 0);
+  context.putImageData(new ImageData(pixels.data, pixels.width, pixels.height), 0, 0);
   const output = await new Promise<Blob | null>((resolve) => {
     canvas.toBlob(resolve, HEIC_PREVIEW_OUTPUT_MIME_TYPE, 0.88);
   });
@@ -109,15 +99,10 @@ async function encodeHeicBitmapOnDomCanvas(bitmap: ImageBitmap): Promise<Blob> {
 }
 
 async function decodeHeicPreviewOnMainThread(blob: Blob): Promise<HeicPreviewResult> {
-  const { heicTo } = await import("heic-to/next");
-  const bitmap = await heicTo({ blob, type: "bitmap" });
-  try {
-    assertHeicPixelBounds(bitmap.width, bitmap.height);
-    const output = await encodeHeicBitmapOnDomCanvas(bitmap);
-    return { blob: output, width: bitmap.width, height: bitmap.height, mimeType: HEIC_PREVIEW_OUTPUT_MIME_TYPE };
-  } finally {
-    bitmap.close();
-  }
+  const { decodeHeicToRgba } = await import("./heicDecoder");
+  const pixels = await decodeHeicToRgba(blob);
+  const output = await encodeHeicRgbaOnDomCanvas(pixels);
+  return { blob: output, width: pixels.width, height: pixels.height, mimeType: HEIC_PREVIEW_OUTPUT_MIME_TYPE };
 }
 
 async function decodeHeicPreviewInWorker(blob: Blob): Promise<HeicPreviewResult> {
@@ -148,10 +133,14 @@ async function decodeHeicPreviewInWorker(blob: Blob): Promise<HeicPreviewResult>
         return;
       }
       cleanup();
-      if (message.ok === "bitmap") {
+      if (message.ok === "rgba") {
         void (async () => {
           try {
-            const output = await encodeHeicBitmapOnDomCanvas(message.bitmap);
+            const output = await encodeHeicRgbaOnDomCanvas({
+              data: message.rgba,
+              width: message.width,
+              height: message.height
+            });
             resolve({
               blob: output,
               width: message.width,
@@ -160,24 +149,13 @@ async function decodeHeicPreviewInWorker(blob: Blob): Promise<HeicPreviewResult>
             });
           } catch (error) {
             reject(error instanceof Error ? error : new Error("HEIC preview could not encode JPEG output."));
-          } finally {
-            message.bitmap.close();
           }
         })();
         return;
       }
-      if (!message.ok) {
-        reject(message.retryable === false
-          ? new HeicWorkerPermanentError(message.error)
-          : new Error(message.error));
-        return;
-      }
-      resolve({
-        blob: message.blob,
-        width: message.width,
-        height: message.height,
-        mimeType: HEIC_PREVIEW_OUTPUT_MIME_TYPE
-      });
+      reject(message.retryable === false
+        ? new HeicWorkerPermanentError(message.error)
+        : new Error(message.error));
     };
 
     const handleError = (event: ErrorEvent) => {

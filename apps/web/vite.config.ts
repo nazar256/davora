@@ -63,7 +63,7 @@ const config = {
       },
       workbox: {
         globPatterns: ["**/*.{js,mjs,css,html,svg,png,ico,webmanifest}"],
-        globIgnores: ["**/heicPreviewWorker-*.js", "**/heic-to-*.js"],
+        globIgnores: ["**/heicPreviewWorker-*.js", "**/heicDecoder-*.js", "**/libheif-*.js"],
         navigateFallbackDenylist: [/^\/api\//],
         clientsClaim: true,
         runtimeCaching: [

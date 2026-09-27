@@ -108,6 +108,11 @@ npm run deploy:web
   npm run diagnostics:inbox -- pull --since 30d --limit 50
   ```
   The command performs only GET requests, accepts only canonical `reports/v1/YYYY/MM/DD/<uuid>.zip` keys, verifies the stored SHA-256, never extracts archive contents, and writes ZIPs plus `manifest.json` only under ignored `.tmp/diagnostic-inbox/`.
+- **Handled reports must always be cleared from the inbox.** Once a report has been investigated and its fix is deployed and verified, delete it explicitly so the inbox only ever holds unhandled reports:
+  ```bash
+  npm run diagnostics:inbox -- clear --report <uuid> [--report <uuid>...]
+  ```
+  `clear` resolves each UUID to canonical `reports/v1/` object keys and issues DELETE requests only for those keys — it never touches quota objects, unmatched IDs, or other keys, and it reports IDs that were already absent as `missing`. It requires a separate token with R2 object delete permission exported as `CLOUDFLARE_DIAGNOSTICS_WRITE_TOKEN`; do not reuse the read token.
 
 ## Worker local runtime smoke path
 

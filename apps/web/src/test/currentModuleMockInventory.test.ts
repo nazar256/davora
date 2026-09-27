@@ -64,7 +64,7 @@ const mockRules: readonly MockRule[] = [
     owner: "HEIC preview decode ladder",
     removalCondition: "Remove when the decoder gains a production injectable port or the library exposes a deterministic synchronous decode for tests.",
     testPath: /^src\/lib\/heicPreview\.test\.ts$/,
-    module: /^heic-to\/next$/
+    module: /^\.\/heicDecoder$/
   },
   {
     id: "viewer-render-boundary",

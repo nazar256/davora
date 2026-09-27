@@ -13,6 +13,16 @@ export function assertHeicPixelBounds(width: number, height: number): void {
   }
 }
 
+/**
+ * Decoder libraries may reject with strings or other non-Error values;
+ * preserve them so diagnostics surface the real failure.
+ */
+export function heicErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string" && error.trim().length > 0) return error;
+  return "Unable to decode HEIC preview.";
+}
+
 const HEIC_MIME_TYPES = new Set(["image/heic", "image/heif", "image/heic-sequence", "image/heif-sequence"]);
 
 export function isHeicMimeType(mimeType: string | undefined): boolean {

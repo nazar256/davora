@@ -1,13 +1,107 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 
-import { parseDiagnosticsInboxArgs, pullDiagnosticReports } from "./diagnostics-inbox";
+import { clearDiagnosticReports, parseDiagnosticsInboxArgs, pullDiagnosticReports } from "./diagnostics-inbox";
 
 describe("diagnostics inbox operator CLI", () => {
   it("parses one bounded read-only pull command", () => {
-    expect(parseDiagnosticsInboxArgs(["pull", "--since", "7d", "--limit", "25"])).toEqual({ sinceDays: 7, limit: 25 });
-    expect(() => parseDiagnosticsInboxArgs(["delete"])).toThrow(/pull/);
+    expect(parseDiagnosticsInboxArgs(["pull", "--since", "7d", "--limit", "25"]))
+      .toEqual({ command: "pull", sinceDays: 7, limit: 25, reports: [] });
+    expect(() => parseDiagnosticsInboxArgs(["delete"])).toThrow(/pull.*clear/);
     expect(() => parseDiagnosticsInboxArgs(["pull", "--limit", "1001"])).toThrow(/limit/);
+  });
+
+  it("parses an explicit clear command with validated report IDs", () => {
+    const idA = "123e4567-e89b-42d3-a456-426614174000";
+    const idB = "55d08f42-fd98-49be-a4b9-528b57dd99ca";
+    expect(parseDiagnosticsInboxArgs(["clear", "--report", idA, "--report", idB]))
+      .toEqual({ command: "clear", sinceDays: 30, limit: 50, reports: [idA, idB] });
+    expect(() => parseDiagnosticsInboxArgs(["clear"])).toThrow(/--report/);
+    expect(() => parseDiagnosticsInboxArgs(["clear", "--report", "not-a-uuid"])).toThrow(/UUID/);
+    expect(() => parseDiagnosticsInboxArgs(["clear", "--report", idA, "--report", idA])).toThrow(/[Dd]uplicate/);
+    expect(() => parseDiagnosticsInboxArgs(["clear", "--all"])).toThrow(/Unsupported/);
+    expect(() => parseDiagnosticsInboxArgs(["clear", "--report", idA, "--since", "7d"])).toThrow(/Unsupported/);
+  });
+
+  it("deletes only canonical report objects for the requested IDs", async () => {
+    const idA = "123e4567-e89b-42d3-a456-426614174000";
+    const idB = "55d08f42-fd98-49be-a4b9-528b57dd99ca";
+    const otherId = "d93e7886-f30a-4c92-a55b-80ed756cf18d";
+    const calls: Array<{ method: string; url: string; auth: string | null }> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ method: init?.method ?? "GET", url, auth: new Headers(init?.headers).get("authorization") });
+      if ((init?.method ?? "GET") === "GET") {
+        return new Response(JSON.stringify({
+          success: true,
+          result: [
+            { key: `reports/v1/2026/09/24/${idA}.zip`, size: 10, last_modified: "2026-09-24T09:30:00.000Z" },
+            { key: `reports/v1/2026/09/27/${idB}.zip`, size: 10, last_modified: "2026-09-27T09:30:00.000Z" },
+            { key: `reports/v1/2026/09/25/${otherId}.zip`, size: 10, last_modified: "2026-09-25T09:30:00.000Z" },
+            { key: "quota/v1/abc123", size: 0, last_modified: "2026-09-27T09:30:00.000Z" }
+          ],
+          result_info: { is_truncated: false }
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ success: true }), { status: 200 });
+    });
+
+    const result = await clearDiagnosticReports(
+      { accountId: "account-id", bucket: "davora-local-diagnostic-reports", token: "write-token", reports: [idA, idB] },
+      { fetch: fetchMock }
+    );
+
+    expect(result).toEqual({ deleted: 2, missing: [] });
+    const deletes = calls.filter((call) => call.method === "DELETE");
+    expect(deletes.map((call) => call.url)).toEqual([
+      expect.stringContaining(`${idA}.zip`),
+      expect.stringContaining(`${idB}.zip`)
+    ]);
+    expect(deletes.every((call) => call.auth === "Bearer write-token")).toBe(true);
+    expect(calls.some((call) => call.url.includes(otherId) && call.method === "DELETE")).toBe(false);
+    expect(calls.some((call) => call.url.includes("quota/") && call.method === "DELETE")).toBe(false);
+  });
+
+  it("reports missing IDs and deletes the same report ID across date partitions", async () => {
+    const idA = "123e4567-e89b-42d3-a456-426614174000";
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? "GET") === "GET") {
+        return new Response(JSON.stringify({
+          success: true,
+          result: ["23", "24"].map((day) => ({
+            key: `reports/v1/2026/09/${day}/${idA}.zip`, size: 4, last_modified: `2026-09-${day}T09:30:00.000Z`
+          })),
+          result_info: { is_truncated: false }
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ success: true }), { status: 200 });
+    });
+
+    const result = await clearDiagnosticReports(
+      { accountId: "account-id", bucket: "bucket", token: "write-token", reports: [idA, "ffffffff-ffff-4fff-afff-ffffffffffff"] },
+      { fetch: fetchMock }
+    );
+    expect(result.deleted).toBe(2);
+    expect(result.missing).toEqual(["ffffffff-ffff-4fff-afff-ffffffffffff"]);
+  });
+
+  it("fails closed when a delete request is rejected", async () => {
+    const idA = "123e4567-e89b-42d3-a456-426614174000";
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? "GET") === "GET") {
+        return new Response(JSON.stringify({
+          success: true,
+          result: [{ key: `reports/v1/2026/09/24/${idA}.zip`, size: 4, last_modified: "2026-09-24T09:30:00.000Z" }],
+          result_info: { is_truncated: false }
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ success: false }), { status: 403 });
+    });
+
+    await expect(clearDiagnosticReports(
+      { accountId: "account-id", bucket: "bucket", token: "write-token", reports: [idA] },
+      { fetch: fetchMock }
+    )).rejects.toThrow(/403/);
   });
 
   it("lists, filters, downloads, verifies, and writes reports without mutation calls", async () => {

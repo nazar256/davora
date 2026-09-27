@@ -6,15 +6,26 @@ const API_ROOT = "https://api.cloudflare.com/client/v4";
 const REPORT_KEY = /^reports\/v1\/(\d{4})\/(\d{2})\/(\d{2})\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.zip$/;
 
 export interface DiagnosticsInboxArgs {
+  readonly command: "pull" | "clear";
   readonly sinceDays: number;
   readonly limit: number;
+  readonly reports: string[];
 }
 
-export interface DiagnosticsInboxOptions extends DiagnosticsInboxArgs {
+export interface DiagnosticsInboxOptions {
+  readonly sinceDays: number;
+  readonly limit: number;
   readonly accountId: string;
   readonly bucket: string;
   readonly token: string;
   readonly outputDirectory: string;
+}
+
+export interface DiagnosticsInboxClearOptions {
+  readonly accountId: string;
+  readonly bucket: string;
+  readonly token: string;
+  readonly reports: readonly string[];
 }
 
 interface PullDependencies {
@@ -22,6 +33,10 @@ interface PullDependencies {
   readonly mkdir: (path: string, options: { recursive: true }) => Promise<unknown>;
   readonly writeFile: (path: string, data: string | Uint8Array, options: { flag: "wx" }) => Promise<unknown>;
   readonly now: () => Date;
+}
+
+interface ClearDependencies {
+  readonly fetch: typeof fetch;
 }
 
 interface ListedObject {
@@ -37,21 +52,41 @@ interface ListResponse {
   readonly result_info?: { readonly cursor?: string; readonly is_truncated?: boolean };
 }
 
+const REPORT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
 export function parseDiagnosticsInboxArgs(args: readonly string[]): DiagnosticsInboxArgs {
-  if (args[0] !== "pull") throw new Error("Expected the read-only 'pull' command.");
-  let sinceDays = 30;
-  let limit = 50;
-  for (let index = 1; index < args.length; index += 2) {
-    const flag = args[index];
-    const rawValue = args[index + 1];
-    if (!rawValue) throw new Error(`Missing value for ${flag ?? "argument"}.`);
-    if (flag === "--since" && /^\d+d$/.test(rawValue)) sinceDays = Number.parseInt(rawValue, 10);
-    else if (flag === "--limit" && /^\d+$/.test(rawValue)) limit = Number.parseInt(rawValue, 10);
-    else throw new Error(`Unsupported argument: ${flag ?? rawValue}.`);
+  const command = args[0];
+  if (command === "pull") {
+    let sinceDays = 30;
+    let limit = 50;
+    for (let index = 1; index < args.length; index += 2) {
+      const flag = args[index];
+      const rawValue = args[index + 1];
+      if (!rawValue) throw new Error(`Missing value for ${flag ?? "argument"}.`);
+      if (flag === "--since" && /^\d+d$/.test(rawValue)) sinceDays = Number.parseInt(rawValue, 10);
+      else if (flag === "--limit" && /^\d+$/.test(rawValue)) limit = Number.parseInt(rawValue, 10);
+      else throw new Error(`Unsupported argument: ${flag ?? rawValue}.`);
+    }
+    if (sinceDays < 1 || sinceDays > 30) throw new Error("--since must be between 1d and 30d.");
+    if (limit < 1 || limit > 100) throw new Error("--limit must be between 1 and 100.");
+    return { command, sinceDays, limit, reports: [] };
   }
-  if (sinceDays < 1 || sinceDays > 30) throw new Error("--since must be between 1d and 30d.");
-  if (limit < 1 || limit > 100) throw new Error("--limit must be between 1 and 100.");
-  return { sinceDays, limit };
+  if (command === "clear") {
+    const reports: string[] = [];
+    for (let index = 1; index < args.length; index += 2) {
+      const flag = args[index];
+      const rawValue = args[index + 1];
+      if (flag !== "--report") throw new Error(`Unsupported argument: ${flag ?? rawValue}.`);
+      if (!rawValue) throw new Error(`Missing value for ${flag}.`);
+      if (!REPORT_ID.test(rawValue)) throw new Error(`--report must be a report UUID, got: ${rawValue}.`);
+      reports.push(rawValue);
+    }
+    if (reports.length === 0) throw new Error("clear requires at least one --report <uuid>.");
+    if (new Set(reports).size !== reports.length) throw new Error("Duplicate --report arguments are not allowed.");
+    if (reports.length > 100) throw new Error("clear accepts at most 100 report IDs.");
+    return { command, sinceDays: 30, limit: 50, reports };
+  }
+  throw new Error("Expected the 'pull' or 'clear' command.");
 }
 
 const authHeaders = (token: string): Record<string, string> => ({
@@ -59,10 +94,12 @@ const authHeaders = (token: string): Record<string, string> => ({
   "cf-r2-jurisdiction": "eu"
 });
 
-const baseUrl = (options: DiagnosticsInboxOptions): string =>
+type BucketCoordinates = { readonly accountId: string; readonly bucket: string };
+
+const baseUrl = (options: BucketCoordinates): string =>
   `${API_ROOT}/accounts/${encodeURIComponent(options.accountId)}/r2/buckets/${encodeURIComponent(options.bucket)}/objects`;
 
-const safeObjectUrl = (options: DiagnosticsInboxOptions, key: string): string =>
+const safeObjectUrl = (options: BucketCoordinates, key: string): string =>
   `${baseUrl(options)}/${key.split("/").map(encodeURIComponent).join("/")}`;
 
 const isUnknownRecord = (value: unknown): value is Record<string, unknown> =>
@@ -100,6 +137,24 @@ const parseListResponse = async (response: Response): Promise<ListResponse> => {
   return { success: true, result, result_info: resultInfo };
 };
 
+const listReportObjects = async (
+  options: { readonly accountId: string; readonly bucket: string; readonly token: string },
+  dependencies: { readonly fetch: typeof fetch }
+): Promise<ListedObject[]> => {
+  const objects: ListedObject[] = [];
+  let cursor: string | undefined;
+  do {
+    const url = new URL(baseUrl(options));
+    url.searchParams.set("prefix", "reports/v1/");
+    url.searchParams.set("per_page", "1000");
+    if (cursor) url.searchParams.set("cursor", cursor);
+    const page = await parseListResponse(await dependencies.fetch(url, { headers: authHeaders(options.token) }));
+    objects.push(...(page.result ?? []));
+    cursor = page.result_info?.is_truncated ? page.result_info.cursor : undefined;
+  } while (cursor);
+  return objects;
+};
+
 export async function pullDiagnosticReports(
   options: DiagnosticsInboxOptions,
   dependencies: PullDependencies = { fetch, mkdir, writeFile, now: () => new Date() }
@@ -111,22 +166,13 @@ export async function pullDiagnosticReports(
   const cutoff = dependencies.now().getTime() - options.sinceDays * 24 * 60 * 60 * 1000;
   const candidates: ListedObject[] = [];
   let skipped = 0;
-  let cursor: string | undefined;
-  do {
-    const url = new URL(baseUrl(options));
-    url.searchParams.set("prefix", "reports/v1/");
-    url.searchParams.set("per_page", String(Math.min(1_000, Math.max(options.limit, 100))));
-    if (cursor) url.searchParams.set("cursor", cursor);
-    const page = await parseListResponse(await dependencies.fetch(url, { headers: authHeaders(options.token) }));
-    for (const object of page.result ?? []) {
-      const modified = object.last_modified ? Date.parse(object.last_modified) : Number.NaN;
-      if (typeof object.key === "string" && object.key.startsWith("reports/v1/") && Number.isFinite(modified) && modified >= cutoff) {
-        if (REPORT_KEY.test(object.key)) candidates.push(object);
-        else skipped += 1;
-      }
+  for (const object of await listReportObjects(options, dependencies)) {
+    const modified = object.last_modified ? Date.parse(object.last_modified) : Number.NaN;
+    if (typeof object.key === "string" && object.key.startsWith("reports/v1/") && Number.isFinite(modified) && modified >= cutoff) {
+      if (REPORT_KEY.test(object.key)) candidates.push(object);
+      else skipped += 1;
     }
-    cursor = page.result_info?.is_truncated ? page.result_info.cursor : undefined;
-  } while (cursor && candidates.length < options.limit);
+  }
 
   const selected = candidates
     .sort((left, right) => String(left.last_modified).localeCompare(String(right.last_modified)))
@@ -169,24 +215,68 @@ export async function pullDiagnosticReports(
   return { downloaded: manifest.length, skipped, outputDirectory: options.outputDirectory };
 }
 
+/**
+ * Deletes report objects for explicitly handled report IDs. Only canonical
+ * `reports/v1/YYYY/MM/DD/<uuid>.zip` keys whose UUID was requested are
+ * removed — quota objects, unlisted IDs, and unrelated keys are untouched.
+ */
+export async function clearDiagnosticReports(
+  options: DiagnosticsInboxClearOptions,
+  dependencies: ClearDependencies = { fetch }
+): Promise<{ deleted: number; missing: string[] }> {
+  if (!options.accountId || !options.bucket || !options.token) {
+    throw new Error("Cloudflare account, bucket, and write token are required.");
+  }
+  const wanted = new Set(options.reports);
+  const keysToDelete: string[] = [];
+  for (const object of await listReportObjects(options, dependencies)) {
+    const match = object.key?.match(REPORT_KEY);
+    const reportId = match?.[4];
+    if (match && reportId && wanted.has(reportId)) {
+      keysToDelete.push(match[0]);
+    }
+  }
+  const deletedIds = new Set<string>();
+  for (const key of keysToDelete) {
+    const response = await dependencies.fetch(safeObjectUrl(options, key), {
+      method: "DELETE",
+      headers: authHeaders(options.token)
+    });
+    const payload: unknown = await response.json().catch(() => undefined);
+    if (!response.ok || (isUnknownRecord(payload) && payload.success === false)) {
+      throw new Error(`Cloudflare delete request failed with status ${response.status}.`);
+    }
+    const match = key.match(REPORT_KEY);
+    if (match?.[4]) deletedIds.add(match[4]);
+  }
+  return { deleted: keysToDelete.length, missing: [...wanted].filter((id) => !deletedIds.has(id)) };
+}
+
 const entryPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : undefined;
 if (entryPath === import.meta.url) {
   try {
     const args = parseDiagnosticsInboxArgs(process.argv.slice(2));
     const accountId = process.env.CLOUDFLARE_ACCOUNT_ID?.trim() ?? "";
-    const token = process.env.CLOUDFLARE_DIAGNOSTICS_READ_TOKEN?.trim() ?? "";
     const bucket = process.env.DAVORA_DIAGNOSTIC_REPORTS_BUCKET?.trim() || "davora-local-diagnostic-reports";
-    const runStamp = `${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 17)}-${randomUUID().slice(0, 8)}`;
-    const result = await pullDiagnosticReports({
-      ...args,
-      accountId,
-      token,
-      bucket,
-      outputDirectory: `.tmp/diagnostic-inbox/${runStamp}`
-    });
-    console.log(`Downloaded ${result.downloaded} report(s) to ${result.outputDirectory}; skipped ${result.skipped}.`);
+    if (args.command === "clear") {
+      const token = process.env.CLOUDFLARE_DIAGNOSTICS_WRITE_TOKEN?.trim() ?? "";
+      const result = await clearDiagnosticReports({ accountId, bucket, token, reports: args.reports });
+      console.log(`Deleted ${result.deleted} report object(s); missing: ${result.missing.length > 0 ? result.missing.join(", ") : "none"}.`);
+    } else {
+      const token = process.env.CLOUDFLARE_DIAGNOSTICS_READ_TOKEN?.trim() ?? "";
+      const runStamp = `${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 17)}-${randomUUID().slice(0, 8)}`;
+      const result = await pullDiagnosticReports({
+        sinceDays: args.sinceDays,
+        limit: args.limit,
+        accountId,
+        token,
+        bucket,
+        outputDirectory: `.tmp/diagnostic-inbox/${runStamp}`
+      });
+      console.log(`Downloaded ${result.downloaded} report(s) to ${result.outputDirectory}; skipped ${result.skipped}.`);
+    }
   } catch (error) {
-    console.error(error instanceof Error ? error.message : "Diagnostic inbox pull failed.");
+    console.error(error instanceof Error ? error.message : "Diagnostic inbox command failed.");
     process.exitCode = 1;
   }
 }

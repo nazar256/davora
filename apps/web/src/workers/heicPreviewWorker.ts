@@ -1,10 +1,5 @@
-import { heicTo } from "heic-to/next";
-
-import {
-  HEIC_PREVIEW_OUTPUT_MIME_TYPE,
-  HeicPixelLimitError,
-  assertHeicPixelBounds
-} from "../lib/heicPreviewShared";
+import { decodeHeicToRgba } from "../lib/heicDecoder";
+import { HeicPixelLimitError, heicErrorMessage } from "../lib/heicPreviewShared";
 
 interface HeicWorkerRequest {
   id: number;
@@ -16,40 +11,20 @@ const workerScope = self as unknown as {
   postMessage(message: unknown, transfer?: Transferable[]): void;
 };
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Unable to decode HEIC preview.";
-}
-
 self.addEventListener("message", (event: MessageEvent<HeicWorkerRequest>) => {
   void (async () => {
     const { id, blob } = event.data;
     try {
-      const bitmap = await heicTo({ blob, type: "bitmap" });
-      try {
-        assertHeicPixelBounds(bitmap.width, bitmap.height);
-        try {
-          const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-          const context = canvas.getContext("2d");
-          if (!context) {
-            throw new Error("HEIC preview could not create a browser canvas.");
-          }
-          context.drawImage(bitmap, 0, 0);
-          const output = await canvas.convertToBlob({ type: HEIC_PREVIEW_OUTPUT_MIME_TYPE, quality: 0.88 });
-          workerScope.postMessage({ id, ok: true, blob: output, width: bitmap.width, height: bitmap.height });
-        } catch {
-          // Worker-side canvas APIs are absent on some browsers (e.g. Firefox
-          // for Android workers); the main thread encodes the transferred
-          // bitmap on a DOM canvas instead.
-          workerScope.postMessage({ id, ok: "bitmap", bitmap, width: bitmap.width, height: bitmap.height }, [bitmap]);
-        }
-      } finally {
-        bitmap.close();
-      }
+      // The decoder runs on this thread: nested/blob workers and canvas APIs
+      // are unavailable or unreliable inside some browser workers (Firefox for
+      // Android), so raw pixels are transferred and encoded on the main thread.
+      const { data, width, height } = await decodeHeicToRgba(blob);
+      workerScope.postMessage({ id, ok: "rgba", rgba: data, width, height }, [data.buffer]);
     } catch (error) {
       workerScope.postMessage({
         id,
         ok: false,
-        error: errorMessage(error),
+        error: heicErrorMessage(error),
         retryable: !(error instanceof HeicPixelLimitError)
       });
     }
