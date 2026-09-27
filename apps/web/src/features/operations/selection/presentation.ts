@@ -248,17 +248,3 @@ export function buildSelectionDetailsContent(
     }
   };
 }
-
-export function buildSelectionSummaryLabel(
-  batchSelectionCount: number,
-  batchSelectionSummary: BatchSelectionSummary
-): string | undefined {
-  if (batchSelectionCount <= 0) {
-    return undefined;
-  }
-  const selectionLabel = buildDownloadSelectionLabel(
-    batchSelectionSummary.fileCount,
-    batchSelectionSummary.folderCount
-  );
-  return `${pluralize(batchSelectionCount, "item")} selected (${selectionLabel})`;
-}

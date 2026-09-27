@@ -231,6 +231,7 @@ describe("browser preview runtime adapters", () => {
     expect(retained?.snapshot.preview).toMatchObject({ viewer: "image", mimeType: "image/heic" });
     expect(materials.source(retained!.material!)).toMatchObject({ kind: "blob", blob: jpeg });
     expect(retained?.cache).toEqual({ mimeType: "image/jpeg", filename: "photo.heic.jpg" });
+    expect(retained?.derivative).toEqual({ blob: jpeg, mimeType: "image/jpeg", filename: "photo.heic.jpg" });
 
     // A normal-cache record already stores the decoded JPEG blob; materialize it directly.
     decode.mockClear();
@@ -242,6 +243,7 @@ describe("browser preview runtime adapters", () => {
     }, abort);
     expect(decode).not.toHaveBeenCalled();
     expect(decodedRecord?.snapshot.source).toBe("blob");
+    expect(decodedRecord?.derivative).toBeUndefined();
     expect(materials.source(decodedRecord!.material!)).toMatchObject({ kind: "blob", blob: jpeg });
   });
 
@@ -379,6 +381,29 @@ describe("browser preview runtime adapters", () => {
       filename: "photo.heic.jpg"
     })).toBe(false);
     expect(runtimeTransport.createStreamingFileUrl).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("pre-renders a retained HEIC for prefetch without allocating preview material", async () => {
+    const materials = new BrowserPreviewMaterialStore();
+    const heic = preview({ path: "Archive/photo.heic", name: "photo.heic", mimeType: "image/heic" });
+    const rawHeic = new Blob(["heic"], { type: "image/heic" });
+    const jpeg = new Blob(["jpeg"], { type: "image/jpeg" });
+    const decode = vi.fn(async () => ({ blob: jpeg, mimeType: "image/jpeg" }));
+    const runtime = new BrowserPreviewLiveAdapter({ tokenFor: () => undefined, materials, transport: transport(heic), decodeHeicPreview: decode });
+    const { create } = installObjectUrlMocks();
+
+    await expect(runtime.prepareCachedForPrefetch(key({ path: heic.path, connectionMode: "cache-only" }), {
+      preview: heic,
+      blob: rawHeic,
+      mimeType: "image/heic",
+      filename: "photo.heic"
+    }, new BrowserPreviewAbortPort().create())).resolves.toEqual({
+      kind: "derivative",
+      derivative: { blob: jpeg, mimeType: "image/jpeg", filename: "photo.heic.jpg" }
+    });
+
+    expect(decode).toHaveBeenCalledWith(rawHeic);
     expect(create).not.toHaveBeenCalled();
   });
 

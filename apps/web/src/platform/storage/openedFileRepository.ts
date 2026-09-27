@@ -1,10 +1,11 @@
-import { del, delMany, get, keys, set } from "idb-keyval";
+import { del, delMany, get, keys, set, setMany } from "idb-keyval";
 
 import type { FilePreview } from "@davora/shared";
 
 const CACHE_PREFIX = "davora-opened-file:";
 const V2_INDEX_PREFIX = "davora-opened-file:v2:index:";
 const V2_BLOB_PREFIX = "davora-opened-file:v2:blob:";
+const V2_DERIVATIVE_PREFIX = "davora-opened-file:v2:derived:";
 const LEGACY_INDEX_PREFIX = "davora-opened-file:index:";
 const VERSION = 2;
 const envLimit = Number.parseInt(text(isRecord(import.meta.env) ? import.meta.env.VITE_OPENED_FILE_CACHE_LIMIT_BYTES : undefined) ?? "", 10);
@@ -63,6 +64,17 @@ interface StoredFile {
   normalCacheOwnership: NormalCacheOwnership;
   cachedAt?: string;
   lastAccessedAt?: string;
+  sourceRevision?: string;
+  derivative?: StoredDerivative;
+}
+
+interface StoredDerivative {
+  sourceRevision: string;
+  mimeType: string;
+  filename: string;
+  blobSize: number;
+  cachedAt: string;
+  lastAccessedAt: string;
 }
 
 interface StoredRoot {
@@ -117,8 +129,20 @@ export interface OpenedFilePreviewWrite {
 export interface OpenedFileRepository {
   readonly defaultCacheLimitBytes?: number;
   readSnapshot(account: RetentionAccountShape): Promise<RetentionResultShape<RetentionSnapshotShape>>;
-  readPreview(account: RetentionAccountShape, path: string): Promise<RetentionResultShape<{ readonly file: RetainedFileShape; readonly blob?: Blob } | undefined>>;
+  readPreview(account: RetentionAccountShape, path: string): Promise<RetentionResultShape<{
+    readonly file: RetainedFileShape;
+    readonly blob?: Blob;
+    readonly sourceRevision?: string;
+    readonly derivative?: { readonly blob: Blob; readonly mimeType: string; readonly filename: string };
+  } | undefined>>;
   writePreview(account: RetentionAccountShape, input: OpenedFilePreviewWrite): Promise<RetentionResultShape<RetentionSnapshotShape>>;
+  writePreviewDerivative(account: RetentionAccountShape, input: {
+    readonly path: string;
+    readonly expectedSourceRevision: string;
+    readonly blob: Blob;
+    readonly mimeType: string;
+    readonly filename: string;
+  }): Promise<RetentionResultShape<RetentionSnapshotShape>>;
   beginRoot(account: RetentionAccountShape, root: RetainedRootInputShape): Promise<RetentionResultShape<RetentionSnapshotShape>>;
   persistRetainedFile(account: RetentionAccountShape, input: { readonly rootId: string; readonly file: RetainedFileShape; readonly blob?: Blob }): Promise<RetentionResultShape<RetentionSnapshotShape>>;
   completeRoot(account: RetentionAccountShape, rootId: string): Promise<RetentionResultShape<RetentionSnapshotShape>>;
@@ -239,7 +263,8 @@ function encodePart(value: string): string {
 
 export type DecodedOpenedFileKey =
   | { readonly kind: "index"; readonly cacheNamespace: string }
-  | { readonly kind: "blob"; readonly cacheNamespace: string; readonly path: string };
+  | { readonly kind: "blob"; readonly cacheNamespace: string; readonly path: string }
+  | { readonly kind: "derived"; readonly cacheNamespace: string; readonly path: string };
 
 type DecodedPart = { readonly value: string; readonly next: number };
 
@@ -268,20 +293,25 @@ export function openedFileBlobKey(namespace: string, path: string): string {
   return `${V2_BLOB_PREFIX}${encodePart(namespace)}${encodePart(normalizedPath(path))}`;
 }
 
+export function openedFileDerivativeKey(namespace: string, path: string): string {
+  return `${V2_DERIVATIVE_PREFIX}${encodePart(namespace)}${encodePart(normalizedPath(path))}`;
+}
+
 /** Strict parser used by account cleanup. Malformed V2 keys are never trusted. */
 export function decodeOpenedFileKey(key: string): DecodedOpenedFileKey | undefined {
   if (typeof key !== "string") return undefined;
   const isIndex = key.startsWith(V2_INDEX_PREFIX);
   const isBlob = key.startsWith(V2_BLOB_PREFIX);
-  if (!isIndex && !isBlob) return undefined;
-  let offset = isIndex ? V2_INDEX_PREFIX.length : V2_BLOB_PREFIX.length;
+  const isDerived = key.startsWith(V2_DERIVATIVE_PREFIX);
+  if (!isIndex && !isBlob && !isDerived) return undefined;
+  let offset = isIndex ? V2_INDEX_PREFIX.length : isBlob ? V2_BLOB_PREFIX.length : V2_DERIVATIVE_PREFIX.length;
   const namespace = decodePart(key, offset);
   if (!namespace || namespace.value.length === 0) return undefined;
   offset = namespace.next;
   if (isIndex) return offset === key.length ? { kind: "index", cacheNamespace: namespace.value } : undefined;
   const path = decodePart(key, offset);
   if (!path || path.next !== key.length || !validPath(path.value)) return undefined;
-  return { kind: "blob", cacheNamespace: namespace.value, path: validPath(path.value)! };
+  return { kind: isDerived ? "derived" : "blob", cacheNamespace: namespace.value, path: validPath(path.value)! };
 }
 
 function legacyIndexKey(namespace: string): string {
@@ -300,8 +330,30 @@ function blobKey(namespace: string, path: string): string {
   return openedFileBlobKey(namespace, path);
 }
 
+function derivativeKey(namespace: string, path: string): string {
+  return openedFileDerivativeKey(namespace, path);
+}
+
 function emptyIndex(limitBytes = DEFAULT_OPENED_FILE_CACHE_LIMIT): StoredIndex {
   return { version: VERSION, limitBytes: clampLimit(limitBytes), files: {}, roots: {}, memberships: {} };
+}
+
+let nextSourceRevision = 1;
+
+function newSourceRevision(): string {
+  return `source:${Date.now().toString(36)}:${(nextSourceRevision++).toString(36)}`;
+}
+
+function parseDerivative(value: unknown): StoredDerivative | undefined {
+  if (!isRecord(value)) return undefined;
+  const sourceRevision = text(value.sourceRevision);
+  const mimeType = text(value.mimeType);
+  const filename = text(value.filename);
+  const blobSize = finiteNumber(value.blobSize);
+  const cachedAt = iso(value.cachedAt);
+  const lastAccessedAt = iso(value.lastAccessedAt);
+  if (!sourceRevision || !mimeType || !filename || blobSize === undefined || blobSize < 0 || !cachedAt || !lastAccessedAt) return undefined;
+  return { sourceRevision, mimeType, filename, blobSize, cachedAt, lastAccessedAt };
 }
 
 function parseFile(value: unknown): StoredFile | undefined {
@@ -315,8 +367,10 @@ function parseFile(value: unknown): StoredFile | undefined {
   const preview = value.preview === undefined ? undefined : validPreview(value.preview, path);
   const cachedAt = value.cachedAt === undefined ? undefined : iso(value.cachedAt);
   const lastAccessedAt = value.lastAccessedAt === undefined ? undefined : iso(value.lastAccessedAt);
-  if (!path || !name || !mimeType || size === undefined || size < 0 || blobSize === undefined || blobSize < 0 || !ownership || (value.preview !== undefined && !preview) || (value.cachedAt !== undefined && !cachedAt) || (value.lastAccessedAt !== undefined && !lastAccessedAt)) return undefined;
-  return { path, name, mimeType, size, blobSize, normalCacheOwnership: ownership, ...(preview ? { preview } : {}), ...(cachedAt ? { cachedAt } : {}), ...(lastAccessedAt ? { lastAccessedAt } : {}) };
+  const sourceRevision = value.sourceRevision === undefined ? undefined : text(value.sourceRevision);
+  const derivative = value.derivative === undefined ? undefined : parseDerivative(value.derivative);
+  if (!path || !name || !mimeType || size === undefined || size < 0 || blobSize === undefined || blobSize < 0 || !ownership || (value.preview !== undefined && !preview) || (value.cachedAt !== undefined && !cachedAt) || (value.lastAccessedAt !== undefined && !lastAccessedAt) || (value.sourceRevision !== undefined && !sourceRevision)) return undefined;
+  return { path, name, mimeType, size, blobSize, normalCacheOwnership: ownership, ...(preview ? { preview } : {}), ...(cachedAt ? { cachedAt } : {}), ...(lastAccessedAt ? { lastAccessedAt } : {}), ...(sourceRevision ? { sourceRevision } : {}), ...(derivative ? { derivative } : {}) };
 }
 
 function parseRoot(value: unknown): StoredRoot | undefined {
@@ -475,14 +529,35 @@ function evictableFiles(index: StoredIndex): StoredFile[] {
   return Object.values(index.files).filter((file) => file.normalCacheOwnership === "owned" && membershipCount(index, file.path) === 0);
 }
 
+type NormalCacheEntry =
+  | { readonly kind: "file"; readonly file: StoredFile; readonly blobSize: number; readonly lastAccessedAt: string | undefined }
+  | { readonly kind: "derivative"; readonly file: StoredFile; readonly blobSize: number; readonly lastAccessedAt: string };
+
+function normalCacheEntries(index: StoredIndex): NormalCacheEntry[] {
+  return [
+    ...evictableFiles(index).map((file) => ({ kind: "file" as const, file, blobSize: file.blobSize, lastAccessedAt: file.lastAccessedAt })),
+    ...Object.values(index.files).flatMap((file) => file.derivative === undefined ? [] : [{
+      kind: "derivative" as const,
+      file,
+      blobSize: file.derivative.blobSize,
+      lastAccessedAt: file.derivative.lastAccessedAt
+    }])
+  ];
+}
+
 async function enforceLimit(namespace: string, index: StoredIndex): Promise<void> {
-  const evictable = evictableFiles(index).sort((left, right) => (Date.parse(left.lastAccessedAt ?? "") || 0) - (Date.parse(right.lastAccessedAt ?? "") || 0) || left.path.localeCompare(right.path));
-  const total = () => evictableFiles(index).reduce((sum, file) => sum + file.blobSize, 0);
+  const evictable = normalCacheEntries(index).sort((left, right) => (Date.parse(left.lastAccessedAt ?? "") || 0) - (Date.parse(right.lastAccessedAt ?? "") || 0) || left.file.path.localeCompare(right.file.path));
+  const total = () => normalCacheEntries(index).reduce((sum, entry) => sum + entry.blobSize, 0);
   while (total() > index.limitBytes && evictable.length > 0) {
     const oldest = evictable.shift();
     if (!oldest) break;
-    oldest.normalCacheOwnership = "none";
-    await deleteIfUnowned(namespace, index, oldest.path);
+    if (oldest.kind === "derivative") {
+      delete oldest.file.derivative;
+      await del(derivativeKey(namespace, oldest.file.path));
+    } else {
+      oldest.file.normalCacheOwnership = "none";
+      await deleteIfUnowned(namespace, index, oldest.file.path);
+    }
   }
 }
 
@@ -495,10 +570,10 @@ async function snapshot(account: RetentionAccountShape, index: StoredIndex): Pro
     const blob = await get<unknown>(blobKey(account.cacheNamespace, file.path));
     return { ...file, readable: blob instanceof Blob };
   }));
-  const evictable = evictableFiles(index);
+  const evictable = normalCacheEntries(index);
   return immutable({
     account: { accountId: account.accountId, cacheNamespace: account.cacheNamespace },
-    normalCache: { itemCount: evictable.length, totalBytes: evictable.reduce((total, file) => total + file.blobSize, 0), limitBytes: index.limitBytes },
+    normalCache: { itemCount: evictable.length, totalBytes: evictable.reduce((total, entry) => total + entry.blobSize, 0), limitBytes: index.limitBytes },
     roots: Object.values(index.roots),
     files,
     memberships: Object.entries(index.memberships).flatMap(([filePath, rootIds]) => rootIds.map((rootId) => ({ rootId, filePath })))
@@ -543,10 +618,29 @@ export function createOpenedFileRepository(): OpenedFileRepository {
         const index = await load(account.cacheNamespace);
         const file = index.files[path];
         if (!file) return { kind: "success", value: undefined };
-        file.lastAccessedAt = new Date().toISOString();
+        const now = new Date().toISOString();
+        file.lastAccessedAt = now;
+        file.sourceRevision ??= newSourceRevision();
+        const storedDerivative = file.derivative;
+        const derivativeBlob = storedDerivative?.sourceRevision === file.sourceRevision
+          ? await get<unknown>(derivativeKey(account.cacheNamespace, path))
+          : undefined;
+        if (storedDerivative !== undefined && !(derivativeBlob instanceof Blob)) {
+          delete file.derivative;
+          await del(derivativeKey(account.cacheNamespace, path));
+        } else if (storedDerivative !== undefined) {
+          storedDerivative.lastAccessedAt = now;
+        }
         await set(indexKey(account.cacheNamespace), index);
         const blob = await get<unknown>(blobKey(account.cacheNamespace, path));
-        return { kind: "success", value: { file: immutable({ ...file, readable: blob instanceof Blob }), ...(blob instanceof Blob ? { blob } : {}) } };
+        return { kind: "success", value: {
+          file: immutable({ ...file, readable: blob instanceof Blob }),
+          ...(blob instanceof Blob ? { blob } : {}),
+          sourceRevision: file.sourceRevision,
+          ...(storedDerivative !== undefined && derivativeBlob instanceof Blob ? {
+            derivative: { blob: derivativeBlob, mimeType: storedDerivative.mimeType, filename: storedDerivative.filename }
+          } : {})
+        } };
       } catch (error) { return failure(error); }
     },
     async writePreview(account, input) {
@@ -558,12 +652,58 @@ export function createOpenedFileRepository(): OpenedFileRepository {
           ? { file: original.file, blob: original.blob as Blob | undefined }
           : { file: input.file, blob: input.blob };
         const file = writeFile(index, selected.file, selected.blob, "owned");
+        if (selected.blob !== undefined) await del(derivativeKey(account.cacheNamespace, file.path));
         if (selected.blob === undefined && membershipCount(index, file.path) === 0) {
           file.blobSize = 0;
           await deleteCanonicalBlob(account.cacheNamespace, file.path);
         } else {
           await writeBlob(account.cacheNamespace, file.path, selected.blob);
         }
+        if (original !== undefined && selected.file === original.file && input.blob !== undefined && path !== undefined) {
+          const now = new Date().toISOString();
+          file.normalCacheOwnership = "none";
+          file.derivative = {
+            sourceRevision: file.sourceRevision ?? (file.sourceRevision = newSourceRevision()),
+            mimeType: input.file.mimeType,
+            filename: input.file.name,
+            blobSize: input.blob.size,
+            cachedAt: now,
+            lastAccessedAt: now
+          };
+          await setMany([
+            [blobKey(account.cacheNamespace, file.path), original.blob],
+            [derivativeKey(account.cacheNamespace, file.path), input.blob],
+            [indexKey(account.cacheNamespace), index]
+          ]);
+        }
+        return { kind: "success", value: await save(account, index) };
+      } catch (error) { return failure(error); }
+    },
+    async writePreviewDerivative(account, input) {
+      try {
+        const path = validPath(input.path);
+        const mimeType = text(input.mimeType);
+        const filename = text(input.filename);
+        if (!path || !mimeType || !filename || !(input.blob instanceof Blob)) throw new Error("Invalid preview derivative.");
+        const index = await load(account.cacheNamespace);
+        const file = index.files[path];
+        if (!file || membershipCount(index, path) === 0) throw new Error("Retained source is unavailable.");
+        file.sourceRevision ??= newSourceRevision();
+        if (file.sourceRevision !== input.expectedSourceRevision) throw new Error("Retained source changed before its preview derivative was stored.");
+        const now = new Date().toISOString();
+        file.normalCacheOwnership = "none";
+        file.derivative = {
+          sourceRevision: file.sourceRevision,
+          mimeType,
+          filename,
+          blobSize: input.blob.size,
+          cachedAt: now,
+          lastAccessedAt: now
+        };
+        await setMany([
+          [derivativeKey(account.cacheNamespace, path), input.blob],
+          [indexKey(account.cacheNamespace), index]
+        ]);
         return { kind: "success", value: await save(account, index) };
       } catch (error) { return failure(error); }
     },
@@ -581,6 +721,7 @@ export function createOpenedFileRepository(): OpenedFileRepository {
         const index = await load(account.cacheNamespace);
         if (!index.roots[input.rootId]) throw new Error("Unknown retained root.");
         const file = writeFile(index, input.file, input.blob, index.files[validPath(input.file.path) ?? ""]?.normalCacheOwnership ?? "none");
+        if (input.blob !== undefined) await del(derivativeKey(account.cacheNamespace, file.path));
         await writeBlob(account.cacheNamespace, file.path, input.blob);
         index.memberships[file.path] = [...new Set([...(index.memberships[file.path] ?? []), input.rootId])].sort();
         return { kind: "success", value: await save(account, index) };
@@ -605,7 +746,24 @@ export function createOpenedFileRepository(): OpenedFileRepository {
           if (remaining.length > 0) index.memberships[path] = remaining;
           else {
             delete index.memberships[path];
-            await deleteIfUnowned(account.cacheNamespace, index, path);
+            const file = index.files[path];
+            const derivative = file?.derivative;
+            const derivativeBlob = derivative === undefined ? undefined : await get<unknown>(derivativeKey(account.cacheNamespace, path));
+            if (file && derivative && derivative.sourceRevision === file.sourceRevision && derivativeBlob instanceof Blob) {
+              file.name = derivative.filename;
+              file.mimeType = derivative.mimeType;
+              file.size = derivative.blobSize;
+              file.blobSize = derivative.blobSize;
+              file.normalCacheOwnership = "owned";
+              file.cachedAt = derivative.cachedAt;
+              file.lastAccessedAt = derivative.lastAccessedAt;
+              file.sourceRevision = newSourceRevision();
+              delete file.derivative;
+              await set(blobKey(account.cacheNamespace, path), derivativeBlob);
+              await del(derivativeKey(account.cacheNamespace, path));
+            } else {
+              await deleteIfUnowned(account.cacheNamespace, index, path);
+            }
           }
         }
         return { kind: "success", value: await save(account, index) };
@@ -616,6 +774,10 @@ export function createOpenedFileRepository(): OpenedFileRepository {
         const index = await load(account.cacheNamespace);
         for (const file of Object.values(index.files)) {
           file.normalCacheOwnership = "none";
+          if (file.derivative !== undefined) {
+            delete file.derivative;
+            await del(derivativeKey(account.cacheNamespace, file.path));
+          }
           await deleteIfUnowned(account.cacheNamespace, index, file.path);
         }
         return { kind: "success", value: await save(account, index) };
@@ -666,7 +828,20 @@ function writeFile(index: StoredIndex, input: RetainedFileShape, blob: Blob | un
   const existing = index.files[path];
   const now = new Date().toISOString();
   const inputBlobSize = blobSize(blob);
-  const record: StoredFile = { path, name, mimeType, size, blobSize: inputBlobSize ?? existing?.blobSize ?? input.blobSize, normalCacheOwnership: ownership, ...(preview ?? existing?.preview ? { preview: preview ?? existing?.preview } : {}), cachedAt: existing?.cachedAt ?? now, lastAccessedAt: now };
+  const sourceRevision = blob === undefined ? existing?.sourceRevision ?? newSourceRevision() : newSourceRevision();
+  const record: StoredFile = {
+    path,
+    name,
+    mimeType,
+    size,
+    blobSize: inputBlobSize ?? existing?.blobSize ?? input.blobSize,
+    normalCacheOwnership: ownership,
+    ...(preview ?? existing?.preview ? { preview: preview ?? existing?.preview } : {}),
+    cachedAt: existing?.cachedAt ?? now,
+    lastAccessedAt: now,
+    sourceRevision,
+    ...(blob === undefined && existing?.derivative?.sourceRevision === sourceRevision ? { derivative: existing.derivative } : {})
+  };
   index.files[path] = record;
   return record;
 }

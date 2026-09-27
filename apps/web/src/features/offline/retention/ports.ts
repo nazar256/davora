@@ -21,6 +21,12 @@ export interface RetentionPreviewWrite {
 export interface RetentionPreviewRead {
   readonly file: RetainedFile;
   readonly blob?: Blob;
+  readonly sourceRevision?: string;
+  readonly derivative?: {
+    readonly blob: Blob;
+    readonly mimeType: string;
+    readonly filename: string;
+  };
 }
 
 export interface RetainedFilePersistence {
@@ -38,6 +44,13 @@ export interface RetentionRepository {
   readSnapshot(account: RetentionAccount): Promise<RetentionResult<RetainedSnapshot>>;
   readPreview(account: RetentionAccount, path: string): Promise<RetentionResult<RetentionPreviewRead | undefined>>;
   writePreview(account: RetentionAccount, input: RetentionPreviewWrite): Promise<RetentionResult<RetainedSnapshot>>;
+  writePreviewDerivative?(account: RetentionAccount, input: {
+    readonly path: string;
+    readonly expectedSourceRevision: string;
+    readonly blob: Blob;
+    readonly mimeType: string;
+    readonly filename: string;
+  }): Promise<RetentionResult<RetainedSnapshot>>;
   beginRoot(account: RetentionAccount, root: RetainedRootInput): Promise<RetentionResult<RetainedSnapshot>>;
   persistRetainedFile(account: RetentionAccount, input: RetainedFilePersistence): Promise<RetentionResult<RetainedSnapshot>>;
   completeRoot(account: RetentionAccount, rootId: string): Promise<RetentionResult<RetainedSnapshot>>;

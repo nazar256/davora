@@ -21,6 +21,7 @@ import {
 } from "@davora/shared";
 
 import { parseMultiStatusXml } from "./xml";
+import type { DavMultistatusItem } from "../types";
 import type { NextcloudDestinationPolicy } from "../security/nextcloudDestinationPolicy";
 
 interface NextcloudCredentials {
@@ -49,14 +50,19 @@ function encodeDavPath(baseUrl: string, username: string, fullPath: string): str
   return url.toString();
 }
 
-function decodeDavHref(baseUrl: string, username: string, href: string, rootPath: string): string {
+function decodeDavHref(baseUrl: string, username: string, href: string, rootPath: string): string | undefined {
   const url = new URL(href, baseUrl);
   const basePath = new URL(baseUrl).pathname.replace(/\/+$/, "");
   const relativePath = basePath && url.pathname.startsWith(basePath) ? url.pathname.slice(basePath.length) : url.pathname;
-  const segments = relativePath
-    .split("/")
-    .filter(Boolean)
-    .map((segment) => decodeURIComponent(segment));
+  let segments: string[];
+  try {
+    segments = relativePath
+      .split("/")
+      .filter(Boolean)
+      .map((segment) => decodeURIComponent(segment));
+  } catch {
+    return undefined;
+  }
 
   if (segments.length < 4 || segments[0] !== "remote.php" || segments[1] !== "dav" || segments[2] !== "files") {
     throw new Error("Unexpected DAV href returned by upstream.");
@@ -65,7 +71,11 @@ function decodeDavHref(baseUrl: string, username: string, href: string, rootPath
     throw new Error("DAV href username mismatch.");
   }
 
-  return stripSandboxRoot(rootPath, segments.slice(4).join("/"));
+  try {
+    return stripSandboxRoot(rootPath, segments.slice(4).join("/"));
+  } catch {
+    return undefined;
+  }
 }
 
 function isInlineTextViewer(viewer: ViewerKind): boolean {
@@ -87,7 +97,7 @@ function metadataFromItem(
 ): FileMetadata {
   return {
     path,
-    name: item.displayName || basename(path) || "/",
+    name: basename(path) || item.displayName || "/",
     isFolder: item.isFolder,
     ...(item.size !== undefined ? { size: item.size } : {}),
     ...(item.contentType ? { mimeType: item.contentType } : {}),
@@ -182,10 +192,12 @@ export class NextcloudClient {
     }
 
     const xml = await response.text();
-    const items = parseMultiStatusXml(xml).map((item) => ({
-      path: decodeDavHref(this.credentials.baseUrl, this.credentials.username, item.href, this.credentials.rootPath),
-      item
-    }));
+    const items = parseMultiStatusXml(xml)
+      .map((item) => {
+        const path = decodeDavHref(this.credentials.baseUrl, this.credentials.username, item.href, this.credentials.rootPath);
+        return path === undefined ? undefined : { path, item };
+      })
+      .filter((entry): entry is { path: string; item: DavMultistatusItem } => entry !== undefined);
 
     return limit === undefined ? items : items.slice(0, limit);
   }

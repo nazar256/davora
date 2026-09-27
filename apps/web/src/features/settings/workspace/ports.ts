@@ -19,6 +19,7 @@ export interface SettingsPreferencesWorkspaceCommands {
   readonly handleMaxCacheableFileSizeChange: (limitBytes: number) => void;
   readonly handleImagePreviewFitModeChange: (mode: UiSettings["imagePreviewFitMode"]) => void;
   readonly handlePreviewFreshnessIntervalChange: (intervalSeconds: number) => void;
+  readonly handleImagePreviewPrefetchCountChange: (count: UiSettings["imagePreviewPrefetchCount"]) => void;
   readonly handleKeepAwakeEnabledChange: (enabled: boolean) => void;
   readonly handleShowHiddenFilesChange: (show: boolean) => void;
   readonly handleExperimentalHeicPreviewEnabledChange: (enabled: boolean) => void;

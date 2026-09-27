@@ -1,16 +1,11 @@
 import {
   Check,
-  Copy,
-  Download,
   FolderPlus,
   FolderUp,
-  HardDriveDownload,
   House,
   Search,
-  Trash2,
   Upload,
-  WifiOff,
-  X
+  WifiOff
 } from "lucide-react";
 import type { ChangeEvent, RefCallback } from "react";
 
@@ -27,15 +22,10 @@ export interface BrowseHeaderStageProps {
   readonly showBreadcrumbs: boolean;
   readonly searchActive: boolean;
   readonly searchQuery: string;
-  readonly selectionSummaryLabel?: string;
   readonly status: string;
   readonly cacheOnlyMode: boolean;
   readonly refreshingFolder: boolean;
   readonly staleFolder: boolean;
-  readonly canDownloadBatchSelection: boolean;
-  readonly canSyncBatchOffline: boolean;
-  readonly canCopyMoveBatchSelection: boolean;
-  readonly canDeleteBatchSelection: boolean;
   readonly mutationBusy: boolean;
   readonly fileSizeDisplayMode: FileSizeDisplayMode;
   readonly sortMode: SortMode;
@@ -47,11 +37,6 @@ export interface BrowseHeaderStageProps {
   readonly currentLocationLabel: string;
   readonly onNavigateToPath: (path: string) => void;
   readonly onClearSearch: () => void;
-  readonly onDownloadSelection: () => void;
-  readonly onKeepOfflineSelection: () => void;
-  readonly onCopyMoveSelection: () => void;
-  readonly onDeleteSelection: () => void;
-  readonly onClearSelection: () => void;
   readonly onSearchQueryChange: (query: string) => void;
   readonly onFileSizeDisplayModeChange: (mode: FileSizeDisplayMode) => void;
   readonly onSortModeChange: (mode: SortMode) => void;
@@ -125,19 +110,6 @@ export function BrowseHeaderStage(props: BrowseHeaderStageProps) {
         {props.searchActive ? (
           <div className="browse-context-row">
             <button className="quiet-button" onClick={props.onClearSearch} type="button">Clear search</button>
-          </div>
-        ) : null}
-
-        {props.selectionSummaryLabel ? (
-          <div className="browse-selection-row">
-            <span className="status">{props.selectionSummaryLabel}</span>
-            <div className="browse-selection-actions">
-              <button className="button-with-icon" disabled={!props.canDownloadBatchSelection} onClick={props.onDownloadSelection} type="button"><Download aria-hidden="true" />Download selected</button>
-              <button className="button-with-icon" disabled={!props.canSyncBatchOffline} onClick={props.onKeepOfflineSelection} type="button"><HardDriveDownload aria-hidden="true" />Keep offline</button>
-              <button className="button-with-icon" disabled={!props.canCopyMoveBatchSelection || props.mutationBusy} onClick={props.onCopyMoveSelection} type="button"><Copy aria-hidden="true" />Copy or move selected</button>
-              <button className={`button-with-icon${props.canDeleteBatchSelection ? " button-danger" : ""}`} disabled={!props.canDeleteBatchSelection || props.mutationBusy} onClick={props.onDeleteSelection} type="button"><Trash2 aria-hidden="true" />Delete selected</button>
-              <button className="quiet-button button-with-icon" onClick={props.onClearSelection} type="button"><X aria-hidden="true" />Clear selection</button>
-            </div>
           </div>
         ) : null}
 

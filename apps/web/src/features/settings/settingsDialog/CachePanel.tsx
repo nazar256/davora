@@ -7,8 +7,10 @@ import {
   MAX_PREVIEW_FRESHNESS_INTERVAL_SECONDS,
   MIN_MAX_CACHEABLE_FILE_SIZE_BYTES,
   MIN_PREVIEW_FRESHNESS_INTERVAL_SECONDS,
-  clampPreviewFreshnessIntervalSeconds
+  clampPreviewFreshnessIntervalSeconds,
+  normalizeImagePreviewPrefetchCount
 } from "../model";
+import type { ImagePreviewPrefetchCount } from "../model";
 
 const PREVIEW_FRESHNESS_UNITS = [
   { value: "seconds", label: "second(s)", multiplier: 1 },
@@ -73,6 +75,7 @@ export interface CachePanelProps {
   fileSizeDisplayMode: FileSizeDisplayMode;
   maxCacheableFileSizeBytes: number;
   previewFreshnessIntervalSeconds: number;
+  imagePreviewPrefetchCount: ImagePreviewPrefetchCount;
   offlineItems: Array<{
     rootId: string;
     rootPath: string;
@@ -87,6 +90,7 @@ export interface CachePanelProps {
   onLimitChange: (limitBytes: number) => void;
   onMaxCacheableFileSizeChange: (limitBytes: number) => void;
   onPreviewFreshnessIntervalChange: (intervalSeconds: number) => void;
+  onImagePreviewPrefetchCountChange: (count: ImagePreviewPrefetchCount) => void;
 }
 
 export function CachePanel(props: CachePanelProps) {
@@ -282,6 +286,19 @@ export function CachePanel(props: CachePanelProps) {
             </div>
           </div>
         </div>
+      </label>
+      <label className="stacked-field cache-limit-field">
+        <span className="summary-label">Images to preload ahead</span>
+        <select
+          aria-label="Images to preload ahead"
+          onChange={(event) => props.onImagePreviewPrefetchCountChange(normalizeImagePreviewPrefetchCount(Number(event.target.value)))}
+          value={String(props.imagePreviewPrefetchCount)}
+        >
+          <option value="1">1 image</option>
+          <option value="2">2 images</option>
+          <option value="3">3 images</option>
+        </select>
+        <span className="status">Cached and kept-offline HEIC images are decoded to JPEG in the background before gallery navigation.</span>
       </label>
       <label className="stacked-field cache-limit-field">
         <span className="summary-label">Check cached previews for updates after</span>

@@ -22,6 +22,7 @@ describe("settings service", () => {
         themeMode: "dark",
         maxCacheableFileSizeBytes: Number.MAX_SAFE_INTEGER,
         previewFreshnessIntervalSeconds: 0,
+        imagePreviewPrefetchCount: 3,
         keepAwakeEnabled: false,
         showHiddenFiles: true,
         sortMode: "modified-desc"
@@ -33,6 +34,7 @@ describe("settings service", () => {
       themeMode: "dark",
       maxCacheableFileSizeBytes: MAX_MAX_CACHEABLE_FILE_SIZE_BYTES,
       previewFreshnessIntervalSeconds: MIN_PREVIEW_FRESHNESS_INTERVAL_SECONDS,
+      imagePreviewPrefetchCount: 3,
       keepAwakeEnabled: false,
       showHiddenFiles: true,
       sortMode: "modified-desc"
@@ -54,6 +56,7 @@ describe("settings service", () => {
         maxCacheableFileSizeBytes: "unbounded",
         imagePreviewFitMode: true,
         previewFreshnessIntervalSeconds: null,
+        imagePreviewPrefetchCount: 99,
         keepAwakeEnabled: "false",
         showHiddenFiles: 1,
         experimentalHeicPreviewEnabled: "true",
@@ -104,6 +107,7 @@ describe("settings service", () => {
       themeMode: "light" as const,
       maxCacheableFileSizeBytes: Number.POSITIVE_INFINITY,
       previewFreshnessIntervalSeconds: 300.4,
+      imagePreviewPrefetchCount: 2 as const,
       imagePreviewFitMode: "fit" as const
     };
 

@@ -9,6 +9,12 @@
 
 import type { FolderPorts, SearchPorts } from "../browsing";
 import type { OperationRuntimePort } from "../operations";
+import type {
+  PreviewCachePort,
+  PreviewLivePort,
+  PreviewSessionCompositionFactories
+} from "../preview/session";
+import { isHeicFileName } from "../../lib/heicPreviewShared";
 import { BackendNetworkBlockedError } from "../../lib/networkPolicy";
 import type { DiagnosticActionName } from "./model";
 import type { DiagnosticsClock } from "./ports";
@@ -65,14 +71,22 @@ export const wrapDiagnosticsFolderPorts = (
       commandsNow.record({ kind: "folder.load", outcome: "cancelled", durationMs });
     } else {
       const offline = outcome.error instanceof BackendNetworkBlockedError;
+      if (outcome.diagnostic) {
+        commandsNow.record({
+          kind: "folder.response.rejected",
+          path: commandsNow.redactPath(input.path, "folder"),
+          rejection: outcome.diagnostic
+        });
+      }
+      const errorKind = outcome.diagnostic?.phase ?? outcome.kind;
       commandsNow.record({
         kind: "folder.load",
         outcome: offline ? "offline" : "failed",
-        errorKind: outcome.kind,
+        errorKind,
         durationMs
       });
       if (!offline) {
-        commandsNow.record({ kind: "error.reported", area: "list", errorKind: outcome.kind });
+        commandsNow.record({ kind: "error.reported", area: "list", errorKind });
       }
     }
     return outcome;
@@ -98,6 +112,120 @@ export const wrapDiagnosticsSearchPorts = (
       commands.current.record({ kind: "error.reported", area: "list", errorKind: outcome.kind });
     }
     return outcome;
+  }
+});
+
+const HEIC_FALLBACK_DETAIL_LIMIT = 300;
+
+const isAbortLike = (error: unknown): boolean =>
+  error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError");
+
+const previewErrorKind = (error: unknown): string => {
+  if (error instanceof Error && "code" in error && typeof error.code === "string") {
+    return error.code;
+  }
+  return errorKindOf(error);
+};
+
+const heicFallbackErrorKind = (reason: string | undefined): string => {
+  if (!reason) {
+    return "heic-fallback";
+  }
+  if (reason.includes("experimental and disabled")) {
+    return "heic-disabled";
+  }
+  if (reason.includes("limited to files up to")) {
+    return "heic-size-limit";
+  }
+  if (reason.includes("megapixels")) {
+    return "heic-pixel-limit";
+  }
+  if (reason.includes("timed out")) {
+    return "heic-timeout";
+  }
+  if (reason.includes("could not be decoded locally")) {
+    return "heic-decode-failed";
+  }
+  return "heic-fallback";
+};
+
+const reportHeicFallback = (commands: DiagnosticsWorkspaceCommands, reason: string | undefined): string => {
+  const errorKind = heicFallbackErrorKind(reason);
+  commands.record({
+    kind: "error.reported",
+    area: "preview",
+    errorKind,
+    ...(reason === undefined ? {} : { detail: reason.slice(0, HEIC_FALLBACK_DETAIL_LIMIT) })
+  });
+  return errorKind;
+};
+
+const wrapDiagnosticsPreviewAcquire = (
+  acquire: PreviewLivePort["acquire"],
+  commands: CommandsRef,
+  clock: DiagnosticsClock
+): PreviewLivePort["acquire"] => async (key, abort) => {
+  const started = clock.nowMs();
+  commands.current.recordAction("preview-open", {
+    heic: isHeicFileName(key.path),
+    mode: key.connectionMode
+  });
+  try {
+    const acquisition = await acquire(key, abort);
+    const durationMs = Math.round(clock.nowMs() - started);
+    if (acquisition.snapshot.unsupported === "heic-fallback") {
+      const errorKind = reportHeicFallback(commands.current, acquisition.snapshot.preview.unsupportedReason);
+      commands.current.recordActionResult("preview-open", "partial", durationMs, errorKind);
+    } else {
+      commands.current.recordActionResult("preview-open", "success", durationMs);
+    }
+    return acquisition;
+  } catch (error) {
+    const durationMs = Math.round(clock.nowMs() - started);
+    const cancelled = error instanceof BackendNetworkBlockedError || isAbortLike(error);
+    const errorKind = previewErrorKind(error);
+    commands.current.recordActionResult("preview-open", cancelled ? "cancelled" : "failure", durationMs, errorKind);
+    if (!cancelled) {
+      commands.current.record({ kind: "error.reported", area: "preview", errorKind });
+    }
+    throw error;
+  }
+};
+
+const wrapDiagnosticsPreviewCache = (
+  cache: PreviewCachePort,
+  commands: CommandsRef
+): PreviewCachePort => ({
+  // Bundle ports may be class instances; delegate instead of spreading so
+  // prototype methods and `this` survive.
+  read: async (key, abort) => {
+    const entry = await cache.read(key, abort);
+    if (entry?.acquisition.snapshot.unsupported === "heic-fallback") {
+      reportHeicFallback(commands.current, entry.acquisition.snapshot.preview.unsupportedReason);
+    }
+    return entry;
+  },
+  write: (key, acquisition, abort) => cache.write(key, acquisition, abort)
+});
+
+export const wrapDiagnosticsPreviewSession = (
+  base: PreviewSessionCompositionFactories,
+  commands: CommandsRef,
+  clock: DiagnosticsClock
+): PreviewSessionCompositionFactories => ({
+  createSessionAdapters: (input) => {
+    const bundle = base.createSessionAdapters(input);
+    return {
+      ...bundle,
+      cache: wrapDiagnosticsPreviewCache(bundle.cache, commands),
+      live: {
+        acquire: wrapDiagnosticsPreviewAcquire(
+          (key, abort) => bundle.live.acquire(key, abort),
+          commands,
+          clock
+        )
+      }
+    };
   }
 });
 

@@ -12,6 +12,20 @@ export interface BugReportForm {
   readonly reproductionSteps: string;
 }
 
+export const BUG_REPORT_FIELD_LIMITS = {
+  summary: 160,
+  whatHappened: 4_000,
+  expected: 4_000,
+  reproductionSteps: 4_000
+} as const;
+
+export const normalizeBugReportForm = (form: BugReportForm): BugReportForm => ({
+  summary: form.summary.slice(0, BUG_REPORT_FIELD_LIMITS.summary),
+  whatHappened: form.whatHappened.slice(0, BUG_REPORT_FIELD_LIMITS.whatHappened),
+  expected: form.expected.slice(0, BUG_REPORT_FIELD_LIMITS.expected),
+  reproductionSteps: form.reproductionSteps.slice(0, BUG_REPORT_FIELD_LIMITS.reproductionSteps)
+});
+
 export const emptyBugReportForm = (): BugReportForm => ({
   summary: "",
   whatHappened: "",

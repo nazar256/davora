@@ -260,9 +260,19 @@ test("installed PWA opens with cached shell when the worker is stopped but brows
 
     const { pageSession, manifestId } = await installCurrentPageAsPwa(persistentPage, persistentContext);
     await pageSession.send("PWA.changeAppUserSettings", { manifestId, displayMode: "standalone" });
-    // Simulate an unreachable server without killing the shared worker process
-    // that later specs in this suite still need.
-    await persistentContext.route("**/*", (route) => route.abort());
+    // Keep browser connectivity online while making only the app API unreachable.
+    // Playwright routing cannot reliably observe requests handled by a service
+    // worker, so install the failure seam before the standalone page starts.
+    await persistentContext.addInitScript(() => {
+      const nativeFetch = window.fetch.bind(window);
+      window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+        const rawUrl = input instanceof Request ? input.url : String(input);
+        const url = new URL(rawUrl, window.location.href);
+        return url.origin === window.location.origin && url.pathname.startsWith("/api/")
+          ? Promise.reject(new TypeError("Failed to fetch"))
+          : nativeFetch(input, init);
+      };
+    });
     const existingPages = persistentContext.pages().length;
     const launched = await pageSession.send("PWA.launch", { manifestId }) as { targetId: string };
     const appPage = await persistentContext.waitForEvent("page");

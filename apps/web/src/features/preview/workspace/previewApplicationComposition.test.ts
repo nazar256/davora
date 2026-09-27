@@ -222,6 +222,7 @@ function createOpenInput(overrides: Partial<UsePreviewOpenInput> = {}): UsePrevi
     experimentalHeicPreviewEnabled: false,
     previewFreshnessIntervalSeconds: 60,
     maxCacheableFileSizeBytes: 1024,
+    imagePreviewPrefetchCount: 1,
     token: "token-alpha",
     cacheOnlyMode: false,
     cacheNamespace: "cache-alpha",
@@ -797,9 +798,9 @@ describe("Phase 4F preview application-composition characterization", () => {
       context: {
         activeAccount: { id: "alpha", cacheNamespace: "cache-alpha", displayName: "Alpha" }, accountName: "Alpha", token: "token-alpha",
         cacheNamespace: "cache-alpha", cacheOnlyMode: false, currentPath: "Docs",
-        visibleItems: [entry("Docs/a.png"), entry("Docs/b.png")], explicitOfflineMode: false, offline: false
+        visibleItems: [entry("Docs/a.png"), entry("Docs/b.png"), entry("Docs/c.png"), entry("Docs/d.png")], explicitOfflineMode: false, offline: false
       },
-      settings: { experimentalHeicPreviewEnabled: false, previewFreshnessIntervalSeconds: 60, maxCacheableFileSizeBytes: 1024 },
+      settings: { experimentalHeicPreviewEnabled: false, previewFreshnessIntervalSeconds: 60, maxCacheableFileSizeBytes: 1024, imagePreviewPrefetchCount: 3 },
       ports: workspacePortsForComposition(composition, callbacks)
     } satisfies PreviewWorkspaceInput;
     const { result, rerender } = renderHook((input: PreviewWorkspaceInput) => usePreviewWorkspace(input), { initialProps: base });
@@ -809,7 +810,7 @@ describe("Phase 4F preview application-composition characterization", () => {
     expect(liveKeys[0]).toMatchObject({ accountId: "alpha", cacheNamespace: "cache-alpha", path: "Docs/a.png", connectionMode: "online" });
     expect(admittedTokens[0]).toBe("token-alpha");
     expect(result.current.nextMediaItem?.path).toBe("Docs/b.png");
-    expect(prefetchKeys.at(-1)).toMatchObject({ accountId: "alpha", cacheNamespace: "cache-alpha", path: "Docs/b.png" });
+    expect(prefetchKeys.slice(-3).map((key) => key.path)).toEqual(["Docs/b.png", "Docs/c.png", "Docs/d.png"]);
 
     const beta = {
       ...base,

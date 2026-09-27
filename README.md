@@ -118,6 +118,7 @@ The deployed topology is explicit:
 - `apps/web/dist` deploys to Cloudflare Pages.
 - Pages builds need a deployed Worker origin because the local same-origin `/api` proxy does not exist on Pages. The root deploy script now defaults that origin to `https://api.example.invalid`, defaults the Pages project name to `davora`, and refuses to deploy the Worker if required runtime secrets such as `SESSION_SECRET` are missing.
 - Worker observability keeps application logs and errors available through `apps/worker/wrangler.toml`, while request invocation logs and traces are disabled so short-lived stream tokens are not retained; use `cd apps/worker && wrangler tail davora --format pretty` when you need operator-facing live logs.
+- Bug reports are still downloadable/shareable locally. An authenticated online user can additionally press **Send report** to upload the same redacted ZIP to the private EU R2 diagnostic inbox. Upload never happens automatically; reports and quota markers expire after 30 days.
 
 Required root scripts:
 
@@ -130,6 +131,7 @@ npm run deploy
 - `npm run deploy:worker -- --dry-run` is the required Worker preflight.
 - `npm run deploy:web` builds the exact Pages artifact with the default deployed Worker origin unless `VITE_API_BASE_URL` is overridden, then runs `wrangler pages deploy apps/web/dist --project-name davora` unless `CLOUDFLARE_PAGES_PROJECT_NAME` overrides it.
 - `npm run deploy` is the combined root entry point.
+- `npm run diagnostics:inbox -- pull --since 30d --limit 50` downloads checksum-verified reports into ignored `.tmp/diagnostic-inbox/…`. It requires `CLOUDFLARE_ACCOUNT_ID` and a separately scoped `CLOUDFLARE_DIAGNOSTICS_READ_TOKEN`; the token must have read-only R2 access and is never stored in the repo.
 - Full operator details, env knobs, and future guardrails live in `docs/DEPLOYMENT.md`.
 
 ## UX source of truth

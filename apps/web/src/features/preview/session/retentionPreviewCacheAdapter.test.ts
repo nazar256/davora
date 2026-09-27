@@ -5,12 +5,14 @@ import { Blob as NodeBlob } from "node:buffer";
 import {
   createRetentionPreviewCacheAdapter,
   createRetentionPreviewPrefetchAdapter,
+  type RetentionPreviewCachedInput,
   type RetentionPreviewPrefetchRuntime,
   type RetentionPreviewRuntime
 } from "./retentionPreviewCacheAdapter";
 import { createPreviewRequestKey, createPreviewSnapshot, type PreviewAcquisition, type PreviewRequestKey } from "./index";
 import { createRetainedSnapshot, type RetainedFile, type RetentionRepository } from "../../offline/retention";
 import { createOpenedFileRepository } from "../../../platform/storage/openedFileRepository";
+import { BrowserPreviewLiveAdapter, BrowserPreviewMaterialStore } from "../../../platform/preview/browserPreviewAdapters";
 
 const account = { accountId: "account-a", cacheNamespace: "cache-a" };
 
@@ -77,6 +79,7 @@ function repository(overrides: Partial<RetentionRepository> = {}): RetentionRepo
     readSnapshot: success,
     readPreview: vi.fn(async () => ({ kind: "success" as const, value: undefined })),
     writePreview: vi.fn(success),
+    writePreviewDerivative: vi.fn(success),
     beginRoot: success,
     persistRetainedFile: success,
     completeRoot: success,
@@ -110,6 +113,7 @@ function prefetchRuntime(overrides: Partial<RetentionPreviewPrefetchRuntime> = {
   return {
     ...runtime(),
     isCachedUsable: vi.fn(() => false),
+    prepareCachedForPrefetch: vi.fn(async () => ({ kind: "miss" as const })),
     acquire: vi.fn(async () => acquisition()),
     ...overrides
   };
@@ -122,6 +126,73 @@ function abort(aborted = false) {
 }
 
 describe("RetentionPreviewCacheAdapter", () => {
+  it("persists a materialized retained HEIC derivative against the source revision", async () => {
+    const original = new Blob(["heic"], { type: "image/heic" });
+    const jpeg = new Blob(["jpeg"], { type: "image/jpeg" });
+    const heic = retainedFile({
+      path: "Archive/photo.heic",
+      name: "photo.heic",
+      mimeType: "image/heic",
+      preview: preview({ path: "Archive/photo.heic", name: "photo.heic", mimeType: "image/heic" }),
+      normalCacheOwnership: "none"
+    });
+    const store = repository({
+      readPreview: vi.fn(async () => ({ kind: "success" as const, value: { file: heic, blob: original, sourceRevision: "source-1" } }))
+    });
+    const browser = runtime({
+      materializeCached: vi.fn(async (_key: PreviewRequestKey, input: RetentionPreviewCachedInput) => ({
+        snapshot: createPreviewSnapshot({ preview: input.preview, fingerprint: "cached-heic", source: "blob" }),
+        material: { id: "decoded", kind: "blob" as const },
+        derivative: { blob: jpeg, mimeType: "image/jpeg", filename: "photo.heic.jpg" }
+      }))
+    });
+
+    await createRetentionPreviewCacheAdapter(store, browser).read(key({ path: "Archive/photo.heic" }), abort());
+
+    expect(store.writePreviewDerivative).toHaveBeenCalledWith(account, {
+      path: "Archive/photo.heic",
+      expectedSourceRevision: "source-1",
+      blob: jpeg,
+      mimeType: "image/jpeg",
+      filename: "photo.heic.jpg"
+    });
+  });
+
+  it("reopens a retained HEIC after repository reconstruction without decoding it again", async () => {
+    vi.stubGlobal("Blob", NodeBlob);
+    const retainedAccount = { accountId: "account-a", cacheNamespace: "preview-retained-heic-sidecar" };
+    const original = new Blob(["heic"], { type: "image/heic" });
+    const jpeg = new Blob(["jpeg"], { type: "image/jpeg" });
+    const heicPreview = preview({ path: "Archive/photo.heic", name: "photo.heic", mimeType: "image/heic" });
+    const request = key({ cacheNamespace: retainedAccount.cacheNamespace, path: "Archive/photo.heic", connectionMode: "cache-only" });
+    const decode = vi.fn(async () => ({ blob: jpeg, mimeType: "image/jpeg" }));
+    const firstRepository = createOpenedFileRepository();
+
+    try {
+      const started = await firstRepository.beginRoot(retainedAccount, { rootPath: "Archive/photo.heic", rootName: "photo.heic", kind: "file", folderRoots: [] });
+      if (started.kind === "failure") throw new Error(started.message);
+      const rootId = started.value.roots[0]?.id;
+      if (!rootId) throw new Error("Expected retained root.");
+      await firstRepository.persistRetainedFile(retainedAccount, {
+        rootId,
+        file: { path: "Archive/photo.heic", name: "photo.heic", mimeType: "image/heic", size: original.size, preview: heicPreview, blobSize: original.size, readable: true, normalCacheOwnership: "none" },
+        blob: original
+      });
+
+      const firstRuntime = new BrowserPreviewLiveAdapter({ tokenFor: () => undefined, materials: new BrowserPreviewMaterialStore(), decodeHeicPreview: decode });
+      await createRetentionPreviewCacheAdapter(firstRepository, firstRuntime).read(request, abort());
+      expect(decode).toHaveBeenCalledTimes(1);
+
+      const reloadedRuntime = new BrowserPreviewLiveAdapter({ tokenFor: () => undefined, materials: new BrowserPreviewMaterialStore(), decodeHeicPreview: decode });
+      const reopened = await createRetentionPreviewCacheAdapter(createOpenedFileRepository(), reloadedRuntime).read(request, abort());
+      expect(reopened?.acquisition.snapshot).toMatchObject({ source: "blob", unsupported: "none" });
+      expect(decode).toHaveBeenCalledTimes(1);
+    } finally {
+      await firstRepository.purgeAccountNamespace(retainedAccount);
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("maps an account-scoped V2 preview record through runtime materialization", async () => {
     const blob = new Blob(["image"], { type: "image/png" });
     const store = repository({ readPreview: vi.fn(async () => ({ kind: "success" as const, value: { file: retainedFile(), blob } })) });
@@ -195,16 +266,55 @@ describe("RetentionPreviewCacheAdapter", () => {
 
   it("probes cached retained facts without materialization and skips gallery live work on a cache hit", async () => {
     const store = repository({ readPreview: vi.fn(async () => ({ kind: "success" as const, value: { file: retainedFile() } })) });
-    const browser = prefetchRuntime({ isCachedUsable: vi.fn(() => true) });
+    const browser = prefetchRuntime({
+      isCachedUsable: vi.fn(() => true),
+      prepareCachedForPrefetch: vi.fn(async () => ({ kind: "ready" as const }))
+    });
     const cache = createRetentionPreviewCacheAdapter(store, browser);
     const prefetch = createRetentionPreviewPrefetchAdapter(cache, browser);
 
     await expect(prefetch.probe(key(), abort())).resolves.toBe(true);
     await expect(prefetch.prefetch(key(), { accept: () => true }, abort())).resolves.toEqual({ kind: "cached" });
-    expect(browser.isCachedUsable).toHaveBeenCalledTimes(2);
+    expect(browser.isCachedUsable).toHaveBeenCalledTimes(1);
+    expect(browser.prepareCachedForPrefetch).toHaveBeenCalledTimes(1);
     expect(browser.materializeCached).not.toHaveBeenCalled();
     expect(browser.acquire).not.toHaveBeenCalled();
     expect(store.writePreview).not.toHaveBeenCalled();
+  });
+
+  it("pre-renders a cached retained HEIC and persists its derivative without live acquisition", async () => {
+    const original = new Blob(["heic"], { type: "image/heic" });
+    const jpeg = new Blob(["jpeg"], { type: "image/jpeg" });
+    const heic = retainedFile({
+      path: "Archive/photo.heic",
+      name: "photo.heic",
+      mimeType: "image/heic",
+      preview: preview({ path: "Archive/photo.heic", name: "photo.heic", mimeType: "image/heic" }),
+      normalCacheOwnership: "none"
+    });
+    const store = repository({
+      readPreview: vi.fn(async () => ({ kind: "success" as const, value: { file: heic, blob: original, sourceRevision: "source-1" } }))
+    });
+    const browser = prefetchRuntime({
+      prepareCachedForPrefetch: vi.fn(async () => ({
+        kind: "derivative" as const,
+        derivative: { blob: jpeg, mimeType: "image/jpeg", filename: "photo.heic.jpg" }
+      }))
+    });
+    const prefetch = createRetentionPreviewPrefetchAdapter(createRetentionPreviewCacheAdapter(store, browser), browser);
+
+    await expect(prefetch.prefetch(key({ path: "Archive/photo.heic", connectionMode: "cache-only" }), { accept: () => true }, abort()))
+      .resolves.toEqual({ kind: "persisted" });
+
+    expect(store.writePreviewDerivative).toHaveBeenCalledWith(account, {
+      path: "Archive/photo.heic",
+      expectedSourceRevision: "source-1",
+      blob: jpeg,
+      mimeType: "image/jpeg",
+      filename: "photo.heic.jpg"
+    });
+    expect(browser.acquire).not.toHaveBeenCalled();
+    expect(browser.materializeCached).not.toHaveBeenCalled();
   });
 
   it("persists an accepted gallery acquisition through the cache adapter", async () => {

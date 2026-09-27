@@ -260,6 +260,16 @@
   }
 }
 
+/* Portrait viewports wider than the mobile breakpoint let the list plane own
+ * the remaining viewport height instead of the 46rem cap used on landscape. */
+@media (min-width: 901px) and (orientation: portrait) {
+  .file-list-panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+  }
+}
+
 /* FileListStage semantic overrides formerly loaded from design-system.css. */
 .item-name {
   color: var(--color-text);

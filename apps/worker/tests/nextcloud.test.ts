@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { basename, fileEntrySchema, filesSuccessSchema } from "@davora/shared";
+
 import { NextcloudClient } from "../src/nextcloud/client";
 import { createNextcloudDestinationPolicy } from "../src/security/nextcloudDestinationPolicy";
 
@@ -109,5 +111,120 @@ describe("nextcloud client", () => {
       method: "GET",
       url: "https://nextcloud.example.invalid/remote.php/dav/files/alice/.davora-agent-test/Photos/100%25%20complete.txt"
     });
+  });
+});
+
+describe("nextcloud folder listing trust boundary", () => {
+  const sandboxPrefix = "/remote.php/dav/files/alice/.davora-agent-test";
+
+  const propfindResponse = (entries: Array<{ href: string; props: string }>) =>
+    `<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">${entries
+      .map(
+        (entry) =>
+          `<d:response><d:href>${sandboxPrefix}${entry.href}</d:href><d:propstat><d:status>HTTP/1.1 200 OK</d:status><d:prop>${entry.props}</d:prop></d:propstat></d:response>`
+      )
+      .join("")}</d:multistatus>`;
+
+  const listWithXml = async (xml: string) => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(xml, { status: 207 }));
+    const client = new NextcloudClient({
+      baseUrl: "https://nextcloud.example.invalid",
+      username: "alice",
+      appPassword: "app-pass",
+      rootPath: ".davora-agent-test",
+      maxFileBytes: 1024 * 1024,
+      maxTextFileBytes: 64 * 1024
+    }, fetchMock, testNextcloudPolicy);
+    return client.listFolder("sub");
+  };
+
+  const fileProps = (displayname: string, extra = "") =>
+    `<d:displayname>${displayname}</d:displayname><d:getcontenttype>text/plain</d:getcontenttype><d:resourcetype/>${extra}`;
+
+  it("keeps a leading-space filename consistent when the server trims its displayname", async () => {
+    const items = await listWithXml(propfindResponse([
+      { href: "/sub/", props: "<d:displayname>sub</d:displayname><d:resourcetype><d:collection/></d:resourcetype>" },
+      { href: "/sub/%20file.txt", props: fileProps("file.txt", "<d:getcontentlength>4</d:getcontentlength>") }
+    ]));
+
+    expect(items).toEqual([
+      expect.objectContaining({ path: "sub/ file.txt", name: " file.txt", size: 4 })
+    ]);
+    for (const item of items) {
+      expect(fileEntrySchema.safeParse(item).success).toBe(true);
+      expect(basename(item.path)).toBe(item.name);
+    }
+  });
+
+  it("derives the entry name from the href when displayname uses a different Unicode normalization", async () => {
+    const items = await listWithXml(propfindResponse([
+      { href: "/sub/", props: "<d:displayname>sub</d:displayname><d:resourcetype><d:collection/></d:resourcetype>" },
+      { href: "/sub/e%CC%81.txt", props: fileProps("\u00e9.txt") }
+    ]));
+
+    expect(items).toEqual([
+      expect.objectContaining({ path: "sub/e\u0301.txt", name: "e\u0301.txt" })
+    ]);
+    expect(items[0].path).toBe("sub/e\u0301.txt");
+    expect(items[0].name).toBe("e\u0301.txt");
+    expect(items[0].name).toBe(basename(items[0].path));
+  });
+
+  it("ignores control characters in displayname when the href basename is clean", async () => {
+    const items = await listWithXml(propfindResponse([
+      { href: "/sub/", props: "<d:displayname>sub</d:displayname><d:resourcetype><d:collection/></d:resourcetype>" },
+      {
+        href: "/sub/weekly%20report/",
+        props: "<d:displayname>weekly\u0007 report\u0006</d:displayname><d:resourcetype><d:collection/></d:resourcetype>"
+      }
+    ]));
+
+    expect(items).toEqual([
+      expect.objectContaining({ path: "sub/weekly report", name: "weekly report", isFolder: true })
+    ]);
+    expect(basename(items[0].path)).toBe(items[0].name);
+  });
+
+  it("prefers the href basename over a custom server displayname", async () => {
+    const items = await listWithXml(propfindResponse([
+      { href: "/sub/", props: "<d:displayname>sub</d:displayname><d:resourcetype><d:collection/></d:resourcetype>" },
+      { href: "/sub/doc.txt", props: fileProps("My Document") }
+    ]));
+
+    expect(items).toEqual([
+      expect.objectContaining({ path: "sub/doc.txt", name: "doc.txt" })
+    ]);
+  });
+
+  it("omits a non-finite getcontentlength instead of emitting an unserializable size", async () => {
+    const items = await listWithXml(propfindResponse([
+      { href: "/sub/", props: "<d:displayname>sub</d:displayname><d:resourcetype><d:collection/></d:resourcetype>" },
+      { href: "/sub/huge.bin", props: fileProps("huge.bin", `<d:getcontentlength>${"9".repeat(400)}</d:getcontentlength>`) }
+    ]));
+
+    expect(items).toEqual([
+      expect.objectContaining({ path: "sub/huge.bin", name: "huge.bin" })
+    ]);
+    expect(items[0]).not.toHaveProperty("size");
+    const roundTripped: unknown = JSON.parse(JSON.stringify(items));
+    expect(filesSuccessSchema.safeParse({ data: { path: "sub", items: roundTripped } }).success).toBe(true);
+  });
+
+  it("skips entries whose href cannot be represented while keeping valid siblings", async () => {
+    const items = await listWithXml(propfindResponse([
+      { href: "/sub/", props: "<d:displayname>sub</d:displayname><d:resourcetype><d:collection/></d:resourcetype>" },
+      { href: "/sub/a%252Fb.txt", props: fileProps("a%2Fb.txt") },
+      { href: "/sub/%E9latin1.txt", props: fileProps("\u00e9latin1.txt") },
+      { href: "/sub/ok.txt", props: fileProps("ok.txt") }
+    ]));
+
+    expect(items.map((item) => item.path)).toEqual(["sub/ok.txt"]);
+  });
+
+  it("still rejects a structurally wrong DAV href instead of silently skipping", async () => {
+    await expect(listWithXml(propfindResponse([
+      { href: "/sub/", props: "<d:displayname>sub</d:displayname><d:resourcetype><d:collection/></d:resourcetype>" },
+      { href: "/sub/doc.txt", props: fileProps("doc.txt") }
+    ]).replaceAll("/dav/files/alice/", "/dav/files/bob/"))).rejects.toThrow(/username mismatch/i);
   });
 });

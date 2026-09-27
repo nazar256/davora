@@ -1,4 +1,5 @@
-import { Bug, Download, Share2, X } from "lucide-react";
+import { Bug, Download, Send, Share2, X } from "lucide-react";
+import type { DiagnosticReportReceipt } from "@davora/shared";
 import { useState } from "react";
 
 import { useModalFocusBoundary } from "../../../components/useModalFocusBoundary";
@@ -6,6 +7,7 @@ import type { FileSizeDisplayMode } from "../../../lib/fileSize";
 import { formatFileSize } from "../../../lib/fileSize";
 import {
   emptyBugReportForm,
+  BUG_REPORT_FIELD_LIMITS,
   type BugReportForm,
   type ReportBundlePreview,
   type ReportSessionPickerEntry
@@ -16,12 +18,15 @@ export interface ReportBugStageProps {
   readonly sessions: readonly ReportSessionPickerEntry[];
   readonly preview: ReportBundlePreview | undefined;
   readonly canShare: boolean;
+  readonly canUpload: boolean;
   readonly exporting: boolean;
   readonly exportError?: string;
+  readonly uploadReceipt?: DiagnosticReportReceipt;
   readonly fileSizeDisplayMode: FileSizeDisplayMode;
   readonly onClose: () => void;
   readonly onToggleSession: (sessionId: string) => void;
   readonly onExport: (form: BugReportForm, mode: "download" | "share") => void;
+  readonly onUpload: (form: BugReportForm) => void;
 }
 
 const formatBytes = (bytes: number, mode: FileSizeDisplayMode): string =>
@@ -82,6 +87,7 @@ export function ReportBugStage(props: ReportBugStageProps) {
             <span className="summary-label">Summary</span>
             <input
               aria-label="Bug summary"
+              maxLength={BUG_REPORT_FIELD_LIMITS.summary}
               onChange={(event) => update({ summary: event.currentTarget.value })}
               placeholder="Short description of the problem"
               type="text"
@@ -92,6 +98,7 @@ export function ReportBugStage(props: ReportBugStageProps) {
             <span className="summary-label">What happened?</span>
             <textarea
               aria-label="What happened"
+              maxLength={BUG_REPORT_FIELD_LIMITS.whatHappened}
               onChange={(event) => update({ whatHappened: event.currentTarget.value })}
               placeholder="Describe what you saw"
               rows={3}
@@ -102,6 +109,7 @@ export function ReportBugStage(props: ReportBugStageProps) {
             <span className="summary-label">What did you expect?</span>
             <textarea
               aria-label="Expected behavior"
+              maxLength={BUG_REPORT_FIELD_LIMITS.expected}
               onChange={(event) => update({ expected: event.currentTarget.value })}
               placeholder="Describe what should have happened"
               rows={2}
@@ -112,6 +120,7 @@ export function ReportBugStage(props: ReportBugStageProps) {
             <span className="summary-label">Reproduction steps (optional)</span>
             <textarea
               aria-label="Reproduction steps"
+              maxLength={BUG_REPORT_FIELD_LIMITS.reproductionSteps}
               onChange={(event) => update({ reproductionSteps: event.currentTarget.value })}
               placeholder="Steps that trigger the problem"
               rows={2}
@@ -171,7 +180,17 @@ export function ReportBugStage(props: ReportBugStageProps) {
               Logs stay on this device and contain no file contents, credentials, or request bodies.
               Paths are replaced with placeholders. Nothing is uploaded automatically.
             </p>
+            <p className="status">
+              Send report uploads this ZIP to Davora&apos;s secure diagnostic inbox for up to 30 days.
+              Download and Share keep their existing local behavior.
+            </p>
           </section>
+
+          {props.uploadReceipt ? (
+            <p className="status" role="status">
+              Report sent. ID: {props.uploadReceipt.reportId}. It expires after {props.uploadReceipt.expiresAfterDays} days.
+            </p>
+          ) : null}
 
           {props.exportError ? (
             <p className="status report-bug-error" role="alert">
@@ -192,6 +211,14 @@ export function ReportBugStage(props: ReportBugStageProps) {
               Share report
             </button>
           ) : null}
+          <button
+            disabled={props.exporting || !props.canUpload}
+            onClick={() => props.onUpload(form)}
+            type="button"
+          >
+            <Send aria-hidden="true" />
+            {props.exporting ? "Preparing…" : "Send report"}
+          </button>
           <button
             disabled={props.exporting}
             onClick={() => props.onExport(form, "download")}

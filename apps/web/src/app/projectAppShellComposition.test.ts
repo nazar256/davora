@@ -22,6 +22,7 @@ function settingsCommands(): SettingsPreferencesWorkspaceCommands {
     handleMaxCacheableFileSizeChange: vi.fn(),
     handleImagePreviewFitModeChange: vi.fn(),
     handlePreviewFreshnessIntervalChange: vi.fn(),
+    handleImagePreviewPrefetchCountChange: vi.fn(),
     handleKeepAwakeEnabledChange: vi.fn(),
     handleShowHiddenFilesChange: vi.fn(),
     handleExperimentalHeicPreviewEnabledChange: vi.fn(),

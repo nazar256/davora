@@ -343,4 +343,46 @@ describe("preview open controller", () => {
     }, ports, { accept: () => true });
     expect(ports.prefetch.runtime.prefetch).not.toHaveBeenCalled();
   });
+
+  it("prefetches the configured next three images from cache-only storage in nearest-first order", async () => {
+    let releaseFirst: (() => void) | undefined;
+    const firstPending = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    const prefetch = vi.fn(async (request: { readonly path: string }) => {
+      if (request.path === "Archive/b.heic") await firstPending;
+      return { kind: "persisted" as const };
+    });
+    const ports = createPorts({
+      prefetch: {
+        ...createPorts().prefetch,
+        runtime: { probe: vi.fn(async () => false), prefetch }
+      }
+    });
+
+    const running = prefetchUpcomingPreviewMedia({
+      startIndex: 0,
+      mediaItems: ["a", "b", "c", "d", "e"].map((name) => entry(`Archive/${name}.heic`, "image/heic")),
+      accountId: "alpha",
+      cacheNamespace: "ns",
+      contextGeneration: "1",
+      cacheOnlyMode: true,
+      hasToken: false,
+      hasActiveAccount: true,
+      cacheNamespacePresent: true,
+      heicPreviewEnabled: true,
+      freshnessIntervalMs: 1000,
+      cacheLimitBytes: 1024,
+      prefetchAheadCount: 3
+    }, ports, { accept: () => true });
+
+    await vi.waitFor(() => expect(prefetch).toHaveBeenCalledTimes(1));
+    expect(prefetch.mock.calls[0]?.[0]).toMatchObject({ path: "Archive/b.heic", connectionMode: "cache-only" });
+    releaseFirst?.();
+    await running;
+
+    expect(prefetch.mock.calls.map(([request]) => request.path)).toEqual([
+      "Archive/b.heic",
+      "Archive/c.heic",
+      "Archive/d.heic"
+    ]);
+  });
 });

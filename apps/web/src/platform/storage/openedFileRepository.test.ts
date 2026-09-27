@@ -24,6 +24,7 @@ import {
   createOpenedFileRepository,
   decodeOpenedFileKey,
   openedFileBlobKey,
+  openedFileDerivativeKey,
   openedFileIndexKey,
   type RetentionResultShape,
   type RetentionSnapshotShape
@@ -33,6 +34,7 @@ const account = { accountId: "alpha", cacheNamespace: "alpha" };
 const otherAccount = { accountId: "beta", cacheNamespace: "beta" };
 const indexKey = openedFileIndexKey;
 const blobKey = openedFileBlobKey;
+const derivativeKey = openedFileDerivativeKey;
 const legacyIndexKey = (namespace: string) => `davora-opened-file:index:${namespace}`;
 const legacyBlobKey = (namespace: string, path: string) => `davora-opened-file:${namespace}:${path}:blob`;
 const repository = createOpenedFileRepository();
@@ -69,6 +71,7 @@ beforeEach(async () => {
   await Promise.all([
     del(blobKey("alpha", "one.txt")), del(blobKey("alpha", "shared.txt")), del(blobKey("alpha", "preview.txt")), del(blobKey("alpha", "secret.txt")), del(blobKey("alpha", "malformed.txt")), del(blobKey("beta", "one.txt")),
     del(blobKey("alpha:beta", "foo.txt")), del(blobKey("alpha-extra", "colon:path.txt")),
+    del(derivativeKey("alpha", "photo.heic")), del(derivativeKey("beta", "photo.heic")), del(derivativeKey("alpha", "one.heic")), del(derivativeKey("alpha", "two.heic")),
     del(legacyBlobKey("alpha", "one.txt")), del(legacyBlobKey("alpha", "shared.txt")), del(legacyBlobKey("alpha", "preview.txt")), del(legacyBlobKey("alpha", "secret.txt")), del(legacyBlobKey("alpha", "malformed.txt")), del(legacyBlobKey("beta", "one.txt")), del(legacyBlobKey("alpha", "beta:foo.txt"))
   ]);
 });
@@ -127,6 +130,16 @@ describe("opened-file repository", () => {
     expect(snapshot.files.map((entry) => entry.path)).toEqual(["one.txt"]);
     expect((await get<{ files: Record<string, unknown> }>(indexKey("alpha")))?.files).toHaveProperty("one.txt");
     expect((await get<{ files: Record<string, unknown> }>(indexKey("alpha")))?.files).not.toHaveProperty("preview.txt");
+  });
+
+  it("ignores a malformed derivative descriptor without dropping its source record", async () => {
+    const valid = { ...file("one.txt"), sourceRevision: "source-1", derivative: { sourceRevision: 3 } };
+    await set(indexKey("alpha"), { version: 2, limitBytes: 1024 * 1024, files: { valid }, roots: {}, memberships: {} });
+
+    const snapshot = await success(await repository.readSnapshot(account));
+
+    expect(snapshot.files.map((entry) => entry.path)).toEqual(["one.txt"]);
+    expect((await get<{ files: Record<string, { derivative?: unknown }> }>(indexKey("alpha")))?.files["one.txt"]?.derivative).toBeUndefined();
   });
 
   it("uses the injective encoded root identity while migrating legacy facts", async () => {
@@ -299,6 +312,95 @@ describe("opened-file repository", () => {
     expect(await get(blobKey("beta", "photo.heic"))).toEqual(derivedBlob);
   });
 
+  it("persists a retained HEIC derivative across repository instances and counts it in normal cache", async () => {
+    const heicPreview = { path: "photo.heic", name: "photo.heic", isFolder: false as const, mimeType: "image/heic", viewer: "image" as const, content: "", encoding: "none" as const, truncated: false, bytesRead: 0, size: 4, requiresOriginalBlob: true };
+    const original = new Blob(["heic"], { type: "image/heic" });
+    const jpeg = new Blob(["jpeg"], { type: "image/jpeg" });
+    const started = await success(await repository.beginRoot(account, root("photo.heic", "file")));
+    await success(await repository.persistRetainedFile(account, {
+      rootId: requiredRootId(started),
+      file: { ...file("photo.heic", original), mimeType: "image/heic", preview: heicPreview },
+      blob: original
+    }));
+    const initial = await success(await repository.readPreview(account, "photo.heic"));
+    if (!initial?.sourceRevision) throw new Error("Expected retained HEIC revision.");
+
+    const written = await success(await repository.writePreviewDerivative(account, {
+      path: "photo.heic",
+      expectedSourceRevision: initial.sourceRevision,
+      blob: jpeg,
+      mimeType: "image/jpeg",
+      filename: "photo.heic.jpg"
+    }));
+
+    expect(written.normalCache).toMatchObject({ itemCount: 1, totalBytes: jpeg.size });
+    expect(await get(derivativeKey("alpha", "photo.heic"))).toEqual(jpeg);
+    const reopened = await success(await createOpenedFileRepository().readPreview(account, "photo.heic"));
+    expect(reopened?.blob).toEqual(original);
+    expect(reopened?.derivative).toMatchObject({ blob: jpeg, mimeType: "image/jpeg", filename: "photo.heic.jpg" });
+
+    const cleared = await success(await repository.clearNormalCache(account));
+    expect(cleared.normalCache).toMatchObject({ itemCount: 0, totalBytes: 0 });
+    expect(await get(derivativeKey("alpha", "photo.heic"))).toBeUndefined();
+    expect((await success(await repository.readPreview(account, "photo.heic")))?.blob).toEqual(original);
+  });
+
+  it("rejects a stale derivative and promotes a current derivative when the final retained root is removed", async () => {
+    const original = new Blob(["heic"], { type: "image/heic" });
+    const refreshed = new Blob(["heic2"], { type: "image/heic" });
+    const jpeg = new Blob(["jpeg"], { type: "image/jpeg" });
+    const started = await success(await repository.beginRoot(account, root("photo.heic", "file")));
+    const rootId = requiredRootId(started);
+    await success(await repository.persistRetainedFile(account, { rootId, file: { ...file("photo.heic", original), mimeType: "image/heic" }, blob: original }));
+    const first = await success(await repository.readPreview(account, "photo.heic"));
+    if (!first?.sourceRevision) throw new Error("Expected retained HEIC revision.");
+    await success(await repository.persistRetainedFile(account, { rootId, file: { ...file("photo.heic", refreshed), mimeType: "image/heic" }, blob: refreshed }));
+
+    const stale = await repository.writePreviewDerivative(account, {
+      path: "photo.heic",
+      expectedSourceRevision: first.sourceRevision,
+      blob: jpeg,
+      mimeType: "image/jpeg",
+      filename: "photo.heic.jpg"
+    });
+    expect(stale).toMatchObject({ kind: "failure" });
+
+    const current = await success(await repository.readPreview(account, "photo.heic"));
+    if (!current?.sourceRevision) throw new Error("Expected refreshed HEIC revision.");
+    await success(await repository.writePreviewDerivative(account, {
+      path: "photo.heic",
+      expectedSourceRevision: current.sourceRevision,
+      blob: jpeg,
+      mimeType: "image/jpeg",
+      filename: "photo.heic.jpg"
+    }));
+    const removed = await success(await repository.removeRoot(account, rootId));
+    expect(removed.memberships).toEqual([]);
+    expect(removed.files).toContainEqual(expect.objectContaining({ path: "photo.heic", name: "photo.heic.jpg", mimeType: "image/jpeg", normalCacheOwnership: "owned" }));
+    expect((await success(await repository.readPreview(account, "photo.heic")))?.blob).toEqual(jpeg);
+    expect(await get(derivativeKey("alpha", "photo.heic"))).toBeUndefined();
+  });
+
+  it("evicts retained derivatives by the normal cache quota without evicting their originals", async () => {
+    const payload = new Blob([new Uint8Array(Math.floor(1024 * 1024 * 0.6))], { type: "image/jpeg" });
+    const originals = ["one.heic", "two.heic"] as const;
+    for (const path of originals) {
+      const original = new Blob([path], { type: "image/heic" });
+      const started = await success(await repository.beginRoot(account, root(path, "file")));
+      await success(await repository.persistRetainedFile(account, { rootId: requiredRootId(started, path), file: { ...file(path, original), mimeType: "image/heic" }, blob: original }));
+      const stored = await success(await repository.readPreview(account, path));
+      if (!stored?.sourceRevision) throw new Error("Expected retained source revision.");
+      await success(await repository.writePreviewDerivative(account, { path, expectedSourceRevision: stored.sourceRevision, blob: payload, mimeType: "image/jpeg", filename: `${path}.jpg` }));
+    }
+
+    const limited = await success(await repository.configureNormalCacheLimit(account, 1024 * 1024));
+
+    expect(limited.normalCache).toEqual({ itemCount: 1, totalBytes: payload.size, limitBytes: 1024 * 1024 });
+    for (const path of originals) expect((await success(await repository.readPreview(account, path)))?.blob).toBeInstanceOf(Blob);
+    const derivativeCount = (await Promise.all(originals.map((path) => get(derivativeKey("alpha", path))))).filter((value) => value instanceof Blob).length;
+    expect(derivativeCount).toBe(1);
+  });
+
   it("ignores a retained-original variant whose path does not match the payload", async () => {
     const blob = new Blob(["image"], { type: "image/png" });
     const started = await success(await repository.beginRoot(account, root("other.png", "file")));
@@ -383,6 +485,8 @@ describe("opened-file repository", () => {
     await success(await repository.writePreview(alphaExtra, { file: file("colon:path.txt", extraBlob), blob: extraBlob }));
 
     expect(openedFileBlobKey("alpha", alphaColonPath)).not.toBe(openedFileBlobKey("alpha:beta", "foo.txt"));
+    expect(openedFileDerivativeKey("alpha", alphaColonPath)).not.toBe(openedFileDerivativeKey("alpha:beta", "foo.txt"));
+    expect(decodeOpenedFileKey(openedFileDerivativeKey("alpha", alphaColonPath))).toEqual({ kind: "derived", cacheNamespace: "alpha", path: alphaColonPath });
     expect(await success(await repository.readPreview(account, alphaColonPath))).toMatchObject({ blob: alphaBlob });
     expect(await success(await repository.readPreview(alphaBeta, "foo.txt"))).toMatchObject({ blob: betaBlob });
     expect(await success(await repository.readPreview(alphaExtra, "colon:path.txt"))).toMatchObject({ blob: extraBlob });

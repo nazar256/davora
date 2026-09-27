@@ -167,24 +167,16 @@ function buildSurfaceInput(raw: string, active: boolean, set: (value: string) =>
           onToggleEntrySelection: vi.fn(),
           suppressNarrowScreenContextMenu: false
         },
-        presentation: {},
-        interaction: { clearBatchSelection: vi.fn() },
-        batch: { entries: [], capture: () => ({ memberships: [] }) }
       },
       operation: {
         capabilities: {
-          canCopyMoveBatchSelection: false,
           canCreateFolder: false,
-          canDeleteBatchSelection: false,
-          canDownloadBatchSelection: false,
-          canSyncBatchOffline: false,
           canUploadFiles: false,
           canUploadFolders: false,
           canMarkForBatchDownload: false
         },
         mutation: { state: { busy: false } },
-        commands: { openCreateFolder: vi.fn(), openDeleteSelection: vi.fn(), openCopyMoveSelection: vi.fn() },
-        download: { downloadBatch: vi.fn() },
+        commands: { openCreateFolder: vi.fn() },
         upload: { uploadFiles: vi.fn(), drop: { active: false, onDragEnter: vi.fn(), onDragLeave: vi.fn(), onDragOver: vi.fn(), onDrop: vi.fn() } }
       },
       offline: { explicitOfflineMode: false, isItemAvailableOffline: () => false },
@@ -197,8 +189,7 @@ function buildSurfaceInput(raw: string, active: boolean, set: (value: string) =>
     ports: {
       directoryUploadInputRef: vi.fn(),
       loadFolder: vi.fn(),
-      openFile: vi.fn(),
-      openOfflineSync: vi.fn()
+      openFile: vi.fn()
     }
   };
 }

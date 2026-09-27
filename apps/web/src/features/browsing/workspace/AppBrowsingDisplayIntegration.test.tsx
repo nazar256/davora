@@ -47,6 +47,7 @@ let settings: UiSettings = {
   maxCacheableFileSizeBytes: 15 * 1024 * 1024,
   imagePreviewFitMode: "fill" as const,
   previewFreshnessIntervalSeconds: 60,
+  imagePreviewPrefetchCount: 1,
   keepAwakeEnabled: true,
   showHiddenFiles: false,
   experimentalHeicPreviewEnabled: false, experimentalFolderAppShortcutsEnabled: false, diagnosticsEnabled: false,

@@ -11,11 +11,14 @@ describe("worker bootstrap application", () => {
   it("reports in-app account connection model from health", async () => {
     const response = await handleRequest(new Request("http://127.0.0.1:8787/api/health", {
       headers: { origin: "http://127.0.0.1:4173" }
-    }), { ...env, APP_UNLOCK_CODE: "open-sesame" });
+    }), { ...env, APP_UNLOCK_CODE: "open-sesame", WORKER_BUILD_LABEL: "worker-test-build" });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("access-control-allow-origin")).toBe("http://127.0.0.1:4173");
+    expect(response.headers.get("x-davora-worker-build")).toBe("worker-test-build");
+    expect(response.headers.get("x-davora-api-contract")).toBe("2");
+    expect(response.headers.get("access-control-expose-headers")).toContain("x-davora-worker-build");
     expect(await response.json()).toEqual({
       data: {
         app: "davora",
@@ -112,4 +115,3 @@ describe("worker bootstrap application", () => {
     expect(response.status).toBe(401);
   })
 });
-

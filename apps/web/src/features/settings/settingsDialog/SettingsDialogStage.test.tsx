@@ -25,6 +25,7 @@ function buildProps(overrides: Partial<ComponentProps<typeof SettingsDialogStage
     themeMode: DEFAULT_UI_SETTINGS.themeMode,
     maxCacheableFileSizeBytes: DEFAULT_UI_SETTINGS.maxCacheableFileSizeBytes,
     previewFreshnessIntervalSeconds: DEFAULT_UI_SETTINGS.previewFreshnessIntervalSeconds,
+    imagePreviewPrefetchCount: DEFAULT_UI_SETTINGS.imagePreviewPrefetchCount,
     keepAwakeEnabled: true,
     keepAwakeState: "idle" as const,
     offlineItems: [],
@@ -38,6 +39,7 @@ function buildProps(overrides: Partial<ComponentProps<typeof SettingsDialogStage
     onOpenedFileCacheLimitChange: vi.fn(),
     onMaxCacheableFileSizeChange: vi.fn(),
     onPreviewFreshnessIntervalChange: vi.fn(),
+    onImagePreviewPrefetchCountChange: vi.fn(),
     onKeepAwakeEnabledChange: vi.fn(),
     onThemeModeChange: vi.fn(),
     showHiddenFiles: false,
@@ -247,17 +249,19 @@ describe("SettingsDialogStage", () => {
     }
   });
 
-  it("emits cache limit, max cacheable size, and preview freshness changes from CachePanel", () => {
+  it("emits cache limit, max cacheable size, preview freshness, and image prefetch changes from CachePanel", () => {
     const onOpenedFileCacheLimitChange = vi.fn();
     const onMaxCacheableFileSizeChange = vi.fn();
     const onPreviewFreshnessIntervalChange = vi.fn();
+    const onImagePreviewPrefetchCountChange = vi.fn();
 
     render(
       <SettingsDialogStage
         {...buildProps({
           onOpenedFileCacheLimitChange,
           onMaxCacheableFileSizeChange,
-          onPreviewFreshnessIntervalChange
+          onPreviewFreshnessIntervalChange,
+          onImagePreviewPrefetchCountChange
         })}
       />
     );
@@ -273,6 +277,9 @@ describe("SettingsDialogStage", () => {
     fireEvent.change(freshnessValue, { target: { value: "5" } });
     fireEvent.blur(freshnessValue);
     expect(onPreviewFreshnessIntervalChange).toHaveBeenCalledWith(300);
+
+    fireEvent.change(within(dialog).getByLabelText(/Images to preload ahead/i), { target: { value: "3" } });
+    expect(onImagePreviewPrefetchCountChange).toHaveBeenCalledWith(3);
   });
 
   it("emits clear cache and remove-offline callbacks from CachePanel", () => {

@@ -39,6 +39,7 @@ import {
   useDiagnosticsWorkspace,
   wrapDiagnosticsFolderPorts,
   wrapDiagnosticsOperationRuntime,
+  wrapDiagnosticsPreviewSession,
   wrapDiagnosticsSearchPorts,
   type DiagnosticsObservedContext,
   type DiagnosticsWorkspaceCommands
@@ -66,6 +67,7 @@ const noopDiagnosticsCommands: DiagnosticsWorkspaceCommands = {
   closeReport: () => undefined,
   clearData: () => undefined,
   exportReport: async () => undefined,
+  uploadReport: async () => undefined,
   recordAction: () => undefined,
   recordActionResult: () => undefined,
   record: () => undefined,
@@ -87,6 +89,13 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
   const diagnosticsOperationRuntime = useMemo(
     () => wrapDiagnosticsOperationRuntime(services.operationRuntime, diagnosticsCommandsRef, diagnosticsClock),
     [services.operationRuntime, diagnosticsClock]
+  );
+  const diagnosticsPreviewRuntime = useMemo(
+    () => ({
+      ...services.previewRuntime,
+      session: wrapDiagnosticsPreviewSession(services.previewRuntime.session, diagnosticsCommandsRef, diagnosticsClock)
+    }),
+    [services.previewRuntime, diagnosticsClock]
   );
   const [reportBugOpen, setReportBugOpen] = useState(false);
   const reportBugOpenRef = useRef(reportBugOpen);
@@ -438,13 +447,14 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
       experimentalHeicPreviewEnabled: uiSettings.experimentalHeicPreviewEnabled,
       previewFreshnessIntervalSeconds,
       maxCacheableFileSizeBytes,
+      imagePreviewPrefetchCount: uiSettings.imagePreviewPrefetchCount,
       fileSizeDisplayMode,
       imageFitMode: imagePreviewFitMode,
       videoMuted: uiSettings.videoMuted
     },
     ports: {
       application: {
-        runtime: services.previewRuntime,
+        runtime: diagnosticsPreviewRuntime,
         session: {
           reset: (message, reconnectRequired) => accountActionsBridgeRef.current.resetSession(message, reconnectRequired),
           markWorkerUnavailable: () => setWorkerUnavailable(true),
@@ -503,6 +513,7 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
   const diagnosticsWorkspace = useDiagnosticsWorkspace({
     enabled: uiSettings.diagnosticsEnabled,
     appBuild: APP_BUILD_LABEL,
+    sessionToken: token,
     getContext: () => diagnosticsContextRef.current,
     ports: services.diagnostics,
     navigation: {

@@ -66,6 +66,8 @@ export interface BrowserPreviewAcquisition {
   readonly material?: BrowserPreviewMaterial;
   /** Metadata is adapter-owned so cache writes preserve decoded HEIC facts. */
   readonly cache?: BrowserPreviewCacheMetadata;
+  /** Decoded bytes that may be persisted beside a retained original. */
+  readonly derivative?: { readonly blob: Blob; readonly mimeType: string; readonly filename: string };
 }
 
 export interface BrowserCachedPreviewInput extends BrowserPreviewCacheMetadata {
@@ -81,6 +83,12 @@ export interface BrowserPreviewCachePayload extends BrowserPreviewCacheMetadata 
 export type BrowserPreviewCachePayloadResult =
   | { readonly kind: "payload"; readonly payload: BrowserPreviewCachePayload }
   | { readonly kind: "skipped"; readonly reason: "over-limit" | "not-cacheable" };
+
+export type BrowserCachedPrefetchPreparation =
+  | { readonly kind: "ready" }
+  | { readonly kind: "derivative"; readonly derivative: { readonly blob: Blob; readonly mimeType: string; readonly filename: string } }
+  | { readonly kind: "miss" }
+  | { readonly kind: "failed" };
 
 type StoredBrowserPreviewMaterial =
   | { readonly kind: "blob"; readonly blob: Blob }
@@ -304,6 +312,35 @@ export class BrowserPreviewLiveAdapter {
       && Boolean(this.options.tokenFor(key));
   }
 
+  /** Prepares retained bytes for gallery navigation without allocating render material. */
+  async prepareCachedForPrefetch(
+    key: BrowserPreviewRequestKey,
+    input: BrowserCachedPreviewInput,
+    abort: BrowserPreviewAbortHandle
+  ): Promise<BrowserCachedPrefetchPreparation> {
+    if (!this.isCachedUsable(key, input)) return { kind: "miss" };
+    const rawHeic = isHeicLikeFile(input.preview)
+      && (isHeicMimeType(input.mimeType) || isHeicFileName(input.filename));
+    if (!rawHeic) return { kind: "ready" };
+    if (!input.blob || input.blob.size > HEIC_PREVIEW_MAX_SOURCE_BYTES) return { kind: "failed" };
+    try {
+      const decoded = await this.decode(input.blob);
+      if (signalFor(abort).aborted) throw new DOMException("Aborted", "AbortError");
+      return {
+        kind: "derivative",
+        derivative: {
+          blob: decoded.blob,
+          mimeType: decoded.mimeType,
+          filename: `${input.filename}.jpg`
+        }
+      };
+    } catch (error) {
+      if (isAbortError(error)) throw error;
+      if (signalFor(abort).aborted) throw new DOMException("Aborted", "AbortError");
+      return { kind: "failed" };
+    }
+  }
+
   /**
    * Produces the persistence payload after live acquisition. Stream playback
    * remains immediate; only the optional cache write fetches its full Blob.
@@ -408,7 +445,9 @@ export class BrowserPreviewLiveAdapter {
         decodedPreview,
         "blob",
         { mimeType: decoded.mimeType, filename: `${filename}.jpg` },
-        this.options.materials.blob(decoded.blob)
+        this.options.materials.blob(decoded.blob),
+        "none",
+        { blob: decoded.blob, mimeType: decoded.mimeType, filename: `${filename}.jpg` }
       );
     } catch (error) {
       if (isAbortError(error)) throw error;
@@ -447,7 +486,8 @@ export class BrowserPreviewLiveAdapter {
     source: BrowserPreviewSnapshot["source"],
     cache: BrowserPreviewCacheMetadata,
     material?: BrowserPreviewMaterial,
-    unsupported: BrowserPreviewSnapshot["unsupported"] = "none"
+    unsupported: BrowserPreviewSnapshot["unsupported"] = "none",
+    derivative?: BrowserPreviewAcquisition["derivative"]
   ): BrowserPreviewAcquisition {
     return {
       snapshot: {
@@ -459,7 +499,8 @@ export class BrowserPreviewLiveAdapter {
         unsupported
       },
       ...(material ? { material } : {}),
-      cache
+      cache,
+      ...(derivative === undefined ? {} : { derivative })
     };
   }
 }

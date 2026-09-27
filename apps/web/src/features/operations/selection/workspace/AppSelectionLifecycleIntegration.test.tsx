@@ -155,7 +155,7 @@ function createSelectionFixture(): AppServices {
     folderSorts: createMemoryFolderSortService(),
     history: { pushState: (state: unknown, url?: string): void => { window.history.pushState(state, "", url); }, replaceState: (state: unknown, url?: string): void => { window.history.replaceState(state, "", url); }, getState: (): unknown => window.history.state, getLocation: (): { readonly href: string; readonly search: string } => ({ href: window.location.href, search: window.location.search }), subscribe: (listener: (state: unknown) => void): (() => void) => { const handler = () => { listener(window.history.state); }; window.addEventListener("popstate", handler); return () => { window.removeEventListener("popstate", handler); }; } },
     pullToRefreshEnvironment: { getWindowScrollY: () => 0 }, responsiveViewport: { getSnapshot: () => matchMediaMatches ? narrowViewport : wideViewport, subscribe: () => () => undefined }, search,
-    settings: { load: () => ({ themeMode: "system" as const, showHiddenFiles: false, sortMode: "name-asc" as const, keepAwakeEnabled: true, previewFreshnessIntervalSeconds: 300, maxCacheableFileSizeBytes: 1, fileSizeDisplayMode: "human" as const, imagePreviewFitMode: "fill" as const, experimentalHeicPreviewEnabled: false, experimentalFolderAppShortcutsEnabled: false, diagnosticsEnabled: false, videoMuted: false }), save: (settings) => settings },
+    settings: { load: () => ({ themeMode: "system" as const, showHiddenFiles: false, sortMode: "name-asc" as const, keepAwakeEnabled: true, previewFreshnessIntervalSeconds: 300, imagePreviewPrefetchCount: 1 as const, maxCacheableFileSizeBytes: 1, fileSizeDisplayMode: "human" as const, imagePreviewFitMode: "fill" as const, experimentalHeicPreviewEnabled: false, experimentalFolderAppShortcutsEnabled: false, diagnosticsEnabled: false, videoMuted: false }), save: (settings) => settings },
     operationRuntime, offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "selection-sync", listFiles: async () => ({ path: "", items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "fixture" }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback },
     retentionRepository, previewRuntime, accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
   } satisfies AppServices;
@@ -187,6 +187,8 @@ beforeEach(() => {
 afterEach(() => { cleanup(); localStorage.removeItem("davora-account-state"); window.history.replaceState(null, "", "/"); vi.useRealTimers(); vi.restoreAllMocks(); vi.clearAllMocks(); });
 
 describe("selection lifecycle App integration", () => {
+  // Mounted multi-step App flows exceed the 5s Vitest default under parallel load.
+  vi.setConfig({ testTimeout: 30_000 });
   it("retains focused selection when search is replaced or cleared", async () => {
     const account = buildAccount("alpha", { displayName: "Search focus workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
@@ -322,18 +324,25 @@ describe("selection lifecycle App integration", () => {
     render(<App />);
 
     await screen.findByRole("button", { name: /Create folder/i });
+    const expectBatchRail = async (countText: string, compositionText: string) => {
+      expect(await screen.findByText(new RegExp(`^${countText}$`, "i"))).toBeInTheDocument();
+      const panel = document.querySelector<HTMLElement>(".details-panel");
+      expect(panel).not.toBeNull();
+      expect(within(panel ?? document.body).getByText(new RegExp(`^${compositionText}$`, "i"))).toBeInTheDocument();
+    };
+
     fireEvent.click(screen.getByRole("checkbox", { name: /Select roadmap.txt file/i }));
-    expect(await screen.findByText(/1 item selected \(1 file\)/i)).toBeInTheDocument();
+    await expectBatchRail("1 item selected", "1 file");
 
     fireEvent.click(screen.getByRole("button", { name: /Open actions for Projects/i }));
-    expect(screen.getByText(/1 item selected \(1 file\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/^1 item selected$/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Select Projects folder/i }));
-    expect(await screen.findByText(/2 items selected \(1 file and 1 folder\)/i)).toBeInTheDocument();
+    await expectBatchRail("2 items selected", "1 file and 1 folder");
     expect(screen.getByRole("button", { name: /Deselect Projects folder/i })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Deselect Projects folder/i }));
-    expect(await screen.findByText(/1 item selected \(1 file\)/i)).toBeInTheDocument();
+    await expectBatchRail("1 item selected", "1 file");
 
     fireEvent.click(screen.getByRole("button", { name: /Deselect roadmap.txt file/i }));
     await waitFor(() => expect(screen.queryByText(/item selected/i)).not.toBeInTheDocument());

@@ -76,7 +76,7 @@ const offlineBannerFixtureMarkup = `
 
 const operationsFixtureMarkup = `
   <main class="workspace-layout">
-    <section class="file-browser-panel panel"><div class="browse-selection-row"><span>Selected</span><div class="browse-selection-actions"><button>Copy</button><button>Delete</button></div></div></section>
+    <section class="file-browser-panel panel"><section class="file-list-panel" aria-label="Files"><ul class="file-list-items"><li><div class="item-row"><span class="item-primary"><span class="item-text"><span class="item-name">report.pdf</span></span></span></div></li></ul></section></section>
     <aside class="workspace-rail"><section class="details-panel panel panel-subtle details-panel-sheet-open"><div class="panel-header"><h2>Details</h2><div class="panel-header-actions"><button class="mobile-sheet-close-button">Close</button></div></div><p class="selection-name">Selected item</p><p class="status details-path">/Shared/Projects</p><div class="context-action-group"><span class="action-group-label">Actions</span><div class="context-actions"><button>Download</button><button>Delete</button></div></div></section></aside>
   </main>
   <div aria-label="Selection actions" class="mobile-batch-bar" role="toolbar"><span class="mobile-batch-summary">2 selected</span><button class="mobile-batch-action">Download</button><button class="mobile-batch-action">Clear</button></div>
@@ -573,6 +573,29 @@ test.describe("Phase 5 CSS rendered characterization", () => {
       for (const width of [320, 768, 900, 1200, 1440]) {
         for (const height of [480, 900]) {
           await page.setViewportSize({ width, height });
+          // dvh-based dialog caps resolve against the dynamic viewport; wait for
+          // the resize AND the unit itself to settle across frames so a
+          // measurement cannot catch stale geometry mid-transition.
+          await page.waitForFunction(([expectedWidth, expectedHeight]) =>
+            window.innerWidth === expectedWidth && window.innerHeight === expectedHeight, [width, height]);
+          await page.evaluate(() => new Promise<void>((resolve) => {
+            const probe = document.createElement("div");
+            probe.style.cssText = "position:fixed;top:0;left:0;width:1px;height:100dvh;visibility:hidden";
+            document.body.appendChild(probe);
+            const sample = () => {
+              requestAnimationFrame(() => {
+                // Headless Chromium has no collapsing toolbar, so 100dvh must
+                // converge to innerHeight once the resize fully applied.
+                if (Math.abs(probe.getBoundingClientRect().height - window.innerHeight) <= 1) {
+                  probe.remove();
+                  resolve();
+                  return;
+                }
+                sample();
+              });
+            };
+            sample();
+          }));
           await page.locator(".mobile-batch-action").first().focus();
           await page.waitForTimeout(1000);
           const contract = await page.evaluate(() => {
@@ -633,7 +656,7 @@ test.describe("Phase 5 CSS rendered characterization", () => {
         expect(contract.destinationSource.overflowWrap).toBe("anywhere");
         expect(contract.destinationSource.width).toBeLessThanOrEqual(width);
         for (const dialog of contract.dialogContainment) {
-          expect(dialog.bottom).toBeLessThanOrEqual(height + 1);
+          expect(dialog.bottom, `viewport ${width}x${height} theme=${colorScheme}`).toBeLessThanOrEqual(height + 1);
           expect(dialog.scrollOverflow).toBe("auto");
         }
         expect(contract.actionStates).toEqual(expect.arrayContaining([

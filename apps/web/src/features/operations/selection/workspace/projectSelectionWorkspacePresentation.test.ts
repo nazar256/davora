@@ -119,7 +119,6 @@ describe("projectSelectionWorkspacePresentation", () => {
     const result = projectSelectionWorkspacePresentation(input);
 
     expect(result.selectionModeActive).toBe(true);
-    expect(result.selectionSummaryLabel).toBe("2 items selected (2 files)");
     expect(result.selectedDetails).toBeUndefined();
     expect(result.selectedFilePath).toBeUndefined();
     expect(result.showDetailsRail).toBe(true);

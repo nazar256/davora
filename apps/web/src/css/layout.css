@@ -87,6 +87,43 @@
   }
 }
 
+/* Portrait viewports wider than the mobile breakpoint get the same
+ * viewport-filling file surface as narrow screens: the browse plane stretches
+ * to the bottom edge instead of leaving unused space under a capped list. The
+ * shell keeps min-height (not a fixed height) so an oversized details rail can
+ * still push the document into a normal page scroll. */
+@media (min-width: 901px) and (orientation: portrait) {
+  .shell:has(.workspace-layout) {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .workspace-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .file-browser-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .workspace-rail {
+    max-height: 100%;
+    overflow: auto;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1200px) and (orientation: portrait) {
+  .workspace-rail {
+    max-height: 45dvh;
+  }
+}
+
 @media (max-width: 900px) {
   .shell {
     padding: 0.42rem 0.5rem 0.9rem;

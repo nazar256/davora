@@ -939,7 +939,10 @@ describe("offline application App integration", () => {
     download.resolve({ blob: new Blob(["photo"], { type: "image/png" }), filename: "photo.png" });
 
     await waitFor(() => expectRetainedFilePersisted());
-    expect(await screen.findByText(/1 item selected \(1 file\)/i)).toBeInTheDocument();
+    expect(await screen.findByText(/^1 item selected$/i)).toBeInTheDocument();
+    const detailsPanel = document.querySelector<HTMLElement>(".details-panel");
+    expect(detailsPanel).not.toBeNull();
+    expect(within(detailsPanel ?? document.body).getByText(/^1 file$/i)).toBeInTheDocument();
   });
 
   it("allows failed offline sync files to be retried from the transfer tray", async () => {

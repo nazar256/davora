@@ -21,6 +21,10 @@ export function buildPreviewFreshnessIntervalStatusMessage(intervalSeconds: numb
   return `Cached previews will be checked after ${intervalSeconds} seconds.`;
 }
 
+export function buildImagePreviewPrefetchCountStatusMessage(count: number): string {
+  return `${count} ${count === 1 ? "image" : "images"} will be preloaded ahead.`;
+}
+
 export function buildKeepAwakeEnabledStatusMessage(enabled: boolean): string {
   return enabled
     ? "Keep awake is enabled for active media and transfers."

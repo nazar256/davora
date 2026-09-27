@@ -4,6 +4,7 @@ import type {
   DiagnosticsSessionRecord,
   DiagnosticsSessionSummary
 } from "./model";
+import type { DiagnosticReportReceipt } from "@davora/shared";
 
 /** Millisecond-resolution clock for durations. */
 export interface DiagnosticsClock {
@@ -80,6 +81,22 @@ export interface DiagnosticsExportPort {
   share(blob: Blob, filename: string, title: string): Promise<boolean>;
 }
 
+export interface DiagnosticsReportUploadInput {
+  readonly reportId: string;
+  readonly blob: Blob;
+  readonly generatedAt: string;
+  readonly diagnosticsSchema: number;
+  readonly appBuild: string;
+  readonly token: string;
+}
+
+export interface DiagnosticsReportUploadPort {
+  /** Create the stable idempotency key for one user-visible send attempt. */
+  createReportId(): string;
+  /** Upload is invoked only by an explicit user action; implementations must not retry automatically. */
+  upload(input: DiagnosticsReportUploadInput): Promise<DiagnosticReportReceipt>;
+}
+
 export interface DiagnosticsNetworkObservationPort {
   /** Install or remove the backend request observer (null disables). */
   setObserver(observer: ((observation: DiagnosticsNetworkObservation) => void) | null): void;
@@ -99,6 +116,7 @@ export interface DiagnosticsRuntimePorts {
   readonly errorCapture: DiagnosticsErrorCapturePort;
   readonly lifecycle: DiagnosticsLifecyclePort;
   readonly exportPort: DiagnosticsExportPort;
+  readonly uploadPort: DiagnosticsReportUploadPort;
   readonly network: DiagnosticsNetworkObservationPort;
   readonly clock: DiagnosticsClock;
   readonly ids: DiagnosticsIdGenerator;

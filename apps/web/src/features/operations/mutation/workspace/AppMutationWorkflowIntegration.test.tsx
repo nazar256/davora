@@ -172,7 +172,7 @@ function createMutationServices(): AppServices {
     folderSorts: createMemoryFolderSortService(),
     history: { pushState: (state, url) => { window.history.pushState(state, "", url); }, replaceState: (state, url) => { window.history.replaceState(state, "", url); }, getState: () => window.history.state as unknown, getLocation: () => ({ href: window.location.href, search: window.location.search }), subscribe: (listener) => { const handler = () => listener(window.history.state); window.addEventListener("popstate", handler); return () => window.removeEventListener("popstate", handler); } },
     pullToRefreshEnvironment: { getWindowScrollY: () => window.scrollY }, responsiveViewport: { getSnapshot: () => WIDE_VIEWPORT, subscribe: () => () => undefined }, search,
-    settings: { load: () => ({ themeMode: "system", showHiddenFiles: false, sortMode: "name-asc", keepAwakeEnabled: true, previewFreshnessIntervalSeconds: 300, maxCacheableFileSizeBytes: 24 * 1024 * 1024, fileSizeDisplayMode: "human", imagePreviewFitMode: "fill", experimentalHeicPreviewEnabled: false, experimentalFolderAppShortcutsEnabled: false, diagnosticsEnabled: false, videoMuted: false }), save: (settings) => settings },
+    settings: { load: () => ({ themeMode: "system", showHiddenFiles: false, sortMode: "name-asc", keepAwakeEnabled: true, previewFreshnessIntervalSeconds: 300, imagePreviewPrefetchCount: 1 as const, maxCacheableFileSizeBytes: 24 * 1024 * 1024, fileSizeDisplayMode: "human", imagePreviewFitMode: "fill", experimentalHeicPreviewEnabled: false, experimentalFolderAppShortcutsEnabled: false, diagnosticsEnabled: false, videoMuted: false }), save: (settings) => settings },
     operationRuntime, offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "mutation-sync", listFiles: async (path) => ({ path, items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "download.bin" }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
     retentionRepository, previewRuntime, accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
   };
@@ -210,6 +210,8 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("mutation workflow App integration", () => {
+  // Mounted multi-step picker flows exceed the 5s Vitest default under parallel load.
+  vi.setConfig({ testTimeout: 30_000 });
   it("copies a file through the folder destination picker without typing a full path", async () => {
     const account = buildAccount("alpha", { displayName: "Picker copy workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
@@ -575,14 +577,17 @@ describe("mutation workflow App integration", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /Select Projects folder/i }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Select roadmap.txt file/i }));
 
-    expect(await screen.findByText(/2 items selected \(1 file and 1 folder\)/i)).toBeInTheDocument();
+    expect(await screen.findByText(/^2 items selected$/i)).toBeInTheDocument();
+    const batchDetailsPanel = document.querySelector<HTMLElement>(".details-panel");
+    expect(batchDetailsPanel).not.toBeNull();
+    expect(within(batchDetailsPanel ?? document.body).getByText(/^1 file and 1 folder$/i)).toBeInTheDocument();
     expect(screen.getByText(/70 B known; 1 item unknown or folder-sized/i)).toBeInTheDocument();
 
     expect(screen.queryByRole("button", { name: /Add batch/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Remove batch/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Download batch/i })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByRole("button", { name: /^Delete selected$/i })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: /^Delete selected$/i }));
 
     const dialog = await screen.findByRole("dialog", { name: /Delete 2 items/i });
     expect(within(dialog).getByText(/Projects/)).toBeInTheDocument();
@@ -807,7 +812,10 @@ describe("mutation workflow App integration", () => {
 
     await waitFor(() => expect(screen.queryByRole("dialog", { name: /Copy or move/i })).not.toBeInTheDocument());
     expect(await screen.findByText(/Copied 1 of 2 selected items; 1 failed in Batch partial workspace\./i)).toBeInTheDocument();
-    expect(await screen.findByText(/1 item selected \(1 file\)/i)).toBeInTheDocument();
+    expect(await screen.findByText(/^1 item selected$/i)).toBeInTheDocument();
+    const partialDetailsPanel = document.querySelector<HTMLElement>(".details-panel");
+    expect(partialDetailsPanel).not.toBeNull();
+    expect(within(partialDetailsPanel ?? document.body).getByText(/^1 file$/i)).toBeInTheDocument();
     await waitFor(() => expect(mutationApi.copyFile).toHaveBeenCalledTimes(2));
     expect(mutationApi.copyFile).toHaveBeenNthCalledWith(1, { path: "Projects", destinationPath: "Archive/Projects" }, "token-alpha");
     expect(mutationApi.copyFile).toHaveBeenNthCalledWith(2, { path: "notes.txt", destinationPath: "Archive/notes.txt" }, "token-alpha");

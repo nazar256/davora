@@ -177,11 +177,9 @@ describe("useAppWorkspacePresentation", () => {
     expect(favouriteToggle).toHaveBeenCalledWith(selectedEntry);
 
     const browsingInput = mocks.projectBrowsingSurfaceBindings.mock.calls[0][0];
-    expect(browsingInput.owners.selection).toEqual(expect.objectContaining({
-      fileList: fileListSelection,
-      presentation: selectionPresentation,
-      interaction: input.operation.interaction
-    }));
+    expect(browsingInput.owners.selection).toEqual({
+      fileList: fileListSelection
+    });
 
     const shellInput = mocks.projectAppShellComposition.mock.calls[0][0];
     expect(shellInput.common).toEqual(expect.objectContaining({ appBar: appBarBinding, navigationDrawer: navigationDrawerBinding }));

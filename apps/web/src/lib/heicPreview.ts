@@ -1,7 +1,8 @@
 import {
   HEIC_PREVIEW_MAX_SOURCE_BYTES,
   HEIC_PREVIEW_OUTPUT_MIME_TYPE,
-  HEIC_PREVIEW_TIMEOUT_MS
+  HEIC_PREVIEW_TIMEOUT_MS,
+  assertHeicPixelBounds
 } from "./heicPreviewShared";
 
 export {
@@ -21,10 +22,18 @@ export interface HeicPreviewResult {
   mimeType: typeof HEIC_PREVIEW_OUTPUT_MIME_TYPE;
 }
 
-interface HeicWorkerSuccessMessage {
+interface HeicWorkerBlobMessage {
   id: number;
   ok: true;
   blob: Blob;
+  width: number;
+  height: number;
+}
+
+interface HeicWorkerBitmapMessage {
+  id: number;
+  ok: "bitmap";
+  bitmap: ImageBitmap;
   width: number;
   height: number;
 }
@@ -33,9 +42,22 @@ interface HeicWorkerErrorMessage {
   id: number;
   ok: false;
   error: string;
+  retryable?: boolean;
 }
 
-type HeicWorkerMessage = HeicWorkerSuccessMessage | HeicWorkerErrorMessage;
+type HeicWorkerMessage = HeicWorkerBlobMessage | HeicWorkerBitmapMessage | HeicWorkerErrorMessage;
+
+/**
+ * A timed-out worker decode is tagged so the caller skips the main-thread
+ * retry: a decode that hung a worker would just freeze the page instead.
+ */
+class HeicWorkerTimeoutError extends Error {}
+
+/** Worker-side failures marked non-retryable (e.g. deterministic source limits). */
+class HeicWorkerPermanentError extends Error {}
+
+const heicErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : "Unable to decode HEIC preview.";
 
 let heicWorker: Worker | undefined;
 let nextRequestId = 1;
@@ -68,6 +90,36 @@ async function runQueuedDecode<T>(task: () => Promise<T>): Promise<T> {
   }
 }
 
+async function encodeHeicBitmapOnDomCanvas(bitmap: ImageBitmap): Promise<Blob> {
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("HEIC preview could not create a browser canvas.");
+  }
+  context.drawImage(bitmap, 0, 0);
+  const output = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, HEIC_PREVIEW_OUTPUT_MIME_TYPE, 0.88);
+  });
+  if (!output) {
+    throw new Error("HEIC preview could not encode JPEG output.");
+  }
+  return output;
+}
+
+async function decodeHeicPreviewOnMainThread(blob: Blob): Promise<HeicPreviewResult> {
+  const { heicTo } = await import("heic-to/next");
+  const bitmap = await heicTo({ blob, type: "bitmap" });
+  try {
+    assertHeicPixelBounds(bitmap.width, bitmap.height);
+    const output = await encodeHeicBitmapOnDomCanvas(bitmap);
+    return { blob: output, width: bitmap.width, height: bitmap.height, mimeType: HEIC_PREVIEW_OUTPUT_MIME_TYPE };
+  } finally {
+    bitmap.close();
+  }
+}
+
 async function decodeHeicPreviewInWorker(blob: Blob): Promise<HeicPreviewResult> {
   const worker = getHeicWorker();
   const id = nextRequestId++;
@@ -80,7 +132,7 @@ async function decodeHeicPreviewInWorker(blob: Blob): Promise<HeicPreviewResult>
     };
 
     const timeoutId = window.setTimeout(() => {
-      failAndRecover(new Error("HEIC preview decoding timed out."));
+      failAndRecover(new HeicWorkerTimeoutError("HEIC preview decoding timed out."));
     }, HEIC_PREVIEW_TIMEOUT_MS);
 
     const cleanup = () => {
@@ -91,18 +143,39 @@ async function decodeHeicPreviewInWorker(blob: Blob): Promise<HeicPreviewResult>
     };
 
     const handleMessage = (event: MessageEvent<HeicWorkerMessage>) => {
-      if (event.data.id !== id) {
+      const message = event.data;
+      if (message.id !== id) {
         return;
       }
       cleanup();
-      if (!event.data.ok) {
-        reject(new Error(event.data.error));
+      if (message.ok === "bitmap") {
+        void (async () => {
+          try {
+            const output = await encodeHeicBitmapOnDomCanvas(message.bitmap);
+            resolve({
+              blob: output,
+              width: message.width,
+              height: message.height,
+              mimeType: HEIC_PREVIEW_OUTPUT_MIME_TYPE
+            });
+          } catch (error) {
+            reject(error instanceof Error ? error : new Error("HEIC preview could not encode JPEG output."));
+          } finally {
+            message.bitmap.close();
+          }
+        })();
+        return;
+      }
+      if (!message.ok) {
+        reject(message.retryable === false
+          ? new HeicWorkerPermanentError(message.error)
+          : new Error(message.error));
         return;
       }
       resolve({
-        blob: event.data.blob,
-        width: event.data.width,
-        height: event.data.height,
+        blob: message.blob,
+        width: message.width,
+        height: message.height,
         mimeType: HEIC_PREVIEW_OUTPUT_MIME_TYPE
       });
     };
@@ -128,8 +201,23 @@ export async function decodeHeicPreview(blob: Blob): Promise<HeicPreviewResult> 
   }
 
   if (typeof Worker === "undefined") {
-    throw new Error("HEIC preview requires Web Worker support in this browser.");
+    return await decodeHeicPreviewOnMainThread(blob);
   }
 
-  return await runQueuedDecode(() => decodeHeicPreviewInWorker(blob));
+  // The queue covers the whole ladder: a failing worker must not let several
+  // concurrent main-thread WASM decodes pile up and stall the page.
+  return await runQueuedDecode(async () => {
+    try {
+      return await decodeHeicPreviewInWorker(blob);
+    } catch (workerError) {
+      if (workerError instanceof HeicWorkerTimeoutError || workerError instanceof HeicWorkerPermanentError) {
+        throw workerError;
+      }
+      try {
+        return await decodeHeicPreviewOnMainThread(blob);
+      } catch (fallbackError) {
+        throw new Error(`${heicErrorMessage(workerError)} Main-thread HEIC decode also failed: ${heicErrorMessage(fallbackError)}`);
+      }
+    }
+  });
 }

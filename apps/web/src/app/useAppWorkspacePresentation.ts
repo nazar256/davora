@@ -203,7 +203,7 @@ export function useAppWorkspacePresentation(input: AppWorkspacePresentationInput
   const browsingSurface = projectBrowsingSurfaceBindings({
     owners: {
       browse: browsingWorkspace,
-      selection: { fileList: fileListSelectionBindings, presentation: selectionPresentation, interaction: selectionInteraction, batch: batchSelection },
+      selection: { fileList: fileListSelectionBindings },
       operation: operationWorkspace,
       offline: offlineApplication,
       navigation: workspaceNavigation,
@@ -215,8 +215,7 @@ export function useAppWorkspacePresentation(input: AppWorkspacePresentationInput
     ports: {
       directoryUploadInputRef: ports.directoryUploadInputRef,
       loadFolder: folderLoadCoordination.loadFolder,
-      openFile: (entry) => { void preview.bridge.openFile(entry, { preferFolderAudioPlayer: true }); },
-      openOfflineSync: (entries, archiveInput, capture) => { void offlineSyncWorkspace.commands.open(entries, archiveInput, capture); }
+      openFile: (entry) => { void preview.bridge.openFile(entry, { preferFolderAudioPlayer: true }); }
     }
   });
   const appBarWorkspace = useAppBarWorkspace({

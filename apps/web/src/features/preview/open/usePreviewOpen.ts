@@ -23,6 +23,7 @@ export interface UsePreviewOpenInput {
   readonly experimentalHeicPreviewEnabled: boolean;
   readonly previewFreshnessIntervalSeconds: number;
   readonly maxCacheableFileSizeBytes: number;
+  readonly imagePreviewPrefetchCount: number;
   readonly token: string | undefined;
   readonly cacheOnlyMode: boolean;
   readonly cacheNamespace: string | undefined;
@@ -75,6 +76,7 @@ export function usePreviewOpen(input: UsePreviewOpenInput) {
       heicPreviewEnabled: current.experimentalHeicPreviewEnabled,
       freshnessIntervalMs: current.previewFreshnessIntervalSeconds * 1000,
       cacheLimitBytes: current.maxCacheableFileSizeBytes,
+      prefetchAheadCount: current.imagePreviewPrefetchCount,
       mediaItems: buildMediaGalleryItems(current.visibleItems, current.experimentalHeicPreviewEnabled)
     };
   }, []);

@@ -19,6 +19,27 @@ enabled = true
 name = "DAVORA_ACCOUNT_STORE"
 class_name = "AccountStoreDurableObject"
 
+[[r2_buckets]]
+binding = "DAVORA_DIAGNOSTIC_REPORTS"
+bucket_name = "davora-local-diagnostic-reports"
+jurisdiction = "eu"
+
+[[ratelimits]]
+name = "DIAGNOSTIC_UPLOAD_ACCOUNT_RATE_LIMITER"
+namespace_id = "1"
+
+  [ratelimits.simple]
+  limit = 3
+  period = 60
+
+[[ratelimits]]
+name = "DIAGNOSTIC_UPLOAD_GLOBAL_RATE_LIMITER"
+namespace_id = "2"
+
+  [ratelimits.simple]
+  limit = 30
+  period = 60
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["AccountStoreDurableObject"]

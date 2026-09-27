@@ -97,6 +97,7 @@ function createInput(
     experimentalHeicPreviewEnabled: false,
     previewFreshnessIntervalSeconds: 60,
     maxCacheableFileSizeBytes: 1024,
+    imagePreviewPrefetchCount: 1,
     token: "token-a",
     cacheOnlyMode: false,
     cacheNamespace: "ns",

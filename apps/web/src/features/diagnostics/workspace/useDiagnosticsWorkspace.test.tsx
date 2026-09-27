@@ -50,6 +50,7 @@ const createHarness = (enabled = true): Harness => {
   const input: DiagnosticsWorkspaceInput = {
     enabled,
     appBuild: "test-build",
+    sessionToken: "session-token",
     getContext: () => context,
     ports,
     navigation: {
@@ -99,6 +100,12 @@ describe("useDiagnosticsWorkspace", () => {
     expect(record?.context?.accountAlias).toBe("account-1");
     expect(record?.events.some((event) => event.kind === "session.started")).toBe(true);
     expect(record?.events.some((event) => event.kind === "perf.marker" && event.name === "app.startup")).toBe(true);
+    const initialNavigation = record?.events.find((event) => event.kind === "navigation.folder");
+    expect(initialNavigation?.kind === "navigation.folder" && initialNavigation.path).toMatchObject({
+      alias: "path-1",
+      depth: 1,
+      kind: "folder"
+    });
     expect(result.current.settingsSection.active).toBe(true);
     unmount();
   });
@@ -262,6 +269,67 @@ describe("useDiagnosticsWorkspace", () => {
     expect(harness.ports.fakeExport.saved[0]?.filename).toMatch(/^davora-bug-report-.*\.zip$/);
     expect(harness.announce).toHaveBeenCalledWith(expect.stringContaining("downloaded"));
     expect(harness.navigation.closed).toContain("report-bug");
+    unmount();
+  });
+
+  it("uploads one generated bundle on explicit request and retains the receipt", async () => {
+    const harness = createHarness();
+    const { result, unmount } = renderHook(() => useDiagnosticsWorkspace(harness.input));
+    await flushMicrotasks();
+    act(() => result.current.commands.openReport());
+    await flushMicrotasks();
+
+    await act(async () => {
+      await result.current.commands.uploadReport({ ...emptyBugReportForm(), summary: "Missing folder" });
+    });
+
+    expect(harness.ports.fakeUpload.uploaded).toHaveLength(1);
+    expect(harness.ports.fakeUpload.uploaded[0]).toMatchObject({
+      token: "session-token",
+      appBuild: "test-build",
+      diagnosticsSchema: 2
+    });
+    expect(result.current.reportStage.uploadReceipt?.reportId).toBe("123e4567-e89b-42d3-a456-426614174000");
+    expect(harness.navigation.closed).not.toContain("report-bug");
+    unmount();
+  });
+
+  it("reuses the immutable report id and bundle after an ambiguous upload failure", async () => {
+    const harness = createHarness();
+    const upload = vi.spyOn(harness.ports.fakeUpload, "upload")
+      .mockRejectedValueOnce(new TypeError("network response lost"))
+      .mockResolvedValueOnce({
+        reportId: "123e4567-e89b-42d3-a456-426614174000",
+        acceptedAt: "2026-09-24T09:27:59.000Z",
+        expiresAfterDays: 30,
+        duplicate: true
+      });
+    const { result, unmount } = renderHook(() => useDiagnosticsWorkspace(harness.input));
+    await flushMicrotasks();
+    act(() => result.current.commands.openReport());
+    await flushMicrotasks();
+    const form = { ...emptyBugReportForm(), summary: "Missing folder" };
+
+    await act(async () => { await result.current.commands.uploadReport(form); });
+    expect(result.current.reportStage.uploadReceipt).toBeUndefined();
+    await act(async () => { await result.current.commands.uploadReport(form); });
+
+    expect(upload).toHaveBeenCalledTimes(2);
+    const first = upload.mock.calls[0]?.[0];
+    const second = upload.mock.calls[1]?.[0];
+    expect(second?.reportId).toBe(first?.reportId);
+    expect(second?.generatedAt).toBe(first?.generatedAt);
+    expect(second?.blob).toBe(first?.blob);
+    expect(result.current.reportStage.uploadReceipt?.duplicate).toBe(true);
+    unmount();
+  });
+
+  it("does not offer upload without a session or while offline", async () => {
+    const harness = createHarness();
+    harness.input = { ...harness.input, sessionToken: undefined };
+    const { result, unmount } = renderHook(() => useDiagnosticsWorkspace(harness.input));
+    await flushMicrotasks();
+    expect(result.current.reportStage.canUpload).toBe(false);
     unmount();
   });
 

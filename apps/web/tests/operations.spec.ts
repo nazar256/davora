@@ -1,12 +1,18 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import JSZip from "jszip";
 import { connectAccount, createGate, getVisibleSelectionToolbar, openSettings, openWorkspaceAction, selectFileListEntry } from "./support/workspace";
 
 function mutationEvidencePath(name: string): string {
   return resolve(process.cwd(), "../../.tmp/mutation-workspace-browser", name);
+}
+
+async function expectRailSelectionSummary(page: Page, countLabel: RegExp, selectionLabel: RegExp) {
+  const detailsRail = page.locator("aside.workspace-rail");
+  await expect(detailsRail.getByText(countLabel)).toBeVisible();
+  await expect(detailsRail.getByText(selectionLabel)).toBeVisible();
 }
 
 test("folder view accepts drag-and-drop uploads", async ({ page }) => {
@@ -147,7 +153,7 @@ test("selection mode is the multi-item action surface", async ({ page }) => {
   if (selectionToolbar) {
     await expect(selectionToolbar.getByText(/2 items selected/i)).toBeVisible();
   } else {
-    await expect(page.getByText(/2 items selected \(1 file and 1 folder\)/i)).toBeVisible();
+    await expectRailSelectionSummary(page, /2 items selected/i, /1 file and 1 folder/i);
   }
   await expect(page.getByRole("button", { name: /Add batch/i })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Remove batch/i })).toHaveCount(0);
@@ -388,7 +394,7 @@ test("mobile batch copy retries transient failures in place and retains permanen
   if (retainedToolbar) {
     await expect(retainedToolbar.getByText(/1 item selected/i)).toBeVisible();
   } else {
-    await expect(page.getByText(/1 item selected \(1 folder\)/i).first()).toBeAttached();
+    await expectRailSelectionSummary(page, /1 item selected/i, /^1 folder$/i);
   }
   await page.screenshot({ path: mutationEvidencePath("mobile-batch-copy-partial-failure.png"), fullPage: false });
 
@@ -522,7 +528,7 @@ test("selection mode toggles file and folder rows without opening them", async (
   if (selectionToolbar) {
     await expect(selectionToolbar.getByText(/1 item selected/i)).toBeVisible();
   } else {
-    await expect(page.getByText(/1 item selected \(1 file\)/i)).toBeVisible();
+    await expectRailSelectionSummary(page, /1 item selected/i, /^1 file$/i);
   }
 
   await page.getByRole("button", { name: /Open actions for Archive/i }).click();
@@ -530,7 +536,7 @@ test("selection mode toggles file and folder rows without opening them", async (
   if (selectionToolbar) {
     await expect(selectionToolbar.getByText(/1 item selected/i)).toBeVisible();
   } else {
-    await expect(page.getByText(/1 item selected \(1 file\)/i)).toBeVisible();
+    await expectRailSelectionSummary(page, /1 item selected/i, /^1 file$/i);
   }
 
   await page.getByRole("button", { name: /Select Archive folder/i }).click();
@@ -538,7 +544,7 @@ test("selection mode toggles file and folder rows without opening them", async (
   if (selectionToolbar) {
     await expect(selectionToolbar.getByText(/2 items selected/i)).toBeVisible();
   } else {
-    await expect(page.getByText(/2 items selected \(1 file and 1 folder\)/i)).toBeVisible();
+    await expectRailSelectionSummary(page, /2 items selected/i, /1 file and 1 folder/i);
   }
   await expect(page.getByRole("button", { name: /Deselect Archive folder/i })).toBeVisible();
   await expect(page.getByRole("button", { name: /Open file guide.pdf/i })).toHaveCount(0);
@@ -548,7 +554,7 @@ test("selection mode toggles file and folder rows without opening them", async (
   if (selectionToolbar) {
     await expect(selectionToolbar.getByText(/1 item selected/i)).toBeVisible();
   } else {
-    await expect(page.getByText(/1 item selected \(1 file\)/i)).toBeVisible();
+    await expectRailSelectionSummary(page, /1 item selected/i, /^1 file$/i);
   }
 
   await page.getByRole("button", { name: /Deselect alpha.txt file/i }).click();

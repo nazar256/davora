@@ -59,27 +59,11 @@
     },
     {
       "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
-      "path": "apps/web/src/features/operations/download/workspace/AppDownloadIntegration.test.tsx",
-      "nodeType": "unknown",
-      "messageId": "unnecessaryAssertion",
-      "source": "screen.getAllByRole(\"button\", { name: /^Download selected$/i })[0]!",
-      "count": 1
-    },
-    {
-      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
       "path": "apps/web/src/features/operations/mutation/workspace/AppMutationWorkflowIntegration.test.tsx",
       "nodeType": "unknown",
       "messageId": "unnecessaryAssertion",
       "source": "screen.getAllByRole(\"button\", { name: /^Copy or move selected$/i })[0]!",
       "count": 6
-    },
-    {
-      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
-      "path": "apps/web/src/features/operations/mutation/workspace/AppMutationWorkflowIntegration.test.tsx",
-      "nodeType": "unknown",
-      "messageId": "unnecessaryAssertion",
-      "source": "screen.getAllByRole(\"button\", { name: /^Delete selected$/i })[0]!",
-      "count": 1
     },
     {
       "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",

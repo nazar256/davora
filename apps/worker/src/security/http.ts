@@ -57,7 +57,8 @@ export function corsHeaders(origin: string | null, allowedOrigins: string[]): He
   return {
     "access-control-allow-origin": allowOrigin,
     "access-control-allow-methods": "GET,POST,DELETE,OPTIONS",
-    "access-control-allow-headers": "content-type,authorization,x-davora-browser-id,x-davora-browser-secret,x-davora-reset-token",
+    "access-control-allow-headers": "content-type,authorization,x-davora-browser-id,x-davora-browser-secret,x-davora-reset-token,x-davora-report-id,x-davora-report-sha256,x-davora-report-generated-at,x-davora-diagnostics-schema,x-davora-web-build",
+    "access-control-expose-headers": "x-davora-worker-build,x-davora-api-contract",
     vary: "origin"
   };
 }

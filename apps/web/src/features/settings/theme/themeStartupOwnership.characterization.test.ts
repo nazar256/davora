@@ -22,7 +22,7 @@ const repositoryRoot = existsSync(resolve(process.cwd(), "apps/web/index.html"))
 
 const characterizedSourceHashes = {
   "apps/web/index.html": "7651689e50f9ddd2d3404492fb6a56f4efcbe8ee59e2be05eeb2cd2bd11a1b91",
-  "apps/web/vite.config.ts": "a1ed60fcf63ec45912b4cbffe3aad70baabdc11bc56b0dc02424d1ee86cfaea2",
+  "apps/web/vite.config.ts": "65682261bbaa5ac53a0b81c070fea3d88342a0b8edea79f3d059f5251e55328f",
   "apps/web/src/features/settings/storageContract.ts": "b4ebdf83606ff10aeb2a7f74eb949a11d3c7d3c3206e865872a71d50dcd391a1",
   "apps/web/src/features/settings/service.ts": "86ddff3ceadffca48a8f54eba713f125e78f6774dc615a3d17ea244d238b2106",
   "apps/web/src/features/settings/theme/model.ts": "7565fd9c16fa93e89f8e50a0469605ac66d564d2686c94db098b1968834e6b5f",
@@ -32,10 +32,10 @@ const characterizedSourceHashes = {
   "apps/web/src/platform/theme/browserThemePorts.ts": "65665f70178efe9fea71a91a5fdea42bd3601150bbd2f118d97aa263be468730",
   "apps/web/src/features/settings/theme/model.test.ts": "723d262e5dc8b3649f4401ef1955f73109bdb6d9c1001d4e9804ed6a73886999",
   "apps/web/src/features/settings/theme/useThemePreference.test.tsx": "e7b46aa8d05258e45d9dd8c1c72ccc308c236385a27b3351ad5c5643ea0ba03c",
-  "apps/web/src/features/settings/workspace/AppSettingsIntegration.test.tsx": "699ee2f5b08427b425ddbe2ba992bf945980db9904c14dfda5b787614af557bb",
-  "apps/web/src/features/settings/model.ts": "f3279a97355b0f354c9ad2bb02f03640e7e3d688e6ac6c8aa403d5afa18163cc",
-  "apps/web/src/features/settings/service.test.ts": "35cea1da7b4332f667449dc18934ba1cafcc1fb3d1012e4bb7d3546a648a5ff3",
-  "apps/web/src/features/settings/workspace/useSettingsPreferencesWorkspace.ts": "bdf5545544fa93fa970a7b7c26eb78408ed7a5d771074b1d3afb2e96c259583e",
+  "apps/web/src/features/settings/workspace/AppSettingsIntegration.test.tsx": "e1b045da7dded54b8868c73853e450f6e5159fc1478044771adcea0d608d72b4",
+  "apps/web/src/features/settings/model.ts": "37e4d0822cae273f167c621f80df615947a28efc28596178e452d78e6c3b1b2d",
+  "apps/web/src/features/settings/service.test.ts": "81b72ad6d5d13d4c7b5fc7739db6bcc0873e54eef4f9705ca6142b7d5ab16ee1",
+  "apps/web/src/features/settings/workspace/useSettingsPreferencesWorkspace.ts": "6ca522ef18af42a2f4d7604744b73d7f34e3dc2d0c0e5dc50435bf6d9a46c166",
   "apps/web/src/features/settings/workspace/useSettingsPreferencesWorkspace.test.tsx": "8cc1195686ff0371474eb6078019474be0f3a68f730a2dff18a3d3399c92d9ca"
 } as const;
 

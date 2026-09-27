@@ -437,8 +437,11 @@ it("downloads a mixed file and folder batch as one zip archive", async () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /Select Archive folder/i }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Select notes.txt file/i }));
 
-    expect(await screen.findByText(/2 items selected \(1 file and 1 folder\)/i)).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("button", { name: /^Download selected$/i })[0]!);
+    expect(await screen.findByText(/^2 items selected$/i)).toBeInTheDocument();
+    const batchDetailsPanel = document.querySelector<HTMLElement>(".details-panel");
+    expect(batchDetailsPanel).not.toBeNull();
+    expect(within(batchDetailsPanel ?? document.body).getByText(/^1 file and 1 folder$/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Download selected$/i }));
 
     await waitFor(() => expect(mockedApi.fetchDownloadBlob).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(mockedApi.triggerBrowserDownload).toHaveBeenCalled());

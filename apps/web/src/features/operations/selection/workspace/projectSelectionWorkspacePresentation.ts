@@ -4,7 +4,6 @@ import { toDisplayPath } from "@davora/shared";
 import type { SelectionDetailsStageProps } from "../SelectionDetailsStage";
 import {
   buildSelectionDetailsContent,
-  buildSelectionSummaryLabel,
   resolveSelectAllState,
   resolveSelectedDetails
 } from "../presentation";
@@ -34,10 +33,6 @@ export function projectSelectionWorkspacePresentation(
   const showMobileBatchBar = input.view.isNarrowScreen
     && selectionModeActive
     && !showMobileSelectionSheet;
-  const selectionSummaryLabel = buildSelectionSummaryLabel(
-    input.selection.batchSummary.count,
-    input.selection.batchSummary
-  );
   const favouriteActionLabel = input.favourite.selected
     ? "Remove from Favourites"
     : "Add to Favourites";
@@ -139,7 +134,6 @@ export function projectSelectionWorkspacePresentation(
   return {
     detailsStage,
     selectionModeActive,
-    selectionSummaryLabel,
     selectedDetails,
     selectedFilePath: selectedPath,
     showDetailsRail,

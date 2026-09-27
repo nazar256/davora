@@ -23,12 +23,18 @@ export interface RetentionPreviewRuntime {
     key: PreviewRequestKey,
     input: { readonly preview: NonNullable<RetainedFile["preview"]>; readonly blob?: Blob; readonly mimeType: string; readonly filename: string },
     abort: RetentionPreviewRuntimeAbort
-  ): Promise<PreviewAcquisition | undefined>;
+  ): Promise<(PreviewAcquisition & { readonly derivative?: RetentionPreviewDerivativePayload }) | undefined>;
   cachePayload(
     key: PreviewRequestKey,
     acquisition: PreviewAcquisition,
     abort: RetentionPreviewRuntimeAbort
   ): Promise<RetentionPreviewCachePayloadResult>;
+}
+
+export interface RetentionPreviewDerivativePayload {
+  readonly blob: Blob;
+  readonly mimeType: string;
+  readonly filename: string;
 }
 
 export interface RetentionPreviewCachePayload {
@@ -57,6 +63,16 @@ export interface RetentionPreviewCachedInput {
 /** Runtime facts needed for gallery prefetch without resource allocation. */
 export interface RetentionPreviewPrefetchRuntime extends RetentionPreviewRuntime {
   isCachedUsable(key: PreviewRequestKey, retained: RetentionPreviewCachedInput): boolean;
+  prepareCachedForPrefetch(
+    key: PreviewRequestKey,
+    retained: RetentionPreviewCachedInput,
+    abort: RetentionPreviewRuntimeAbort
+  ): Promise<
+    | { readonly kind: "ready" }
+    | { readonly kind: "derivative"; readonly derivative: RetentionPreviewDerivativePayload }
+    | { readonly kind: "miss" }
+    | { readonly kind: "failed" }
+  >;
   acquire(key: PreviewRequestKey, abort: RetentionPreviewRuntimeAbort): Promise<PreviewAcquisition>;
 }
 
@@ -144,11 +160,16 @@ function writeFile(payload: RetentionPreviewCachePayload): RetainedFile {
 
 function cachedInput(stored: NonNullable<Awaited<ReturnType<RetentionRepository["readPreview"]>> extends RetentionResult<infer Value> ? Value : never>): RetentionPreviewCachedInput | undefined {
   if (!stored.file.preview) return undefined;
-  return {
-    preview: stored.file.preview,
-    ...(stored.blob === undefined ? {} : { blob: stored.blob }),
+  const material = stored.derivative ?? (stored.blob === undefined ? undefined : {
+    blob: stored.blob,
     mimeType: stored.file.mimeType,
     filename: stored.file.name
+  });
+  return {
+    preview: stored.file.preview,
+    ...(material === undefined ? {} : { blob: material.blob }),
+    mimeType: material?.mimeType ?? stored.file.mimeType,
+    filename: material?.filename ?? stored.file.name
   };
 }
 
@@ -193,6 +214,14 @@ export class RetentionPreviewCacheAdapter implements PreviewCachePort {
     if (!input) return undefined;
     const acquisition = await this.runtime.materializeCached(key, input, runtimeAbort(abort));
     assertNotAborted(abort);
+    if (acquisition?.derivative !== undefined && stored.sourceRevision !== undefined && this.repository.writePreviewDerivative !== undefined) {
+      await this.repository.writePreviewDerivative(accountFor(key), {
+        path: key.path,
+        expectedSourceRevision: stored.sourceRevision,
+        ...acquisition.derivative
+      });
+      assertNotAborted(abort);
+    }
     return acquisition === undefined ? undefined : Object.freeze({
       acquisition,
       ...(stored.file.cachedAt === undefined ? {} : { cachedAt: stored.file.cachedAt }),
@@ -230,6 +259,29 @@ export class RetentionPreviewCacheAdapter implements PreviewCachePort {
     return input !== undefined && runtime.isCachedUsable(key, input);
   }
 
+  async preparePrefetch(
+    key: PreviewRequestKey,
+    runtime: Pick<RetentionPreviewPrefetchRuntime, "prepareCachedForPrefetch">,
+    abort: PreviewAbortHandle
+  ): Promise<"ready" | "persisted" | "miss" | "failed"> {
+    assertNotAborted(abort);
+    const stored = unwrap(await this.repository.readPreview(accountFor(key), key.path));
+    assertNotAborted(abort);
+    const input = stored === undefined ? undefined : cachedInput(stored);
+    if (input === undefined) return "miss";
+    const preparation = await runtime.prepareCachedForPrefetch(key, input, runtimeAbort(abort));
+    assertNotAborted(abort);
+    if (preparation.kind !== "derivative") return preparation.kind;
+    if (stored?.sourceRevision === undefined || this.repository.writePreviewDerivative === undefined) return "failed";
+    unwrap(await this.repository.writePreviewDerivative(accountFor(key), {
+      path: key.path,
+      expectedSourceRevision: stored.sourceRevision,
+      ...preparation.derivative
+    }));
+    assertNotAborted(abort);
+    return "persisted";
+  }
+
   /**
    * Gallery stream prefetch stores metadata only. Interactive stream writes
    * still use `write`, whose runtime cache payload fetches the original Blob.
@@ -263,9 +315,10 @@ export class RetentionPreviewPrefetchAdapter implements PreviewPrefetchPort {
     abort: PreviewAbortHandle
   ): Promise<{ readonly kind: "cached" | "persisted" | "skipped" | "superseded" }> {
     try {
-      if (await this.probe(key, abort)) {
-        return Object.freeze({ kind: "cached" });
-      }
+      const prepared = await this.cache.preparePrefetch(key, this.runtime, abort);
+      if (prepared === "ready") return Object.freeze({ kind: "cached" });
+      if (prepared === "persisted") return Object.freeze({ kind: "persisted" });
+      if (prepared === "failed" || key.connectionMode === "cache-only") return Object.freeze({ kind: "skipped" });
       assertNotAborted(abort);
       const acquisition = await this.runtime.acquire(key, runtimeAbort(abort));
       if (isAborted(abort)) return Object.freeze({ kind: "superseded" });

@@ -45,15 +45,124 @@ export class ApiRequestError extends Error {
     message: string,
     readonly status: number,
     readonly code?: string,
-    readonly details?: string
+    readonly details?: string,
+    readonly responseDiagnostic?: ApiResponseDiagnostic
   ) {
     super(message);
   }
 }
 
+export type SafeDiagnosticValueType = "undefined" | "null" | "boolean" | "number" | "string" | "array" | "object";
+
+export interface ApiResponseIssueDiagnostic {
+  readonly path: readonly (string | number)[];
+  readonly code: string;
+  readonly expectedType?: string;
+  readonly actualType: SafeDiagnosticValueType;
+}
+
+export interface ApiResponseDiagnostic {
+  readonly phase: "json-decode" | "envelope-schema";
+  readonly status: number;
+  readonly contentType: "json" | "html" | "text" | "binary" | "other" | "missing";
+  readonly payloadBytes: number;
+  readonly workerBuild?: string;
+  readonly apiContract?: string;
+  readonly issues?: readonly ApiResponseIssueDiagnostic[];
+  readonly truncatedIssueCount?: number;
+}
+
 interface SuccessEnvelopeParser<T> {
   parse(value: unknown): { data: T };
 }
+
+const diagnosticValueType = (value: unknown): SafeDiagnosticValueType => {
+  if (value === undefined) return "undefined";
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "array";
+  const kind = typeof value;
+  if (kind === "boolean" || kind === "number" || kind === "string") return kind;
+  return "object";
+};
+
+const classifyContentType = (value: string | null): ApiResponseDiagnostic["contentType"] => {
+  const normalized = value?.split(";", 1)[0]?.trim().toLowerCase();
+  if (!normalized) return "missing";
+  if (normalized === "application/json" || normalized.endsWith("+json")) return "json";
+  if (normalized === "text/html") return "html";
+  if (normalized.startsWith("text/")) return "text";
+  if (normalized === "application/octet-stream" || normalized.startsWith("image/") || normalized.startsWith("audio/") || normalized.startsWith("video/")) return "binary";
+  return "other";
+};
+
+const safeBuildHeader = (value: string | null, maxLength: number): string | undefined => {
+  const normalized = value?.trim();
+  return normalized && normalized.length <= maxLength && /^[A-Za-z0-9._-]+$/.test(normalized)
+    ? normalized
+    : undefined;
+};
+
+const isUnknownRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const valueAtIssuePath = (payload: unknown, path: readonly (string | number)[]): unknown => {
+  let current = payload;
+  for (const segment of path) {
+    if (typeof segment === "number" && Array.isArray(current)) {
+      current = current[segment];
+    } else if (typeof segment === "string" && isUnknownRecord(current)) {
+      current = current[segment];
+    } else {
+      return undefined;
+    }
+  }
+  return current;
+};
+
+const safeIssuePath = (value: unknown): readonly (string | number)[] => {
+  if (!Array.isArray(value)) return [];
+  const result: Array<string | number> = [];
+  for (const segment of value.slice(0, 8)) {
+    if (typeof segment === "number" && Number.isSafeInteger(segment) && segment >= 0) result.push(segment);
+    if (typeof segment === "string" && /^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(segment)) result.push(segment);
+  }
+  return result;
+};
+
+const summarizeSchemaIssues = (error: unknown, payload: unknown): Pick<ApiResponseDiagnostic, "issues" | "truncatedIssueCount"> => {
+  if (typeof error !== "object" || error === null || !("issues" in error) || !Array.isArray(error.issues)) {
+    return {};
+  }
+  const rawIssues = error.issues;
+  const issues = rawIssues.slice(0, 10).map((raw): ApiResponseIssueDiagnostic => {
+    const issue = isUnknownRecord(raw) ? raw : {};
+    const path = safeIssuePath(issue.path);
+    const code = typeof issue.code === "string" && /^[a-z0-9_-]{1,40}$/i.test(issue.code)
+      ? issue.code
+      : "invalid";
+    const expectedType = typeof issue.expected === "string" && /^[a-z0-9_-]{1,40}$/i.test(issue.expected)
+      ? issue.expected
+      : undefined;
+    return {
+      path,
+      code,
+      expectedType,
+      actualType: diagnosticValueType(valueAtIssuePath(payload, path))
+    };
+  });
+  return {
+    issues,
+    ...(rawIssues.length > issues.length ? { truncatedIssueCount: rawIssues.length - issues.length } : {})
+  };
+};
+
+const responseDiagnosticBase = (response: Response, payloadBytes: number) => ({
+  status: response.status,
+  contentType: classifyContentType(response.headers.get("content-type")),
+  payloadBytes,
+  workerBuild: safeBuildHeader(response.headers.get("x-davora-worker-build"), 64),
+  apiContract: safeBuildHeader(response.headers.get("x-davora-api-contract"), 32)
+});
 
 export async function throwHttpRequestError(response: Response): Promise<never> {
   const payload = parseApiErrorPayload(await response.json().catch(() => undefined));
@@ -84,11 +193,25 @@ export async function request<T>(
   }
 
   if (successSchema) {
-    const payload: unknown = await response.json().catch(() => undefined);
+    const text = await response.text();
+    const payloadBytes = new TextEncoder().encode(text).byteLength;
+    let payload: unknown;
+    try {
+      payload = JSON.parse(text) as unknown;
+    } catch {
+      throw new ApiRequestError("The server returned an invalid response.", response.status, "invalid_response", undefined, {
+        phase: "json-decode",
+        ...responseDiagnosticBase(response, payloadBytes)
+      });
+    }
     try {
       return successSchema.parse(payload).data;
-    } catch {
-      throw new ApiRequestError("The server returned an invalid response.", response.status, "invalid_response");
+    } catch (error) {
+      throw new ApiRequestError("The server returned an invalid response.", response.status, "invalid_response", undefined, {
+        phase: "envelope-schema",
+        ...responseDiagnosticBase(response, payloadBytes),
+        ...summarizeSchemaIssues(error, payload)
+      });
     }
   }
 

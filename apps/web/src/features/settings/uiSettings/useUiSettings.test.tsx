@@ -74,6 +74,18 @@ describe("useUiSettings", () => {
     expect(announceStatus).toHaveBeenCalledWith("Cached previews will be checked after 300 seconds.");
   });
 
+  it("persists the image prefetch count and announces the effective look-ahead", () => {
+    const { hook, storage, announceStatus } = createHarness();
+
+    act(() => {
+      hook.result.current.handleImagePreviewPrefetchCountChange(3);
+    });
+
+    expect(hook.result.current.uiSettings.imagePreviewPrefetchCount).toBe(3);
+    expect(JSON.parse(storage.values.get("davora-ui-settings") ?? "null")).toMatchObject({ imagePreviewPrefetchCount: 3 });
+    expect(announceStatus).toHaveBeenCalledWith("3 images will be preloaded ahead.");
+  });
+
   it("persists keep-awake, hidden-files, HEIC, and sort changes with status copy", () => {
     const { hook, announceStatus } = createHarness();
 

@@ -80,7 +80,8 @@ test("screenshot ownership keeps all root scenarios in the surface authority", (
     "davora-media-image-", "davora-media-pdf-", "davora-media-video-", "davora-media-audio-folder-", "davora-browser-desktop-",
     "davora-browser-mobile-", "davora-browser-selection-mobile-", "davora-browser-drawer-mobile-", "davora-qa-browser-", "davora-qa-loading-",
     "davora-qa-empty-", "davora-dialog-connect-mobile-", "davora-dialog-actions-mobile-", "davora-dialog-details-mobile-", "davora-dialog-destination-mobile-",
-    "davora-dialog-delete-mobile-", "davora-dialog-keep-offline-mobile-", "davora-dialog-settings-mobile-", "davora-dialog-transfer-mobile-"
+    "davora-dialog-delete-mobile-", "davora-dialog-keep-offline-mobile-", "davora-dialog-settings-mobile-", "davora-dialog-transfer-mobile-",
+    "davora-portrait-"
   ]) {
     expect(movedSource, artifact).toContain(artifact);
   }

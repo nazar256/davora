@@ -10,6 +10,7 @@ export interface UiSettings {
   maxCacheableFileSizeBytes: number;
   imagePreviewFitMode: "fill" | "fit";
   previewFreshnessIntervalSeconds: number;
+  imagePreviewPrefetchCount: ImagePreviewPrefetchCount;
   keepAwakeEnabled: boolean;
   showHiddenFiles: boolean;
   experimentalHeicPreviewEnabled: boolean;
@@ -19,12 +20,15 @@ export interface UiSettings {
   videoMuted: boolean;
 }
 
+export type ImagePreviewPrefetchCount = 1 | 2 | 3;
+
 export const DEFAULT_MAX_CACHEABLE_FILE_SIZE_BYTES = 15 * 1024 * 1024;
 export const MIN_MAX_CACHEABLE_FILE_SIZE_BYTES = 1024 * 1024;
 export const MAX_MAX_CACHEABLE_FILE_SIZE_BYTES = 1024 * 1024 * 1024;
 export const DEFAULT_PREVIEW_FRESHNESS_INTERVAL_SECONDS = 60;
 export const MIN_PREVIEW_FRESHNESS_INTERVAL_SECONDS = 1;
 export const MAX_PREVIEW_FRESHNESS_INTERVAL_SECONDS = 365 * 24 * 60 * 60;
+export const DEFAULT_IMAGE_PREVIEW_PREFETCH_COUNT: ImagePreviewPrefetchCount = 1;
 
 export const clampMaxCacheableFileSizeBytes = (value: unknown): number => {
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -46,12 +50,18 @@ export const clampPreviewFreshnessIntervalSeconds = (value: unknown): number => 
   );
 };
 
+export const normalizeImagePreviewPrefetchCount = (value: unknown): ImagePreviewPrefetchCount => {
+  if (value === 2 || value === 3) return value;
+  return DEFAULT_IMAGE_PREVIEW_PREFETCH_COUNT;
+};
+
 export const DEFAULT_UI_SETTINGS: UiSettings = {
   themeMode: "system",
   fileSizeDisplayMode: "human",
   maxCacheableFileSizeBytes: DEFAULT_MAX_CACHEABLE_FILE_SIZE_BYTES,
   imagePreviewFitMode: "fill",
   previewFreshnessIntervalSeconds: DEFAULT_PREVIEW_FRESHNESS_INTERVAL_SECONDS,
+  imagePreviewPrefetchCount: DEFAULT_IMAGE_PREVIEW_PREFETCH_COUNT,
   keepAwakeEnabled: true,
   showHiddenFiles: false,
   experimentalHeicPreviewEnabled: false,
@@ -78,6 +88,7 @@ export const normalizeUiSettings = (value: unknown): UiSettings => {
     maxCacheableFileSizeBytes: clampMaxCacheableFileSizeBytes(settings.maxCacheableFileSizeBytes),
     imagePreviewFitMode: settings.imagePreviewFitMode === "fit" ? "fit" : "fill",
     previewFreshnessIntervalSeconds: clampPreviewFreshnessIntervalSeconds(settings.previewFreshnessIntervalSeconds),
+    imagePreviewPrefetchCount: normalizeImagePreviewPrefetchCount(settings.imagePreviewPrefetchCount),
     keepAwakeEnabled: settings.keepAwakeEnabled !== false,
     showHiddenFiles: settings.showHiddenFiles === true,
     experimentalHeicPreviewEnabled: settings.experimentalHeicPreviewEnabled === true,

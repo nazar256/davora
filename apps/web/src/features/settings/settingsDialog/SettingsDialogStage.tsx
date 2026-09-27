@@ -4,7 +4,7 @@ import { toDisplayPath } from "@davora/shared";
 import type { FileSizeDisplayMode } from "../../../lib/fileSize";
 import { useModalFocusBoundary } from "../../../components/useModalFocusBoundary";
 import type { ScreenWakeLockState } from "../../offline/wakeLock";
-import type { ThemeMode } from "../model";
+import type { ImagePreviewPrefetchCount, ThemeMode } from "../model";
 import { CachePanel } from "./CachePanel";
 
 export interface SettingsDialogStageProps {
@@ -31,6 +31,7 @@ export interface SettingsDialogStageProps {
   themeMode: ThemeMode;
   maxCacheableFileSizeBytes: number;
   previewFreshnessIntervalSeconds: number;
+  imagePreviewPrefetchCount: ImagePreviewPrefetchCount;
   keepAwakeEnabled: boolean;
   keepAwakeState: ScreenWakeLockState;
   offlineItems: Array<{
@@ -52,6 +53,7 @@ export interface SettingsDialogStageProps {
   onOpenedFileCacheLimitChange: (limitBytes: number) => void;
   onMaxCacheableFileSizeChange: (limitBytes: number) => void;
   onPreviewFreshnessIntervalChange: (intervalSeconds: number) => void;
+  onImagePreviewPrefetchCountChange: (count: ImagePreviewPrefetchCount) => void;
   onKeepAwakeEnabledChange: (enabled: boolean) => void;
   onThemeModeChange: (mode: ThemeMode) => void;
   showHiddenFiles: boolean;
@@ -187,11 +189,13 @@ export function SettingsDialogStage(props: SettingsDialogStageProps) {
             maxCacheableFileSizeBytes={props.maxCacheableFileSizeBytes}
             offlineItems={props.offlineItems}
             previewFreshnessIntervalSeconds={props.previewFreshnessIntervalSeconds}
+            imagePreviewPrefetchCount={props.imagePreviewPrefetchCount}
             onClear={props.onClearCache}
             onLimitChange={props.onOpenedFileCacheLimitChange}
             onMaxCacheableFileSizeChange={props.onMaxCacheableFileSizeChange}
             onRemoveOfflineItem={props.onRemoveOfflineItem}
             onPreviewFreshnessIntervalChange={props.onPreviewFreshnessIntervalChange}
+            onImagePreviewPrefetchCountChange={props.onImagePreviewPrefetchCountChange}
             totalBytes={props.cacheSummary.totalBytes}
           />
 

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { connectAccount, createGate } from "./support/workspace";
+import { connectAccount, createGate, selectFileListEntry } from "./support/workspace";
 
 test.beforeEach(async ({ request, baseURL }) => {
   await request.post(`${baseURL?.replace("4174", "8789")}/api/mock/reset`, {
@@ -159,6 +159,47 @@ test("desktop shell expands with the window beyond the old 1440px cap", async ({
     expect(geometry.appBar, `${width}px app bar width`).toBeLessThanOrEqual(width);
     expect(geometry.fileList, `${width}px file list width`).toBeLessThanOrEqual(width);
   }
+});
+
+test("PER-97 portrait workspace fills the viewport and renders a single selection action surface", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chrome", "Portrait-wide layout regression.");
+  await connectAccount(page, "PER-97 portrait workspace");
+
+  for (const viewport of [
+    { name: "portrait desktop", width: 1270, height: 1954 },
+    { name: "portrait tablet", width: 1024, height: 1366 }
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await expect(page.getByRole("button", { name: /Open folder Projects/i })).toBeVisible();
+
+    const geometry = await page.evaluate(() => {
+      const panel = document.querySelector<HTMLElement>(".file-list-panel");
+      if (!panel) {
+        return null;
+      }
+      const bounds = panel.getBoundingClientRect();
+      return {
+        documentHorizontalOverflow: document.documentElement.scrollWidth - window.innerWidth,
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        panelBottom: bounds.bottom,
+        panelMaxHeight: getComputedStyle(panel).maxHeight
+      };
+    });
+
+    expect(geometry, `${viewport.name}: file list must render`).not.toBeNull();
+    if (!geometry) {
+      continue;
+    }
+    expect(geometry.documentHorizontalOverflow, `${viewport.name} document overflow`).toBeLessThanOrEqual(1);
+    expect(geometry.panelMaxHeight, `${viewport.name} portrait list cap removed`).toBe("none");
+    expect(geometry.panelBottom, `${viewport.name} file list bottom`).toBeGreaterThan(geometry.viewport.height * 0.9);
+    expect(geometry.panelBottom, `${viewport.name} file list bottom inside viewport`).toBeLessThanOrEqual(geometry.viewport.height + 1);
+  }
+
+  await selectFileListEntry(page, /Select Projects folder/i, /Open folder Projects/i);
+  await expect(page.getByRole("button", { name: /^Download selected$/i })).toHaveCount(1);
+  await expect(page.locator(".browse-header").getByText(/item selected|folder selected/i)).toHaveCount(0);
+  await expect(page.locator(".browse-header").getByRole("button", { name: /selected/i })).toHaveCount(0);
 });
 
 test("mobile file list fills the available viewport height", async ({ page }, testInfo) => {

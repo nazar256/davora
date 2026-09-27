@@ -3,6 +3,16 @@ export const HEIC_PREVIEW_MAX_SOURCE_BYTES = 25 * 1024 * 1024;
 export const HEIC_PREVIEW_MAX_PIXELS = 40_000_000;
 export const HEIC_PREVIEW_TIMEOUT_MS = 20_000;
 
+/** Deterministic source-limit failure: retrying on another thread is pointless. */
+export class HeicPixelLimitError extends Error {}
+
+export function assertHeicPixelBounds(width: number, height: number): void {
+  const pixels = width * height;
+  if (!Number.isFinite(pixels) || pixels <= 0 || pixels > HEIC_PREVIEW_MAX_PIXELS) {
+    throw new HeicPixelLimitError(`HEIC preview is limited to ${Math.round(HEIC_PREVIEW_MAX_PIXELS / 1_000_000)} megapixels.`);
+  }
+}
+
 const HEIC_MIME_TYPES = new Set(["image/heic", "image/heif", "image/heic-sequence", "image/heif-sequence"]);
 
 export function isHeicMimeType(mimeType: string | undefined): boolean {

@@ -60,6 +60,13 @@ const mockRules: readonly MockRule[] = [
     module: /^(?:\.\.\/)+app\/AppShell$/
   },
   {
+    id: "heic-decoder-ladder",
+    owner: "HEIC preview decode ladder",
+    removalCondition: "Remove when the decoder gains a production injectable port or the library exposes a deterministic synchronous decode for tests.",
+    testPath: /^src\/lib\/heicPreview\.test\.ts$/,
+    module: /^heic-to\/next$/
+  },
+  {
     id: "viewer-render-boundary",
     owner: "preview and navigation view integration",
     removalCondition: "Remove when the real heavy renderer can run deterministically in jsdom or a production renderer port already exists; do not add a test-only renderer port.",

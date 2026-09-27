@@ -30,6 +30,7 @@ export interface OpenPreviewFileInput {
   readonly heicPreviewEnabled: boolean;
   readonly freshnessIntervalMs: number;
   readonly cacheLimitBytes: number;
+  readonly prefetchAheadCount?: number;
   readonly mediaItems: readonly FileEntry[];
 }
 
@@ -164,7 +165,8 @@ export async function openPreviewFile(input: OpenPreviewFileInput, ports: Previe
       cacheNamespacePresent: Boolean(input.cacheNamespace),
       heicPreviewEnabled: input.heicPreviewEnabled,
       freshnessIntervalMs: input.freshnessIntervalMs,
-      cacheLimitBytes: input.cacheLimitBytes
+      cacheLimitBytes: input.cacheLimitBytes,
+      prefetchAheadCount: input.prefetchAheadCount ?? 1
     }, ports, ports.prefetch.acceptPolicy);
   }
 }
@@ -182,6 +184,7 @@ export interface PrefetchUpcomingMediaInput {
   readonly heicPreviewEnabled: boolean;
   readonly freshnessIntervalMs: number;
   readonly cacheLimitBytes: number;
+  readonly prefetchAheadCount?: number;
 }
 
 export async function prefetchUpcomingPreviewMedia(
@@ -189,7 +192,7 @@ export async function prefetchUpcomingPreviewMedia(
   ports: PreviewOpenPorts,
   policy: PrefetchAcceptPolicy
 ): Promise<void> {
-  if (!input.hasToken || !input.cacheNamespacePresent || !input.hasActiveAccount || input.cacheOnlyMode || input.startIndex < 0) {
+  if ((!input.hasToken && !input.cacheOnlyMode) || !input.cacheNamespacePresent || !input.hasActiveAccount || input.startIndex < 0) {
     return;
   }
 
@@ -198,7 +201,7 @@ export async function prefetchUpcomingPreviewMedia(
     return;
   }
 
-  const upcomingItems = selectPrefetchCandidates(input.mediaItems, input.startIndex);
+  const upcomingItems = selectPrefetchCandidates(input.mediaItems, input.startIndex, input.prefetchAheadCount ?? 1);
   const accountId = input.accountId;
   const namespace = input.cacheNamespace;
   const contextGeneration = input.contextGeneration;
@@ -207,7 +210,7 @@ export async function prefetchUpcomingPreviewMedia(
     ports.prefetch.context.trackPrefetchAbort(aborter);
   }
 
-  await Promise.all(upcomingItems.map(async (item, index) => {
+  for (const [index, item] of upcomingItems.entries()) {
     const aborter = aborters[index];
     if (!aborter) {
       return;
@@ -219,7 +222,7 @@ export async function prefetchUpcomingPreviewMedia(
         cacheNamespace: namespace,
         path: item.path,
         contextGeneration,
-        connectionMode: "online",
+        connectionMode: input.cacheOnlyMode ? "cache-only" : "online",
         heicPreviewEnabled: input.heicPreviewEnabled,
         freshnessIntervalMs: input.freshnessIntervalMs,
         cacheLimitBytes: input.cacheLimitBytes
@@ -233,7 +236,7 @@ export async function prefetchUpcomingPreviewMedia(
     } finally {
       ports.prefetch.context.untrackPrefetchAbort(aborter);
     }
-  }));
+  }
 }
 
 export function openAdjacentPreviewMedia(

@@ -3,6 +3,7 @@ import type { TransferTask } from "../../transfers";
 import type { DiagnosticActionName, RedactedPathRef } from "../model";
 import type { DiagnosticEventInput, DiagnosticsRuntimePorts } from "../ports";
 import type { BugReportForm, ReportBundlePreview, ReportSessionPickerEntry } from "../report/reportModel";
+import type { DiagnosticReportReceipt } from "@davora/shared";
 
 /** Context values the diagnostics recorder observes and diffs into events. */
 export interface DiagnosticsObservedContext {
@@ -29,6 +30,7 @@ export interface DiagnosticsNavigationPort {
 export interface DiagnosticsWorkspaceInput {
   readonly enabled: boolean;
   readonly appBuild: string;
+  readonly sessionToken?: string;
   /**
    * Live context accessor: the composition root assigns the current snapshot
    * every render, so the recorder always diffs the freshest values even for
@@ -61,11 +63,14 @@ export interface ReportBugStageBinding {
   readonly sessions: readonly ReportSessionPickerEntry[];
   readonly preview: ReportBundlePreview | undefined;
   readonly canShare: boolean;
+  readonly canUpload: boolean;
   readonly exporting: boolean;
   readonly exportError?: string;
+  readonly uploadReceipt?: DiagnosticReportReceipt;
   readonly onClose: () => void;
   readonly onToggleSession: (sessionId: string) => void;
   readonly onExport: (form: BugReportForm, mode: "download" | "share") => void;
+  readonly onUpload: (form: BugReportForm) => void;
 }
 
 export interface DiagnosticsWorkspaceCommands {
@@ -73,6 +78,7 @@ export interface DiagnosticsWorkspaceCommands {
   readonly closeReport: () => void;
   readonly clearData: () => void;
   readonly exportReport: (form: BugReportForm, mode: "download" | "share") => Promise<void>;
+  readonly uploadReport: (form: BugReportForm) => Promise<void>;
   /** Emit an action event through the live recorder (no-op when disabled). */
   readonly recordAction: (action: DiagnosticActionName, detail?: Record<string, string | number | boolean>) => void;
   readonly recordActionResult: (

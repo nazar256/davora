@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { connectScreenshotAccount as connectAccount, saveScreenshot, saveViewportScreenshot, selectMobileFileListEntry, setThemeMode, setupScreenshotSuite } from "./support/screenshots";
+import { selectFileListEntry } from "./support/workspace";
 
 test.skip(process.env.CAPTURE_SCREENSHOTS !== "true", "Run this spec only when refreshing checked-in screenshot artifacts.");
 setupScreenshotSuite();
@@ -121,6 +122,20 @@ test("captures the PER-74 responsive browser and loading-empty state matrix in b
       await page.getByRole("button", { name: /Go up one folder level/i }).click();
     }
   }
+});
+
+test("captures the PER-97 portrait workspace with single-owner selection actions", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chrome", "Portrait desktop evidence only.");
+  await connectAccount(page, "PER-97 portrait workspace");
+  await page.setViewportSize({ width: 1270, height: 1954 });
+  await expect(page.getByRole("button", { name: /Open folder Projects/i })).toBeVisible();
+  await page.mouse.move(1, 1);
+  await saveViewportScreenshot(page, "davora-portrait-browse.png");
+
+  await selectFileListEntry(page, /Select Projects folder/i, /Open folder Projects/i);
+  await expect(page.getByRole("button", { name: /^Download selected$/i })).toHaveCount(1);
+  await page.mouse.move(1, 1);
+  await saveViewportScreenshot(page, "davora-portrait-selection.png");
 });
 
 test("captures the mobile browse-first workspace", async ({ page }, testInfo) => {

@@ -3,6 +3,7 @@ import {
   type ConnectAccountRequest,
   type CreateFolderRequestInput,
   type DeleteRequestInput,
+  type DiagnosticReportMetadata,
   type FilePathRequest,
   type MoveCopyRequestInput,
   type SessionRequest,
@@ -36,7 +37,8 @@ export type ParsedWorkerRoute =
   | RouteBase<"upload", "session", UploadRequestInput>
   | RouteBase<"move", "session", MoveCopyRequestInput>
   | RouteBase<"copy", "session", MoveCopyRequestInput>
-  | RouteBase<"delete", "session", DeleteRequestInput>;
+  | RouteBase<"delete", "session", DeleteRequestInput>
+  | RouteBase<"diagnosticReport", "session", DiagnosticReportMetadata>;
 
 /**
  * Route for a request whose endpoint matched but whose input failed validation.
@@ -186,6 +188,18 @@ const catalogRouteParsers = {
     const parsed = apiEndpoints.delete.requestSchema.safeParse(body);
     if (!parsed.success) throw workerFailure("invalid_mutation_body", "delete");
     return { id: "delete", auth: "session", input: parsed.data };
+  },
+  diagnosticReport: (request) => {
+    const diagnosticsSchema = Number(request.headers.get("x-davora-diagnostics-schema"));
+    const parsed = apiEndpoints.diagnosticReport.requestSchema.safeParse({
+      reportId: request.headers.get("x-davora-report-id") ?? "",
+      sha256: request.headers.get("x-davora-report-sha256") ?? "",
+      generatedAt: request.headers.get("x-davora-report-generated-at") ?? "",
+      diagnosticsSchema,
+      webBuild: request.headers.get("x-davora-web-build") ?? ""
+    });
+    if (!parsed.success) throw workerFailure("invalid_diagnostic_report", "metadata-headers");
+    return { id: "diagnosticReport", auth: "session", input: parsed.data };
   }
 } satisfies Record<ApiEndpointKey, CatalogRouteParser>;
 

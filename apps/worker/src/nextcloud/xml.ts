@@ -66,6 +66,7 @@ export function parseMultiStatusXml(xml: string): DavMultistatusItem[] {
       }
 
       const sizeText = extractFirstText(propXml, "getcontentlength");
+      const size = sizeText && /^\d+$/.test(sizeText) ? Number(sizeText) : undefined;
       const isFolder = /<(?:[^:>\s]+:)?collection\b[^>]*\/?>/i.test(propXml);
       const contentType = extractFirstText(propXml, "getcontenttype");
       const etag = extractFirstText(propXml, "getetag");
@@ -77,7 +78,7 @@ export function parseMultiStatusXml(xml: string): DavMultistatusItem[] {
       return {
         href,
         isFolder,
-        ...(sizeText && /^\d+$/.test(sizeText) ? { size: Number(sizeText) } : {}),
+        ...(size !== undefined && Number.isFinite(size) ? { size } : {}),
         ...(contentType ? { contentType } : {}),
         ...(etag ? { etag } : {}),
         ...(lastModified ? { lastModified } : {}),

@@ -1,4 +1,5 @@
 export * from "./delete";
+export * from "./diagnosticReport";
 export * from "./endpoint";
 export * from "./accounts";
 export * from "./session";
@@ -11,6 +12,7 @@ export * from "./moveCopy";
 export * from "./search";
 
 import { deleteEndpoint } from "./delete";
+import { diagnosticReportEndpoint } from "./diagnosticReport";
 import { connectAccountEndpoint, deleteAccountEndpoint } from "./accounts";
 import { filesEndpoint } from "./files";
 import { createFolderEndpoint, uploadEndpoint } from "./folderUpload";
@@ -27,6 +29,7 @@ export const apiEndpoints = {
   createFolder: createFolderEndpoint,
   delete: deleteEndpoint,
   deleteAccount: deleteAccountEndpoint,
+  diagnosticReport: diagnosticReportEndpoint,
   files: filesEndpoint,
   metadata: metadataEndpoint,
   preview: previewEndpoint,

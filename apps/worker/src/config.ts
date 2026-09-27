@@ -43,6 +43,16 @@ function isAccountStateStorage(value: unknown): value is AccountStateStorage {
   );
 }
 
+function isDiagnosticR2Bucket(value: unknown): value is NonNullable<WorkerEnv["DAVORA_DIAGNOSTIC_REPORTS"]> {
+  return Boolean(value && typeof value === "object" && "head" in value && typeof value.head === "function"
+    && "put" in value && typeof value.put === "function"
+    && "delete" in value && typeof value.delete === "function");
+}
+
+function isDiagnosticRateLimiter(value: unknown): value is NonNullable<WorkerEnv["DIAGNOSTIC_UPLOAD_ACCOUNT_RATE_LIMITER"]> {
+  return Boolean(value && typeof value === "object" && "limit" in value && typeof value.limit === "function");
+}
+
 function parseBoolean(value: string | undefined): boolean {
   return value?.trim().toLowerCase() === "true";
 }
@@ -199,7 +209,17 @@ function loadValidatedConfig(env: Record<string, unknown>): WorkerEnv {
     MOCK_BACKEND: mockBackend,
     LOCAL_DEV_STATE_PATH: readString(env, "LOCAL_DEV_STATE_PATH")?.trim() || undefined,
     DAVORA_ACCOUNT_STORE: isDurableObjectNamespace(env.DAVORA_ACCOUNT_STORE) ? env.DAVORA_ACCOUNT_STORE : undefined,
-    ACCOUNT_STATE_STORAGE: isAccountStateStorage(env.ACCOUNT_STATE_STORAGE) ? env.ACCOUNT_STATE_STORAGE : undefined
+    ACCOUNT_STATE_STORAGE: isAccountStateStorage(env.ACCOUNT_STATE_STORAGE) ? env.ACCOUNT_STATE_STORAGE : undefined,
+    DIAGNOSTIC_UPLOAD_ENABLED: parseBoolean(readString(env, "DIAGNOSTIC_UPLOAD_ENABLED")),
+    DIAGNOSTIC_QUOTA_SECRET: readString(env, "DIAGNOSTIC_QUOTA_SECRET")?.trim() || undefined,
+    WORKER_BUILD_LABEL: readString(env, "WORKER_BUILD_LABEL")?.trim() || undefined,
+    DAVORA_DIAGNOSTIC_REPORTS: isDiagnosticR2Bucket(env.DAVORA_DIAGNOSTIC_REPORTS) ? env.DAVORA_DIAGNOSTIC_REPORTS : undefined,
+    DIAGNOSTIC_UPLOAD_ACCOUNT_RATE_LIMITER: isDiagnosticRateLimiter(env.DIAGNOSTIC_UPLOAD_ACCOUNT_RATE_LIMITER)
+      ? env.DIAGNOSTIC_UPLOAD_ACCOUNT_RATE_LIMITER
+      : undefined,
+    DIAGNOSTIC_UPLOAD_GLOBAL_RATE_LIMITER: isDiagnosticRateLimiter(env.DIAGNOSTIC_UPLOAD_GLOBAL_RATE_LIMITER)
+      ? env.DIAGNOSTIC_UPLOAD_GLOBAL_RATE_LIMITER
+      : undefined
   };
 }
 

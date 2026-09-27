@@ -7,7 +7,6 @@ import { viewerHeading } from "../../preview/shell";
 import {
   buildBatchSelectionSizeLabel,
   buildSelectionDetailsContent,
-  buildSelectionSummaryLabel,
   buildWorkspaceModeLabel,
   buildWorkspaceStaleInfo,
   resolveMatchedSelectedPreview,
@@ -282,19 +281,5 @@ describe("buildSelectionDetailsContent", () => {
         staleInfo: undefined
       }
     });
-  });
-});
-
-describe("buildSelectionSummaryLabel", () => {
-  it("matches batch count and selection label when batch is active", () => {
-    expect(buildSelectionSummaryLabel(3, batchSummary({
-      count: 3,
-      fileCount: 2,
-      folderCount: 1
-    }))).toBe("3 items selected (2 files and 1 folder)");
-  });
-
-  it("returns undefined when batch mode is inactive", () => {
-    expect(buildSelectionSummaryLabel(0, batchSummary())).toBeUndefined();
   });
 });

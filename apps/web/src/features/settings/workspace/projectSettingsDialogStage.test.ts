@@ -19,6 +19,7 @@ function createInput(): SettingsDialogStageProjectionInput {
       handleMaxCacheableFileSizeChange: command,
       handleImagePreviewFitModeChange: command,
       handlePreviewFreshnessIntervalChange: command,
+      handleImagePreviewPrefetchCountChange: command,
       handleKeepAwakeEnabledChange: command,
       handleShowHiddenFilesChange: command,
       handleExperimentalHeicPreviewEnabledChange: command,

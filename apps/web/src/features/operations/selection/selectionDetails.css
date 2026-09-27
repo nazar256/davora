@@ -65,21 +65,6 @@
   gap: 0.65rem;
 }
 
-.browse-selection-row {
-  display: flex;
-  gap: 0.75rem;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 0.25rem;
-}
-
-.browse-selection-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
 @media (max-width: 1200px) {
 
   .workspace-rail {
@@ -87,9 +72,6 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     position: static;
   }
-}
-
-@media (min-width: 901px) {
 }
 
 @media (max-width: 900px) {
@@ -100,12 +82,6 @@
 
   .workspace-rail {
     order: 2;
-  }
-
-  .browse-selection-row,
-.browse-selection-actions {
-    flex-direction: column;
-    align-items: stretch;
   }
 
   .details-panel[data-mobile-hidden="true"] {
@@ -331,9 +307,6 @@
   }
 }
 
-@media (max-width: 900px) {
-}
-
 /*
  * Davora semantic design tokens. Screen styles should consume these names instead
  * of palette literals so light, dark, focus, motion, and elevation stay coherent.
@@ -349,11 +322,6 @@
 
 .mobile-batch-summary {
   color: var(--color-text);
-}
-
-.browse-selection-row {
-  padding-top: var(--space-2);
-  border-top: var(--border-width) solid var(--color-border-subtle);
 }
 
 @media (max-width: 900px) {
@@ -397,11 +365,4 @@
   }
 }
 
-@media (min-width: 901px) {
-}
 
-@media (min-width: 901px) and (max-width: 1200px) {
-}
-
-@media (prefers-reduced-motion: reduce) {
-}

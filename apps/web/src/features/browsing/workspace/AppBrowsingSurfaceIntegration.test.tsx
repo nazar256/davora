@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../../App";
 import type { AppServices } from "../../../app/AppServices";
 import type { BrowseHeaderStageProps, FileListStageProps } from "..";
+import type { SelectionDetailsStageProps } from "../../operations/selection/SelectionDetailsStage";
 import { createMemoryFolderSortService } from "../folderSort/testing/fakeStorage";
 type AccountSnapshot = ReturnType<AppServices["accountRegistry"]["getSnapshot"]>;
 type AccountState = ReturnType<AppServices["accountRegistry"]["getState"]>;
@@ -85,6 +86,7 @@ type CapturedAppShellProps = {
   readonly workspace: {
     readonly browseHeader: BrowseHeaderStageProps;
     readonly fileList: { readonly props: FileListStageProps; readonly ref?: unknown };
+    readonly selectionDetails: SelectionDetailsStageProps;
   };
 };
 
@@ -139,6 +141,7 @@ const defaultSettings: UiSettings = {
   maxCacheableFileSizeBytes: 15 * 1024 * 1024,
   imagePreviewFitMode: "fill" as const,
   previewFreshnessIntervalSeconds: 60,
+  imagePreviewPrefetchCount: 1,
   keepAwakeEnabled: true,
   showHiddenFiles: false,
   experimentalHeicPreviewEnabled: false, experimentalFolderAppShortcutsEnabled: false, diagnosticsEnabled: false,
@@ -495,14 +498,12 @@ describe("AppBrowsingSurfaceIntegration", () => {
     }
     const { browseHeader, fileList } = workspaceProps.workspace;
     expect(Object.keys(browseHeader).sort()).toEqual([
-      "browseStatusLabel", "breadcrumbs", "cacheOnlyMode", "canCopyMoveBatchSelection",
-      "canCreateFolder", "canDeleteBatchSelection", "canDownloadBatchSelection",
-      "canSyncBatchOffline", "canUploadFiles", "canUploadFolders", "currentFolderLabel", "currentLocationLabel",
+      "browseStatusLabel", "breadcrumbs", "cacheOnlyMode",
+      "canCreateFolder", "canUploadFiles", "canUploadFolders", "currentFolderLabel", "currentLocationLabel",
       "currentPath", "directoryUploadInputRef", "fileSizeDisplayMode", "folderDropActive", "mutationBusy",
-      "onClearSearch", "onClearSelection", "onCopyMoveSelection", "onCreateFolder", "onDeleteSelection",
-      "onDownloadSelection", "onFileSizeDisplayModeChange", "onKeepOfflineSelection", "onNavigateToPath",
+      "onClearSearch", "onCreateFolder", "onFileSizeDisplayModeChange", "onNavigateToPath",
       "onSearchQueryChange", "onSortModeChange", "onUploadFiles", "refreshingFolder", "searchActive", "searchQuery",
-      "selectionSummaryLabel", "showBreadcrumbs", "sortMode", "sortReset", "staleFolder", "status"
+      "showBreadcrumbs", "sortMode", "sortReset", "staleFolder", "status"
     ].sort());
     expect(Object.keys(fileList.props).sort()).toEqual([
       "batchModeActive", "breadcrumbs", "canDeselectAll", "canMarkForBatchDownload", "canSelectAll", "clearRowOpenSuppression", "currentPath", "emptyStatus", "emptyTitle", "fileSizeDisplayMode",
@@ -724,12 +725,13 @@ describe("AppBrowsingSurfaceIntegration", () => {
       expect(currentWorkspace().browseHeader.fileSizeDisplayMode).toBe("kb");
     });
     fireEvent.click(screen.getByRole("checkbox", { name: /Select roadmap.txt file/i }));
-    await waitFor(() => expect(currentWorkspace().browseHeader.selectionSummaryLabel).toMatch(/1 item selected/i));
+    await waitFor(() => expect(currentWorkspace().selectionDetails.visible).toBe(true));
     const selected = currentWorkspace();
-    expect(selected.browseHeader.canDownloadBatchSelection).toBe(true);
-    expect(selected.browseHeader.canSyncBatchOffline).toBe(true);
-    expect(selected.browseHeader.canCopyMoveBatchSelection).toBe(true);
-    expect(selected.browseHeader.canDeleteBatchSelection).toBe(true);
+    expect(selected.selectionDetails.content.kind).toBe("batch");
+    expect(selected.selectionDetails.canDownloadBatchSelection).toBe(true);
+    expect(selected.selectionDetails.canSyncBatchOffline).toBe(true);
+    expect(selected.selectionDetails.canCopyMoveBatchSelection).toBe(true);
+    expect(selected.selectionDetails.canDeleteBatchSelection).toBe(true);
     expect(selected.fileList.props.batchModeActive).toBe(true);
     expect(selected.fileList.props.selectionModeActive).toBe(true);
     expect(selected.fileList.props.isItemBatchSelected(selected.fileList.props.items[0])).toBe(true);
@@ -828,11 +830,11 @@ describe("AppBrowsingSurfaceIntegration", () => {
     };
     await waitFor(() => expect(currentWorkspace().browseHeader.mutationBusy).toBe(true));
     const busy = currentWorkspace();
-    expect(busy.browseHeader.selectionSummaryLabel).toMatch(/1 item selected/i);
-    expect(busy.browseHeader.canDownloadBatchSelection).toBe(true);
-    expect(busy.browseHeader.canSyncBatchOffline).toBe(true);
-    expect(busy.browseHeader.canCopyMoveBatchSelection).toBe(true);
-    expect(busy.browseHeader.canDeleteBatchSelection).toBe(true);
+    expect(busy.selectionDetails.content.kind).toBe("batch");
+    expect(busy.selectionDetails.canDownloadBatchSelection).toBe(true);
+    expect(busy.selectionDetails.canSyncBatchOffline).toBe(true);
+    expect(busy.selectionDetails.canCopyMoveBatchSelection).toBe(true);
+    expect(busy.selectionDetails.canDeleteBatchSelection).toBe(true);
     expect(busy.browseHeader.canCreateFolder).toBe(true);
     expect(busy.browseHeader.canUploadFiles).toBe(true);
     expect(busy.browseHeader.canUploadFolders).toBe(true);
@@ -869,12 +871,12 @@ describe("AppBrowsingSurfaceIntegration", () => {
       if (!entry || entry.kind !== "workspace") throw new Error("Expected workspace capture");
       return entry.workspace;
     };
-    await waitFor(() => expect(currentWorkspace().browseHeader.selectionSummaryLabel).toMatch(/1 item selected/i));
+    await waitFor(() => expect(currentWorkspace().selectionDetails.content.kind).toBe("batch"));
     const restricted = currentWorkspace();
-    expect(restricted.browseHeader.canDownloadBatchSelection).toBe(true);
-    expect(restricted.browseHeader.canSyncBatchOffline).toBe(true);
-    expect(restricted.browseHeader.canCopyMoveBatchSelection).toBe(false);
-    expect(restricted.browseHeader.canDeleteBatchSelection).toBe(false);
+    expect(restricted.selectionDetails.canDownloadBatchSelection).toBe(true);
+    expect(restricted.selectionDetails.canSyncBatchOffline).toBe(true);
+    expect(restricted.selectionDetails.canCopyMoveBatchSelection).toBe(false);
+    expect(restricted.selectionDetails.canDeleteBatchSelection).toBe(false);
     expect(restricted.browseHeader.canCreateFolder).toBe(false);
     expect(restricted.browseHeader.canUploadFiles).toBe(false);
     expect(restricted.browseHeader.canUploadFolders).toBe(false);
@@ -891,11 +893,11 @@ describe("AppBrowsingSurfaceIntegration", () => {
     window.dispatchEvent(new Event("offline"));
     await waitFor(() => expect(currentWorkspace().browseHeader.cacheOnlyMode).toBe(true));
     const offline = currentWorkspace();
-    expect(offline.browseHeader.selectionSummaryLabel).toMatch(/1 item selected/i);
-    expect(offline.browseHeader.canDownloadBatchSelection).toBe(false);
-    expect(offline.browseHeader.canSyncBatchOffline).toBe(false);
-    expect(offline.browseHeader.canCopyMoveBatchSelection).toBe(false);
-    expect(offline.browseHeader.canDeleteBatchSelection).toBe(false);
+    expect(offline.selectionDetails.content.kind).toBe("batch");
+    expect(offline.selectionDetails.canDownloadBatchSelection).toBe(false);
+    expect(offline.selectionDetails.canSyncBatchOffline).toBe(false);
+    expect(offline.selectionDetails.canCopyMoveBatchSelection).toBe(false);
+    expect(offline.selectionDetails.canDeleteBatchSelection).toBe(false);
     expect(offline.browseHeader.canCreateFolder).toBe(false);
     expect(offline.browseHeader.canUploadFiles).toBe(false);
     expect(offline.browseHeader.canUploadFolders).toBe(false);

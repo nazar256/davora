@@ -206,7 +206,6 @@ export interface SelectionWorkspacePresentationInput {
 export interface SelectionWorkspacePresentation {
   readonly detailsStage: SelectionDetailsStageProps;
   readonly selectionModeActive: boolean;
-  readonly selectionSummaryLabel?: string;
   readonly selectedDetails?: FileEntry;
   readonly selectedFilePath?: string;
   readonly showDetailsRail: boolean;

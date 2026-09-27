@@ -12,6 +12,7 @@ import {
   buildExperimentalHeicPreviewEnabledStatusMessage,
   buildFileSizeDisplayModeStatusMessage,
   buildKeepAwakeEnabledStatusMessage,
+  buildImagePreviewPrefetchCountStatusMessage,
   buildMaxCacheableFileSizeStatusMessage,
   buildPreviewFreshnessIntervalStatusMessage,
   buildShowHiddenFilesStatusMessage,
@@ -71,6 +72,10 @@ export function useUiSettings(input: UseUiSettingsInput) {
     ports.announceStatus(buildPreviewFreshnessIntervalStatusMessage(nextSettings.previewFreshnessIntervalSeconds));
   }, [settingsService, ports]);
 
+  const handleImagePreviewPrefetchCountChange = useCallback((count: 1 | 2 | 3) => {
+    persistSetting({ imagePreviewPrefetchCount: count }, buildImagePreviewPrefetchCountStatusMessage(count));
+  }, [persistSetting]);
+
   const handleKeepAwakeEnabledChange = useCallback((enabled: boolean) => {
     persistSetting({ keepAwakeEnabled: enabled }, buildKeepAwakeEnabledStatusMessage(enabled));
   }, [persistSetting]);
@@ -115,6 +120,7 @@ export function useUiSettings(input: UseUiSettingsInput) {
     handleMaxCacheableFileSizeChange,
     handleImagePreviewFitModeChange,
     handlePreviewFreshnessIntervalChange,
+    handleImagePreviewPrefetchCountChange,
     handleKeepAwakeEnabledChange,
     handleShowHiddenFilesChange,
     handleExperimentalHeicPreviewEnabledChange,

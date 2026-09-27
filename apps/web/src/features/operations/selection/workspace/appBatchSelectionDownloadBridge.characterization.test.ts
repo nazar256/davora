@@ -71,7 +71,6 @@ const appProjectionLine = "const selectionPresentation = projectSelectionWorkspa
 const appBrowsingProjectionLine = "const browsingSurface = projectBrowsingSurfaceBindings({";
 const appBatchLine = "downloadBatch: () => { void operationWorkspace.download.downloadBatch(); },";
 const projectorBatchLine = "onDownloadBatchSelection: input.commands.downloadBatch,";
-const browsingBatchLine = "onDownloadSelection: () => { void operation.download.downloadBatch(); },";
 
 function appSelectionProjection(source: string): string {
   return blockBetween(source, appProjectionLine, appBrowsingProjectionLine);
@@ -116,10 +115,9 @@ function assertStage(source: string): void {
 }
 
 function assertBrowseSibling(source: string): void {
-  expect(count(source, browsingBatchLine)).toBe(1);
-  expect(source).toContain("selection.batch.entries");
-  expect(source).toContain("selection.batch.archiveInput");
-  expect(source).toContain("selection.batch.capture()");
+  // Batch selection actions have a single owner: SelectionDetailsStage, projected by
+  // projectSelectionWorkspacePresentation. The browse header must not re-project them.
+  expect(source).not.toMatch(/onDownloadSelection|onKeepOfflineSelection|onCopyMoveSelection|onDeleteSelection|onClearSelection|selectionSummaryLabel|canDownloadBatchSelection|canSyncBatchOffline|canCopyMoveBatchSelection|canDeleteBatchSelection|operation\.download|selection\.batch\b/);
 }
 
 function assertDownloadOwner(workspace: string, ports: string, use: string, orchestration: string): void {
@@ -228,12 +226,12 @@ const characterization = { branches: [] as string[], adversaries: [] as string[]
 describe("App batch Selection -> Operations Download bridge Gate 1 characterization", () => {
   afterEach(cleanup);
 
-  it("locks the exact two-hop boundary, owner chain, UI gate, and distinct Header sibling", () => {
+  it("locks the exact two-hop boundary, owner chain, UI gate, and single-owner Header boundary", () => {
     assertAppBatch(appSource); assertProjector(projectorSource); assertStage(stageSource);
     assertDownloadOwner(downloadWorkspaceSource, downloadWorkspacePortsSource, downloadUseSource, downloadOrchestrationSource);
     expect(batchHookSource).toContain("entries: selectBatchEntries(currentState)"); expect(modelSource).toContain("captureBatchSelection");
     assertBrowseSibling(browsingBindingsSource); assertPublicDirection(projectorSource, selectionPortsSource);
-    characterization.branches.push("single-App-batch-provider", "single-Selection-batch-consumer", "public-Download-owner", "batch-Header-sibling-distinct", "public-cross-feature-direction");
+    characterization.branches.push("single-App-batch-provider", "single-Selection-batch-consumer", "public-Download-owner", "batch-Header-single-owner", "public-cross-feature-direction");
   });
 
   it("projects one exact batch callback without eager invocation and preserves ordered membership/archive roots", () => {
@@ -350,7 +348,7 @@ describe("App batch Selection -> Operations Download bridge Gate 1 characterizat
       ["multi-focused-route", () => expect(replaceOnce(downloadOrchestrationSource, "ports.batch.downloadSelectionAsZip({", "ports.files.prepareDownload(")).toContain("ports.batch.downloadSelectionAsZip({")],
       ["snapshot-clone-omitted", () => expect(replaceOnce(downloadWorkspaceSource, "selection: captureSelection(input.selection),", "selection: input.selection,")).toContain("selection: captureSelection(input.selection),")],
       ["stale-generation-command", () => assertAppBatch(replaceOnce(appSource, "void operationWorkspace.download.downloadBatch();", "void operationWorkspace.download.downloadBatch(); void operationWorkspace.download.downloadBatch();"))],
-      ["Header-route-substitution", () => assertBrowseSibling(replaceOnce(browsingBindingsSource, "operation.download.downloadBatch()", "operation.download.downloadFocused()"))],
+      ["Header-batch-reintroduction", () => assertBrowseSibling(`${browsingBindingsSource}\n      onDownloadSelection: () => { void operation.download.downloadBatch(); },`)],
       ["direct-selection-effect", () => assertBridgeNeutral(replaceOnce(appSource, appBatchLine, `${appBatchLine}\n      batchSelection.clear();`), projectorSource)],
       ["direct-chrome-effect", () => assertBridgeNeutral(replaceOnce(appSource, appBatchLine, `${appBatchLine}\n      chromeSurfaces.openChrome(\"transfers\");`), projectorSource)],
       ["direct-offline-effect", () => assertBridgeNeutral(replaceOnce(appSource, appBatchLine, `${appBatchLine}\n      void openOfflineSyncDialog();`), projectorSource)],

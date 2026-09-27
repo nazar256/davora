@@ -69,6 +69,7 @@ export interface PreviewWorkspaceSettings {
   readonly experimentalHeicPreviewEnabled: boolean;
   readonly previewFreshnessIntervalSeconds: number;
   readonly maxCacheableFileSizeBytes: number;
+  readonly imagePreviewPrefetchCount?: number;
   readonly fileSizeDisplayMode?: PreviewModalStageProps["fileSizeDisplayMode"];
   readonly imageFitMode?: PreviewModalStageProps["imageFitMode"];
   readonly videoMuted?: PreviewModalStageProps["videoMuted"];

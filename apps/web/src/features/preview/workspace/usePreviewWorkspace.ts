@@ -233,6 +233,7 @@ export function usePreviewWorkspace({ context, settings, ports }: PreviewWorkspa
     experimentalHeicPreviewEnabled: settings.experimentalHeicPreviewEnabled,
     previewFreshnessIntervalSeconds: settings.previewFreshnessIntervalSeconds,
     maxCacheableFileSizeBytes: settings.maxCacheableFileSizeBytes,
+    imagePreviewPrefetchCount: settings.imagePreviewPrefetchCount ?? 1,
     token: context.token,
     cacheOnlyMode: context.cacheOnlyMode,
     cacheNamespace: context.cacheNamespace,

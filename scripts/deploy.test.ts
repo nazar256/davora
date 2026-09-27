@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  assertDiagnosticStoragePreflight,
   assertRequiredWorkerSecrets,
   assertWorkerDestinationPolicy,
+  buildDiagnosticBucketInfoArgs,
+  buildDiagnosticLifecycleListArgs,
   buildWorkerSecretListArgs,
   DEFAULT_DEPLOYED_WORKER_ORIGIN,
   DEFAULT_PAGES_BRANCH,
@@ -98,14 +101,15 @@ describe("resolveWebDeployConfig", () => {
   });
 
   it("fails when a required worker secret is missing", () => {
-    expect(() => assertRequiredWorkerSecrets([])).toThrowError(/Missing required Worker secret\(s\): SESSION_SECRET, ACCOUNT_STATE_SECRET, SESSION_TOKEN_SECRET/);
+    expect(() => assertRequiredWorkerSecrets([])).toThrowError(/Missing required Worker secret\(s\): SESSION_SECRET, ACCOUNT_STATE_SECRET, SESSION_TOKEN_SECRET, DIAGNOSTIC_QUOTA_SECRET/);
   });
 
   it("accepts deploy preflight when all production key roles are provisioned", () => {
     expect(() => assertRequiredWorkerSecrets([
       { name: "SESSION_SECRET", type: "secret_text" },
       { name: "ACCOUNT_STATE_SECRET", type: "secret_text" },
-      { name: "SESSION_TOKEN_SECRET", type: "secret_text" }
+      { name: "SESSION_TOKEN_SECRET", type: "secret_text" },
+      { name: "DIAGNOSTIC_QUOTA_SECRET", type: "secret_text" }
     ])).not.toThrow();
   });
 
@@ -123,6 +127,36 @@ describe("resolveWebDeployConfig", () => {
       .toEqual(["secret", "list", "--format", "json", "--env=preview"]);
   });
 
+  it("pins the diagnostic storage preflight to the EU jurisdiction", () => {
+    expect(buildDiagnosticBucketInfoArgs([
+      "--env", "production", "--name", "davora-preview", "--config", "wrangler.preview.toml", "--dry-run"
+    ]))
+      .toEqual([
+        "r2", "bucket", "info", "davora-local-diagnostic-reports",
+        "--jurisdiction", "eu", "--json", "--env", "production", "--config", "wrangler.preview.toml"
+      ]);
+    expect(buildDiagnosticLifecycleListArgs(["--env=preview", "--name=davora-preview", "--outdir", ".tmp/out"]))
+      .toEqual([
+        "r2", "bucket", "lifecycle", "list", "davora-local-diagnostic-reports",
+        "--jurisdiction", "eu", "--env=preview"
+      ]);
+  });
+
+  it("accepts only both exact enabled 30-day diagnostic lifecycle rules", () => {
+    const valid = `Listing lifecycle rules for bucket 'davora-local-diagnostic-reports'...\n\nname:     davora-reports-30d\nenabled:  Yes\nprefix:   reports/v1/\naction:   Expire objects after 30 days\n\nname:     davora-quota-30d\nenabled:  Yes\nprefix:   quota/v1/\naction:   Expire objects after 30 days\n`;
+    expect(() => assertDiagnosticStoragePreflight({ name: "davora-local-diagnostic-reports" }, valid)).not.toThrow();
+    expect(() => assertDiagnosticStoragePreflight({ name: "another-bucket" }, valid)).toThrow(/expected bucket/);
+    for (const invalid of [
+      valid.replace("davora-reports-30d", "missing-reports-rule"),
+      valid.replace("prefix:   reports/v1/", "prefix:   other/"),
+      valid.replace("Expire objects after 30 days", "Expire objects after 31 days"),
+      valid.replace("enabled:  Yes", "enabled:  No")
+    ]) {
+      expect(() => assertDiagnosticStoragePreflight({ name: "davora-local-diagnostic-reports" }, invalid))
+        .toThrow(/lifecycle rule/);
+    }
+  });
+
   it("keeps the worker wrangler config aligned with durable account store binding and migration", () => {
     const wranglerToml = readFileSync(resolve(process.cwd(), "apps/worker/wrangler.toml"), "utf8");
 
@@ -131,5 +165,10 @@ describe("resolveWebDeployConfig", () => {
     expect(wranglerToml).toContain('name = "DAVORA_ACCOUNT_STORE"');
     expect(wranglerToml).toContain('class_name = "AccountStoreDurableObject"');
     expect(wranglerToml).toContain('new_sqlite_classes = ["AccountStoreDurableObject"]');
+    expect(wranglerToml).toContain('binding = "DAVORA_DIAGNOSTIC_REPORTS"');
+    expect(wranglerToml).toContain('bucket_name = "davora-local-diagnostic-reports"');
+    expect(wranglerToml).toMatch(/\[\[r2_buckets\]\][\s\S]*jurisdiction\s*=\s*"eu"/);
+    expect(wranglerToml).toContain('name = "DIAGNOSTIC_UPLOAD_ACCOUNT_RATE_LIMITER"');
+    expect(wranglerToml).toContain('name = "DIAGNOSTIC_UPLOAD_GLOBAL_RATE_LIMITER"');
   });
 });

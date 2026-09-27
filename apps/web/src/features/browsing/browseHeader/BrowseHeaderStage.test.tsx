@@ -25,10 +25,6 @@ function buildProps(overrides: Partial<ComponentProps<typeof BrowseHeaderStage>>
     cacheOnlyMode: false,
     refreshingFolder: false,
     staleFolder: false,
-    canDownloadBatchSelection: false,
-    canSyncBatchOffline: false,
-    canCopyMoveBatchSelection: false,
-    canDeleteBatchSelection: false,
     mutationBusy: false,
     fileSizeDisplayMode: "human" as const,
     sortMode: "name-asc" as const,
@@ -46,11 +42,6 @@ function buildProps(overrides: Partial<ComponentProps<typeof BrowseHeaderStage>>
     currentLocationLabel: "/Projects/Plans",
     onNavigateToPath: vi.fn(),
     onClearSearch: vi.fn(),
-    onDownloadSelection: vi.fn(),
-    onKeepOfflineSelection: vi.fn(),
-    onCopyMoveSelection: vi.fn(),
-    onDeleteSelection: vi.fn(),
-    onClearSelection: vi.fn(),
     onSearchQueryChange: vi.fn(),
     onFileSizeDisplayModeChange: vi.fn(),
     onSortModeChange: vi.fn(),
@@ -111,56 +102,6 @@ describe("BrowseHeaderStage", () => {
     expect(screen.getByRole("button", { name: /Create folder/i })).toBeDisabled();
     expect(screen.getByLabelText(/Upload files/i)).toBeDisabled();
     expect(screen.getByLabelText(/Upload folder/i)).toBeDisabled();
-  });
-
-  it("keeps batch mutation actions independently gated by capability and busy state", () => {
-    const copyMove = vi.fn();
-    const deleteSelection = vi.fn();
-    render(
-      <BrowseHeaderStage
-        {...buildProps({
-          selectionSummaryLabel: "2 items selected",
-          canCopyMoveBatchSelection: false,
-          canDeleteBatchSelection: true,
-          onCopyMoveSelection: copyMove,
-          onDeleteSelection: deleteSelection
-        })}
-      />
-    );
-
-    const selectionRow = document.querySelector<HTMLElement>(".browse-selection-row");
-    expect(selectionRow).not.toBeNull();
-    if (!selectionRow) return;
-    const copyButton = within(selectionRow).getByRole("button", { name: /Copy or move selected/i });
-    const deleteButton = within(selectionRow).getByRole("button", { name: /Delete selected/i });
-    expect(copyButton).toBeDisabled();
-    expect(deleteButton).toBeEnabled();
-    fireEvent.click(copyButton);
-    fireEvent.click(deleteButton);
-    expect(copyMove).not.toHaveBeenCalled();
-    expect(deleteSelection).toHaveBeenCalledTimes(1);
-
-    cleanup();
-    const busyCopyMove = vi.fn();
-    const busyDeleteSelection = vi.fn();
-    render(
-      <BrowseHeaderStage
-        {...buildProps({
-          selectionSummaryLabel: "2 items selected",
-          canCopyMoveBatchSelection: true,
-          canDeleteBatchSelection: true,
-          mutationBusy: true,
-          onCopyMoveSelection: busyCopyMove,
-          onDeleteSelection: busyDeleteSelection
-        })}
-      />
-    );
-    expect(screen.getByRole("button", { name: /Copy or move selected/i })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Delete selected/i })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: /Copy or move selected/i }));
-    fireEvent.click(screen.getByRole("button", { name: /Delete selected/i }));
-    expect(busyCopyMove).not.toHaveBeenCalled();
-    expect(busyDeleteSelection).not.toHaveBeenCalled();
   });
 
   it("shows a clear-search affordance when search is active", () => {
