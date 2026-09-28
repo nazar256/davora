@@ -10,10 +10,6 @@ export interface PreviewCacheState {
 
 const MEDIA_GALLERY_VIEWERS = new Set<ViewerKind>(["image", "audio", "video"]);
 
-function formatCacheTimestamp(value: string | undefined): string | undefined {
-  return value ? new Date(value).toLocaleString() : undefined;
-}
-
 export function viewerHeading(viewer: ViewerKind | undefined): string {
   switch (viewer) {
     case "markdown":
@@ -46,51 +42,6 @@ export function isStreamingMediaViewer(viewer: ViewerKind | undefined): boolean 
 
 export function isMediaGalleryViewer(viewer: ViewerKind | undefined): boolean {
   return viewer ? MEDIA_GALLERY_VIEWERS.has(viewer) : false;
-}
-
-export function getPreviewNotice(
-  cacheState: PreviewCacheState,
-  cacheOnlyMode: boolean,
-  offline: boolean
-): { kind: "loading" | "stale"; message: string } | undefined {
-  if (cacheState.source !== "cache") {
-    return undefined;
-  }
-
-  const cachedAt = formatCacheTimestamp(cacheState.cachedAt);
-  const cachedSuffix = cachedAt ? ` from ${cachedAt}` : "";
-
-  if (cacheState.updateReady) {
-    return {
-      kind: "stale",
-      message: `A fresher version is ready. You are still reading the cached preview${cachedSuffix}. Apply refresh when you are ready.`
-    };
-  }
-
-  if (cacheOnlyMode) {
-    return {
-      kind: "stale",
-      message: offline
-        ? `Showing cached preview${cachedSuffix} while offline.`
-        : `Showing cached preview${cachedSuffix} while the local server is unavailable.`
-    };
-  }
-
-  if (cacheState.refreshing) {
-    return {
-      kind: "stale",
-      message: `Showing cached preview${cachedSuffix} while checking for changes in the background.`
-    };
-  }
-
-  if (cacheState.stale) {
-    return {
-      kind: "stale",
-      message: `Still showing cached preview${cachedSuffix} because live refresh did not replace it.`
-    };
-  }
-
-  return undefined;
 }
 
 export function normalizePreviewMimeType(mimeType: string | undefined): string | undefined {

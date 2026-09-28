@@ -6,7 +6,6 @@ export type { OriginalFileOpenPorts, OriginalFileOpenTask } from "./ports";
 export { useOriginalFileOpen } from "./useOriginalFileOpen";
 export {
   formatPreviewFileTimestamp,
-  getPreviewNotice,
   isMediaGalleryViewer,
   normalizePreviewMimeType,
   viewerHeading

@@ -539,7 +539,7 @@ describe("PreviewModalStage", () => {
     expect(replacement).not.toBe(details);
   });
 
-  it("suppresses cached-preview banners for video while keeping them for other viewers", () => {
+  it("shows no cached-preview status banner while refreshing for any viewer", () => {
     const refreshingCache = {
       source: "cache" as const,
       cachedAt: "2026-07-18T12:00:00.000Z",
@@ -577,7 +577,8 @@ describe("PreviewModalStage", () => {
         })}
       />
     );
-    expect(screen.getByText(/cached preview/i)).toBeInTheDocument();
+    expect(screen.queryByText(/cached preview/i)).not.toBeInTheDocument();
+    expect(document.querySelector(".preview-cache-status")).toBeNull();
   });
 
   it("preserves the modal audio element contract and inline gallery slot", () => {

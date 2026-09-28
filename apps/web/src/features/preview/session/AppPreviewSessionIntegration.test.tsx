@@ -351,7 +351,7 @@ it("keeps cached preview visible until the user applies the refreshed version", 
 
     const previewDialog = await screen.findByRole("dialog", { name: /Preview roadmap.txt/i });
     await waitFor(() => expect(within(previewDialog).getByText("cached preview")).toBeInTheDocument());
-    expect(within(previewDialog).getByText(/Showing cached preview/i)).toBeInTheDocument();
+    expect(within(previewDialog).queryByText(/Showing cached preview/i)).not.toBeInTheDocument();
     const refreshingWorkspace = [...appShellCapture.history].reverse().find((props) => props.kind === "workspace");
     if (!refreshingWorkspace || refreshingWorkspace.kind !== "workspace") throw new Error("Expected refreshing workspace capture");
     const refreshingPreview = refreshingWorkspace.overlays.preview;

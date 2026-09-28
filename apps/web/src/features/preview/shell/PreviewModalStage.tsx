@@ -29,7 +29,6 @@ import { PdfPreviewStage, usePdfPreviewInteraction } from "../pdf";
 import { useVideoPreviewInteraction, VideoPreviewStage } from "../video";
 import {
   formatPreviewFileTimestamp,
-  getPreviewNotice,
   isMediaGalleryViewer,
   isStreamingMediaViewer,
   normalizePreviewMimeType,
@@ -197,9 +196,6 @@ export function PreviewModalStage(props: PreviewModalStageProps) {
   const openOriginalLabel = "Open or download original file";
   const openOriginalVisibleLabel = "Get original";
   const openingOriginalLabel = "Opening original…";
-  const previewNotice = previewViewer === "video"
-    ? undefined
-    : getPreviewNotice(props.cacheState, props.offline || Boolean(props.workerUnavailable), props.offline);
   const imagePreviewUnavailable = previewViewer === "image" && (!props.blobUrl || imageInteraction.failed);
   const mediaStreamingNote = isStreamingMediaViewer(previewViewer) && previewViewer !== "video" && props.blobUrl
     ? props.blobUrl.startsWith("blob:")
@@ -424,14 +420,11 @@ export function PreviewModalStage(props: PreviewModalStageProps) {
         <section className={`preview-stage ${immersivePreview ? "preview-stage-immersive" : ""}`}>
           <div className={`preview-stage-shell ${immersivePreview ? "preview-stage-shell-immersive" : ""}`}>
             {props.loading ? <div className="preview-transient-status"><StateBanner kind="loading" message="Opening file…" /></div> : null}
-            {previewNotice ? (
+            {props.cacheState.updateReady && props.onApplyRefresh ? (
               <div className="preview-cache-status">
-                <StateBanner kind={previewNotice.kind} message={previewNotice.message} />
-                {props.cacheState.updateReady && props.onApplyRefresh ? (
-                  <div className="preview-stage-actions">
-                    <button onClick={props.onApplyRefresh} type="button">Apply refreshed version</button>
-                  </div>
-                ) : null}
+                <div className="preview-stage-actions">
+                  <button onClick={props.onApplyRefresh} type="button">Apply refreshed version</button>
+                </div>
               </div>
             ) : null}
             {props.error ? <div className="preview-transient-status"><StateBanner kind={props.error instanceof ApiRequestError && (props.error.status === 401 || props.error.status === 403) ? "permission" : "error"} message={props.error.message} /></div> : null}
