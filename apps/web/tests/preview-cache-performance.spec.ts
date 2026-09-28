@@ -170,3 +170,168 @@ test("retained HEIC look-ahead pre-renders the configured next three images for 
   // order of magnitude below a real decode rather than chasing a fixed budget.
   expect(p95, `cached HEIC open timings: ${timings.map((value) => value.toFixed(1)).join(", ")} ms`).toBeLessThanOrEqual(1500);
 });
+
+/** Browser-valid JPEG: noisy source compresses poorly, then zero-padding beyond EOI reaches the target size. */
+async function generateJpegBytes(page: Page, targetBytes: number): Promise<Buffer> {
+  const base64 = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 600;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("canvas 2d context unavailable");
+    const image = ctx.createImageData(canvas.width, canvas.height);
+    for (let index = 0; index < image.data.length; index += 4) {
+      image.data[index] = (index * 2654435761) % 251;
+      image.data[index + 1] = (index * 40503) % 241;
+      image.data[index + 2] = (index * 97) % 229;
+      image.data[index + 3] = 255;
+    }
+    ctx.putImageData(image, 0, 0);
+    return canvas.toDataURL("image/jpeg", 0.95).split(",")[1] ?? "";
+  });
+  const bytes = Buffer.from(base64, "base64");
+  return bytes.length >= targetBytes ? bytes : Buffer.concat([bytes, Buffer.alloc(targetBytes - bytes.length)]);
+}
+
+test("ordinary image cache reopens a >4MB working set with zero network and no decode", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name.includes("mobile"), "One controlled Chromium performance pass is sufficient.");
+  const heic = await readFile(new URL("./fixtures/images/libheif-example.heic", import.meta.url));
+  let fileRequests = 0;
+
+  await page.addInitScript(() => {
+    const NativeWorker = window.Worker;
+    const heicWorkers = new WeakSet<Worker>();
+    window.__davoraHeicWorkerCount = 0;
+    window.__davoraHeicDecodeCount = 0;
+    window.Worker = class extends NativeWorker {
+      constructor(scriptURL: string | URL, options?: WorkerOptions) {
+        super(scriptURL, options);
+        if (String(scriptURL).includes("heicPreviewWorker")) {
+          heicWorkers.add(this);
+          window.__davoraHeicWorkerCount = (window.__davoraHeicWorkerCount ?? 0) + 1;
+        }
+      }
+
+      postMessage(message: unknown, options?: StructuredSerializeOptions | Transferable[]): void {
+        if (heicWorkers.has(this)) window.__davoraHeicDecodeCount = (window.__davoraHeicDecodeCount ?? 0) + 1;
+        if (options === undefined) {
+          super.postMessage(message);
+        } else if (Array.isArray(options)) {
+          super.postMessage(message, options);
+        } else {
+          super.postMessage(message, options);
+        }
+      }
+    };
+  });
+  await connectAccount(page, "Ordinary cache workspace");
+  const jpeg = await generateJpegBytes(page, 1024 * 1024);
+  const files = [
+    { name: "photo-a.jpg", mime: "image/jpeg", body: jpeg },
+    { name: "photo-b.jpg", mime: "image/jpeg", body: jpeg },
+    { name: "photo-c.heic", mime: "image/heic", body: heic },
+    { name: "photo-d.heic", mime: "image/heic", body: jpeg },
+    { name: "photo-e.jpg", mime: "image/jpeg", body: jpeg },
+    { name: "photo-f.jpg", mime: "image/jpeg", body: jpeg }
+  ];
+
+  await page.route("**/api/files?path=Archive", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          path: "Archive",
+          items: files.map((entry) => ({ path: `Archive/${entry.name}`, name: entry.name, isFolder: false, size: entry.body.length, mimeType: entry.mime }))
+        }
+      })
+    });
+  });
+  await page.route("**/api/file?path=Archive%2F*", async (route) => {
+    fileRequests += 1;
+    const name = decodeURIComponent(new URL(route.request().url()).searchParams.get("path") ?? "").split("/").pop() ?? "";
+    const entry = files.find((item) => item.name === name);
+    if (!entry) return route.fulfill({ status: 404 });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: { file: { path: `Archive/${entry.name}`, name: entry.name, isFolder: false, size: entry.body.length, mimeType: entry.mime, viewer: "image", content: "", encoding: "none", truncated: false, bytesRead: 0, requiresOriginalBlob: true } } })
+    });
+  });
+  await page.route("**/api/file/original?path=Archive%2F*", async (route) => {
+    fileRequests += 1;
+    const name = decodeURIComponent(new URL(route.request().url()).searchParams.get("path") ?? "").split("/").pop() ?? "";
+    const entry = files.find((item) => item.name === name) ?? files[0]!;
+    await route.fulfill({
+      status: 200,
+      headers: { "content-type": entry.mime, "content-disposition": `attachment; filename*=UTF-8''${entry.name}` },
+      body: entry.body
+    });
+  });
+
+  await openSettings(page);
+  const settings = page.getByRole("dialog", { name: /Profile and settings/i });
+  await settings.getByLabel(/Enable experimental HEIC preview/i).check();
+  await settings.getByLabel(/Images to preload ahead/i).selectOption("1");
+  // A long freshness window keeps this spec on the deterministic cache-hit path;
+  // stale-entry refresh behavior is covered by the retained suite above.
+  await settings.getByLabel(/Cached preview update check interval unit/i).selectOption("weeks");
+  await settings.getByLabel(/Cached preview update check interval value/i).fill("1");
+  await settings.getByLabel(/Cached preview update check interval value/i).press("Enter");
+  await settings.getByRole("button", { name: /Close|Done/i }).click();
+  await page.getByRole("button", { name: /Open folder Archive/i }).click();
+
+  // First pass fills the ordinary cache with ~5MB of material — larger than the
+  // former 4MB shipped default that evicted records faster than users reopened.
+  const firstOpenTimings: Record<string, number> = {};
+  for (const entry of files) {
+    await page.evaluate(() => { window.__davoraPreviewStartedAt = performance.now(); });
+    await page.getByRole("button", { name: new RegExp(`Open file ${entry.name.replace(".", "\\.")}`, "i") }).click();
+    const preview = page.getByRole("dialog", { name: new RegExp(`Preview ${entry.name.replace(".", "\\.")}`, "i") });
+    await expect(preview.locator("img.media-preview-image")).toBeVisible({ timeout: 30_000 });
+    firstOpenTimings[entry.name] = await page.evaluate(() => performance.now() - (window.__davoraPreviewStartedAt ?? performance.now()));
+    await preview.getByRole("button", { name: /Back to files/i }).click();
+    await expect(preview).toHaveCount(0);
+  }
+
+  // Let the trailing look-ahead prefetch settle before measuring cache reads.
+  await expect.poll(async () => fileRequests, { timeout: 15_000 }).toBeGreaterThanOrEqual(files.length * 2);
+  await page.waitForTimeout(1_500);
+  const requestsBeforeReopen = fileRequests;
+
+  // Reload simulates an app restart: persisted IndexedDB records must still hit.
+  // Note addInitScript resets the in-page counters, so their baseline is read post-reload.
+  await page.reload();
+  const decodesBeforeReopen = await page.evaluate(() => window.__davoraHeicDecodeCount ?? 0);
+  const workersBeforeReopen = await page.evaluate(() => window.__davoraHeicWorkerCount ?? 0);
+  const archiveFolder = page.getByRole("button", { name: /Open folder Archive/i });
+  if (await archiveFolder.isVisible().catch(() => false)) {
+    await archiveFolder.click();
+  }
+  await expect(page.getByRole("button", { name: /Open file photo-a.jpg/i })).toBeVisible();
+
+  const reopenTimings: Record<string, number> = {};
+  for (const entry of files) {
+    await page.evaluate(() => { window.__davoraPreviewStartedAt = performance.now(); });
+    await page.getByRole("button", { name: new RegExp(`Open file ${entry.name.replace(".", "\\.")}`, "i") }).click();
+    const preview = page.getByRole("dialog", { name: new RegExp(`Preview ${entry.name.replace(".", "\\.")}`, "i") });
+    await expect(preview.locator("img.media-preview-image")).toBeVisible({ timeout: 15_000 });
+    reopenTimings[entry.name] = await page.evaluate(() => performance.now() - (window.__davoraPreviewStartedAt ?? performance.now()));
+    await preview.getByRole("button", { name: /Back to files/i }).click();
+    await expect(preview).toHaveCount(0);
+  }
+
+  const sortedReopens = Object.values(reopenTimings).sort((left, right) => left - right);
+  const reopenP95 = sortedReopens[Math.ceil(sortedReopens.length * 0.95) - 1] ?? Number.POSITIVE_INFINITY;
+  testInfo.annotations.push({
+    type: "performance",
+    description: JSON.stringify({ workingSetBytes: files.reduce((sum, entry) => sum + entry.body.length, 0), firstOpenMs: firstOpenTimings, reopenMs: reopenTimings, reopenP95Ms: reopenP95 })
+  });
+
+  // Zero re-fetches, zero re-decodes, zero new workers across every reopen —
+  // the eviction ping-pong this regression covered made all three non-zero.
+  expect(fileRequests, "cached reopens must not refetch file metadata or originals").toBe(requestsBeforeReopen);
+  expect(await page.evaluate(() => window.__davoraHeicDecodeCount)).toBe(decodesBeforeReopen);
+  expect(await page.evaluate(() => window.__davoraHeicWorkerCount)).toBe(workersBeforeReopen);
+  expect(reopenP95, `cached reopen timings: ${sortedReopens.map((value) => value.toFixed(1)).join(", ")} ms`).toBeLessThanOrEqual(2000);
+});
