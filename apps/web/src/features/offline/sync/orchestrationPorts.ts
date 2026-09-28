@@ -5,7 +5,7 @@ import type { BatchSelectionCapture } from "../../operations/selection";
 import type { TransferTask } from "../../transfers";
 import type { OfflineSyncDialogSnapshot } from "./dialogModel";
 import type { OfflineSyncArchiveInput, OfflineSyncJob, OfflineSyncPlan, OfflineSyncPlannedFile } from "./model";
-import type { OfflineSyncActionResult, OfflineSyncExecutionFact, OfflineSyncValueResult } from "./ports";
+import type { OfflineSyncActionResult, OfflineSyncExecutionFact, OfflineSyncRetainedMember, OfflineSyncValueResult } from "./ports";
 
 export interface OfflineSyncRequestScope {
   readonly signal: AbortSignal;
@@ -118,6 +118,12 @@ export interface OfflineSyncRetentionPort {
     signal: AbortSignal,
     checkStillOwned: () => boolean
   ): Promise<OfflineSyncActionResult>;
+  /** Files already retained under the job's root, keyed by normalized path. */
+  readRetainedMembers(
+    job: OfflineSyncJob,
+    signal: AbortSignal,
+    checkStillOwned: () => boolean
+  ): Promise<OfflineSyncValueResult<ReadonlyMap<string, OfflineSyncRetainedMember>>>;
   completeRoot(
     job: OfflineSyncJob,
     signal: AbortSignal,

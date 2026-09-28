@@ -1023,7 +1023,8 @@ describe("offline application App integration", () => {
           throw new Error("Temporary sync failure.");
         }
       }
-      return { blob: new Blob([path], { type: "text/plain" }), filename: path.split("/").pop() };
+      // Ten bytes to match the declared listing size, like a real download.
+      return { blob: new Blob(["0123456789"], { type: "text/plain" }), filename: path.split("/").pop() };
     });
 
     render(<App />);
@@ -1044,6 +1045,10 @@ describe("offline application App integration", () => {
     await waitFor(() => expectRetainedFilePersisted("Projects/bad.pdf"));
     expect(mockedRetentionRepository.beginRoot).toHaveBeenCalledTimes(2);
     expect(mockedRetentionRepository.beginRoot).toHaveBeenLastCalledWith(retentionAccountFor(account), expect.objectContaining({ rootPath: "Projects", kind: "folder" }));
+    // The file the first attempt already retained is skipped on retry: it is
+    // neither re-downloaded nor re-persisted, only the failed file is fetched.
+    expect(mockedApi.fetchDownloadBlob.mock.calls.filter(([path]) => path === "Projects/good.txt")).toHaveLength(1);
+    expect(mockedRetentionRepository.persistRetainedFile.mock.calls.filter(([, input]) => input.file.path === "Projects/good.txt")).toHaveLength(1);
   });
 
   it("clears normal cache without removing explicitly kept-offline copies", async () => {

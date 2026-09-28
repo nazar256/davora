@@ -28,6 +28,12 @@ export interface OfflineSyncDownload<TDownloaded> {
   readonly byteSize: number;
 }
 
+/** Persisted state of a file already retained under the sync root. */
+export interface OfflineSyncRetainedMember {
+  readonly blobSize: number;
+  readonly readable: boolean;
+}
+
 export type OfflineSyncExecutionFact =
   | { readonly kind: "preparing"; readonly totalBytes?: number }
   | { readonly kind: "transferring"; readonly totalBytes?: number }
@@ -48,6 +54,11 @@ export interface OfflineSyncExecutionPorts<TDownloaded, TSummary> {
   readonly signal: AbortSignal;
   checkOwnership(job: OfflineSyncJob): OfflineSyncOwnership;
   resolvePlan(input: OfflineSyncArchiveInput, signal: AbortSignal): Promise<OfflineSyncValueResult<OfflineSyncPlan>>;
+  /**
+   * Files already retained under the job's root, keyed by normalized path.
+   * Used to skip re-downloading bytes a previous attempt already persisted.
+   */
+  readRetainedMembers(job: OfflineSyncJob, signal: AbortSignal): Promise<OfflineSyncValueResult<ReadonlyMap<string, OfflineSyncRetainedMember>>>;
   download(
     file: OfflineSyncPlannedFile,
     onProgress: (loadedBytes: number, totalBytes?: number) => boolean,

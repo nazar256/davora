@@ -226,6 +226,69 @@ describe("createOfflineSyncRetentionPort", () => {
     }
   });
 
+  it("reads retained members only for the job's root", async () => {
+    const snapshot: RetainedSnapshot = {
+      account: retentionAccount,
+      normalCache: { itemCount: 0, totalBytes: 0, limitBytes: 1 },
+      roots: [],
+      files: [
+        { path: "Projects/roadmap.txt", name: "roadmap.txt", mimeType: "text/plain", size: 4, blobSize: 4, readable: true, normalCacheOwnership: "none" },
+        { path: "Projects/other.txt", name: "other.txt", mimeType: "text/plain", size: 8, blobSize: 8, readable: false, normalCacheOwnership: "none" }
+      ],
+      memberships: [
+        { rootId: "retained-root:file:Projects%2Froadmap.txt", filePath: "Projects/roadmap.txt" },
+        { rootId: "retained-root:folder:Archive", filePath: "Projects/other.txt" }
+      ]
+    };
+    const executeSnapshotCommand = vi.fn<ExecuteSnapshotCommand>(async () => ({ kind: "completed", snapshot }));
+    const port = createOfflineSyncRetentionPort({
+      getActiveAccount: () => account,
+      toRetentionAccount: () => retentionAccount,
+      executeSnapshotCommand,
+      readBlobText: async (blob) => blob.text(),
+      errors: { isUnauthorized: () => false, isReconnectRequired: () => false }
+    });
+    const signal = new AbortController().signal;
+
+    await expect(port.readRetainedMembers(job, signal, () => true)).resolves.toEqual({
+      kind: "success",
+      value: new Map([["Projects/roadmap.txt", { blobSize: 4, readable: true }]])
+    });
+    expect(executeSnapshotCommand).toHaveBeenCalledWith(expect.objectContaining({ kind: "readSnapshot" }), expect.any(Function));
+  });
+
+  it("maps retained-member read failures and ownership loss", async () => {
+    const executeSnapshotCommand = vi.fn<ExecuteSnapshotCommand>()
+      .mockResolvedValueOnce({ kind: "failed", message: "index read failed" })
+      .mockResolvedValueOnce({ kind: "superseded" })
+      .mockResolvedValueOnce({ kind: "completed" });
+    const port = createOfflineSyncRetentionPort({
+      getActiveAccount: () => account,
+      toRetentionAccount: () => retentionAccount,
+      executeSnapshotCommand,
+      readBlobText: async (blob) => blob.text(),
+      errors: { isUnauthorized: () => false, isReconnectRequired: () => false }
+    });
+    const signal = new AbortController().signal;
+
+    await expect(port.readRetainedMembers(job, signal, () => true)).resolves.toEqual({
+      kind: "ordinaryFailure",
+      message: "index read failed"
+    });
+    await expect(port.readRetainedMembers(job, signal, () => true)).resolves.toEqual({
+      kind: "cancelled",
+      reason: "superseded"
+    });
+    await expect(port.readRetainedMembers(job, signal, () => true)).resolves.toEqual({
+      kind: "ordinaryFailure",
+      message: "Unable to read retained files."
+    });
+    await expect(port.readRetainedMembers(job, signal, () => false)).resolves.toEqual({
+      kind: "cancelled",
+      reason: "superseded"
+    });
+  });
+
   it("classifies completeRoot catch failures like persist retained files", async () => {
     const unauthorized = Object.assign(new Error("expired"), { name: "Unauthorized" });
     const reconnectRequired = Object.assign(new Error("reconnect"), { name: "ReconnectRequired" });

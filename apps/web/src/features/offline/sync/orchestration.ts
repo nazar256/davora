@@ -275,6 +275,7 @@ export async function runOfflineSyncConfirmOrchestration(
         signal,
         syncStillOwned
       ),
+      readRetainedMembers: async (job, signal) => ports.retention.readRetainedMembers(job, signal, syncStillOwned),
       markRootComplete: async (job, signal) => ports.retention.completeRoot(job, signal, syncStillOwned),
       readSummary: async (namespace, signal) => ports.retention.readSummary(namespace, signal, syncStillOwned),
       publish: (fact) => {

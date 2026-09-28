@@ -3,6 +3,7 @@ import type {
   OfflineSyncCancellationReason,
   OfflineSyncExecutionFact,
   OfflineSyncExecutionPorts,
+  OfflineSyncRetainedMember,
   OfflineSyncValueResult
 } from "./ports";
 
@@ -41,6 +42,11 @@ export type OfflineSyncExecutionOutcome<TSummary> =
   | (OfflineSyncOutcomeFacts<TSummary> & { readonly kind: "cancelled"; readonly reason: OfflineSyncCancellationReason });
 
 const notAttempted = { kind: "notAttempted" } as const;
+
+/** Matches the normalization retention applies to stored file paths. */
+function normalizedPath(path: string): string {
+  return path.replace(/^\/+|\/+$/g, "");
+}
 
 export async function executeOfflineSync<TDownloaded, TSummary>(
   job: OfflineSyncJob,
@@ -111,6 +117,23 @@ export async function executeOfflineSync<TDownloaded, TSummary>(
     totalBytes = plan.totalBytes;
   }
 
+  // Files already retained under this root from a previous attempt are
+  // skipped: their bytes are stored and membership already exists, so only
+  // missing or changed files need the network. An ordinary member-read
+  // failure degrades to downloading everything — skipping is an
+  // optimization, never required for correctness.
+  const memberRead = await ports.readRetainedMembers(job, ports.signal);
+  const afterMembers = checkCurrent();
+  if (afterMembers) {
+    return afterMembers;
+  }
+  if (memberRead.kind === "sessionTerminal" || memberRead.kind === "cancelled") {
+    return terminalFromPort(memberRead)!;
+  }
+  const retainedMembers: ReadonlyMap<string, OfflineSyncRetainedMember> | undefined = memberRead.kind === "success"
+    ? memberRead.value
+    : undefined;
+
   const transferring = publish({ kind: "transferring", ...(totalBytes === undefined ? {} : { totalBytes }) });
   if (transferring) {
     return transferring;
@@ -126,6 +149,24 @@ export async function executeOfflineSync<TDownloaded, TSummary>(
     const beforeDownload = checkCurrent();
     if (beforeDownload) {
       return beforeDownload;
+    }
+    const retained = retainedMembers?.get(normalizedPath(file.sourcePath));
+    if (retained !== undefined && retained.readable && (file.size === undefined || file.size === retained.blobSize)) {
+      completedFiles.push(file);
+      persistedBytes += file.size ?? retained.blobSize;
+      displayBytes = Math.max(displayBytes, persistedBytes);
+      const skipped = publish({
+        kind: "progress",
+        sourcePath: file.sourcePath,
+        persistedBytes,
+        inFlightBytes: 0,
+        displayBytes,
+        ...(totalBytes === undefined ? {} : { totalBytes })
+      });
+      if (skipped) {
+        return skipped;
+      }
+      continue;
     }
     const downloaded = await ports.download(file, (loadedBytes) => {
       const current = checkCurrent();

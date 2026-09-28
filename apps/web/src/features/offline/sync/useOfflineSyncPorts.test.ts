@@ -219,6 +219,44 @@ describe("createOfflineSyncPorts", () => {
         message: OFFLINE_SYNC_SESSION_EXPIRED_MESSAGE
       });
     });
+
+    it("reads retained members for the job root through the composed port", async () => {
+      const job = {
+        id: "job-1",
+        accountId: "alpha",
+        cacheNamespace: "ns-alpha",
+        root: { path: "Projects", name: "Projects", kind: "folder" as const, folderRoots: ["Projects"] },
+        selectedEntries: [{ path: "Projects", name: "Projects", isFolder: true }],
+        planSource: { kind: "acceptedPlan" as const, plan: { files: [] } }
+      };
+      const executeSnapshotCommand = vi.fn<ExecuteSnapshotCommand>(async () => ({
+        kind: "completed",
+        snapshot: {
+          account: { accountId: "alpha", cacheNamespace: "ns-alpha" },
+          normalCache: { itemCount: 0, totalBytes: 0, limitBytes: 1 },
+          roots: [],
+          files: [
+            { path: "Projects/a.txt", name: "a.txt", mimeType: "text/plain", size: 4, blobSize: 4, readable: true, normalCacheOwnership: "none" as const },
+            { path: "Other/b.txt", name: "b.txt", mimeType: "text/plain", size: 8, blobSize: 8, readable: true, normalCacheOwnership: "none" as const }
+          ],
+          memberships: [
+            { rootId: "retained-root:folder:Projects", filePath: "Projects/a.txt" },
+            { rootId: "retained-root:folder:Other", filePath: "Other/b.txt" }
+          ]
+        }
+      }));
+      const ports = createOfflineSyncPorts(createInput({ retention: {
+        getActiveAccount: () => ({ id: "alpha", cacheNamespace: "ns-alpha" }),
+        toRetentionAccount: (account) => ({ accountId: account.id, cacheNamespace: account.cacheNamespace }),
+        executeSnapshotCommand,
+        readBlobText: async () => "offline",
+      } }));
+
+      await expect(ports.confirm.retention.readRetainedMembers(job, new AbortController().signal, () => true)).resolves.toEqual({
+        kind: "success",
+        value: new Map([["Projects/a.txt", { blobSize: 4, readable: true }]])
+      });
+    });
   });
 
   describe("findActiveSyncByDedupeKey", () => {

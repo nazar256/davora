@@ -85,6 +85,7 @@ function createPorts(): OfflineSyncPorts {
     retention: {
       beginRoot: vi.fn(async () => ({ kind: "success" } as const)),
       persistRetainedFile: vi.fn(async () => ({ kind: "success" } as const)),
+      readRetainedMembers: vi.fn(async () => ({ kind: "success", value: new Map() } as const)),
       completeRoot: vi.fn(async () => ({ kind: "success" } as const)),
       readSummary: vi.fn(async () => ({ kind: "success", value: {} } as const))
     },

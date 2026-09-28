@@ -47,6 +47,10 @@ function ports(overrides: Partial<OfflineSyncExecutionPorts<Downloaded, Summary>
       order.push(`persist:${file.sourcePath}`);
       return { kind: "success" } as const;
     }),
+    readRetainedMembers: vi.fn(async () => {
+      order.push("members");
+      return { kind: "success", value: new Map() } as const;
+    }),
     markRootComplete: vi.fn(async () => {
       order.push("mark");
       return { kind: "success" } as const;
@@ -69,6 +73,7 @@ describe("executeOfflineSync", () => {
 
     expect(fixture.value.resolvePlan).not.toHaveBeenCalled();
     expect(fixture.order).toEqual([
+      "members",
       "download:Projects/a.txt",
       "persist:Projects/a.txt",
       "download:Projects/b.txt",
@@ -96,6 +101,106 @@ describe("executeOfflineSync", () => {
 
     expect(fixture.value.resolvePlan).toHaveBeenCalledOnce();
     expect(fixture.value.resolvePlan).toHaveBeenCalledWith(archiveInput, fixture.value.signal);
+  });
+
+  it("skips download and persistence for files already retained under the root", async () => {
+    const fixture = ports();
+    fixture.value.readRetainedMembers = vi.fn(async () => {
+      fixture.order.push("members");
+      return {
+        kind: "success",
+        value: new Map([["Projects/a.txt", { blobSize: 4, readable: true }]])
+      } as const;
+    });
+
+    const outcome = await executeOfflineSync(job(), fixture.value);
+
+    expect(fixture.order).toEqual([
+      "members",
+      "download:Projects/b.txt",
+      "persist:Projects/b.txt",
+      "mark",
+      "summary"
+    ]);
+    expect(outcome).toMatchObject({
+      kind: "completed",
+      persistedBytes: 10,
+      completedFiles: plan.files,
+      failures: []
+    });
+    expect(fixture.value.markRootComplete).toHaveBeenCalledOnce();
+  });
+
+  it("re-downloads retained members whose stored size no longer matches or that are not readable", async () => {
+    const fixture = ports();
+    fixture.value.readRetainedMembers = vi.fn(async () => {
+      fixture.order.push("members");
+      return {
+        kind: "success",
+        value: new Map<string, { blobSize: number; readable: boolean }>([
+          ["Projects/a.txt", { blobSize: 99, readable: true }],
+          ["Projects/b.txt", { blobSize: 6, readable: false }]
+        ])
+      } as const;
+    });
+
+    const outcome = await executeOfflineSync(job(), fixture.value);
+
+    expect(fixture.order).toEqual([
+      "members",
+      "download:Projects/a.txt",
+      "persist:Projects/a.txt",
+      "download:Projects/b.txt",
+      "persist:Projects/b.txt",
+      "mark",
+      "summary"
+    ]);
+    expect(outcome).toMatchObject({ kind: "completed", persistedBytes: 10 });
+  });
+
+  it("downloads everything when the retained-member read fails", async () => {
+    const fixture = ports();
+    fixture.value.readRetainedMembers = vi.fn(async () => {
+      fixture.order.push("members");
+      return { kind: "ordinaryFailure", message: "index unavailable" } as const;
+    });
+
+    const outcome = await executeOfflineSync(job(), fixture.value);
+
+    expect(fixture.order).toEqual([
+      "members",
+      "download:Projects/a.txt",
+      "persist:Projects/a.txt",
+      "download:Projects/b.txt",
+      "persist:Projects/b.txt",
+      "mark",
+      "summary"
+    ]);
+    expect(outcome).toMatchObject({ kind: "completed", persistedBytes: 10 });
+  });
+
+  it("terminates on a session-terminal or cancelled member read", async () => {
+    const terminal = ports({
+      readRetainedMembers: vi.fn(async () => ({
+        kind: "sessionTerminal",
+        reason: "reconnectRequired",
+        message: "reconnect"
+      } as const))
+    });
+    await expect(executeOfflineSync(job(), terminal.value)).resolves.toMatchObject({
+      kind: "sessionTerminated",
+      message: "reconnect"
+    });
+    expect(terminal.value.download).not.toHaveBeenCalled();
+
+    const cancelled = ports({
+      readRetainedMembers: vi.fn(async () => ({ kind: "cancelled", reason: "superseded" } as const))
+    });
+    await expect(executeOfflineSync(job(), cancelled.value)).resolves.toMatchObject({
+      kind: "cancelled",
+      reason: "superseded"
+    });
+    expect(cancelled.value.download).not.toHaveBeenCalled();
   });
 
   it("records ordinary download and persistence failures once, continues, and never marks a partial root complete", async () => {

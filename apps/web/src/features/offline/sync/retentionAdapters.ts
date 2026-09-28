@@ -169,6 +169,43 @@ export function createOfflineSyncRetentionPort(deps: OfflineSyncRetentionDeps): 
         return { kind: "ordinaryFailure", message: error instanceof Error ? error.message : "Unable to cache this file for offline use." };
       }
     },
+    readRetainedMembers: async (job, signal, checkStillOwned) => {
+      try {
+        if (!checkStillOwned() || signal.aborted) {
+          return { kind: "cancelled", reason: signal.aborted ? "aborted" : "superseded" };
+        }
+        const activeAccount = deps.getActiveAccount();
+        if (!activeAccount) {
+          return { kind: "ordinaryFailure", message: "No session available for offline sync." };
+        }
+        const result = await deps.executeSnapshotCommand({
+          kind: "readSnapshot",
+          account: deps.toRetentionAccount(activeAccount)
+        }, checkStillOwned);
+        if (result.kind === "failed") {
+          return { kind: "ordinaryFailure", message: result.message };
+        }
+        if (result.kind === "superseded") {
+          return { kind: "cancelled", reason: signal.aborted ? "aborted" : "superseded" };
+        }
+        if (!result.snapshot) {
+          return { kind: "ordinaryFailure", message: "Unable to read retained files." };
+        }
+        const rootId = retainedRootId({ kind: job.root.kind, rootPath: job.root.path });
+        const memberPaths = new Set(result.snapshot.memberships
+          .filter((membership) => membership.rootId === rootId)
+          .map((membership) => membership.filePath));
+        const members = new Map<string, { blobSize: number; readable: boolean }>();
+        for (const file of result.snapshot.files) {
+          if (memberPaths.has(file.path)) {
+            members.set(file.path, { blobSize: file.blobSize, readable: file.readable });
+          }
+        }
+        return { kind: "success", value: members };
+      } catch (error) {
+        return classifyOfflineSyncPlanError(error, "Unable to read retained files.", checkStillOwned, signal, deps.errors);
+      }
+    },
     completeRoot: async (job, signal, checkStillOwned) => {
       try {
         if (!checkStillOwned() || signal.aborted) {
