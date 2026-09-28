@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent, type SyntheticEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type SyntheticEvent } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -149,6 +149,29 @@ export function PreviewModalStage(props: PreviewModalStageProps) {
     props.onClose();
   };
   const dialogRef = useModalFocusBoundary<HTMLElement>(props.open, closePreview);
+  const scrimRef = useRef<HTMLDivElement | null>(null);
+
+  // React binds touchmove/wheel handlers passively, so preventDefault() inside
+  // onTouchMove/onWheel is ignored and the gesture falls through to a browser
+  // page zoom that survives preview close. Attach real non-passive guards on
+  // the scrim: pan stays free (touch-action allows it) while page zoom is
+  // suppressed — Safari pinch (gesturestart) and ctrl/meta wheel.
+  useEffect(() => {
+    const scrim = scrimRef.current;
+    if (!props.open || !scrim) return undefined;
+    const blockGestureZoom = (event: Event) => event.preventDefault();
+    const blockWheelZoom = (event: globalThis.WheelEvent) => {
+      if (event.ctrlKey || event.metaKey) event.preventDefault();
+    };
+    scrim.addEventListener("gesturestart", blockGestureZoom);
+    scrim.addEventListener("gesturechange", blockGestureZoom);
+    scrim.addEventListener("wheel", blockWheelZoom, { passive: false });
+    return () => {
+      scrim.removeEventListener("gesturestart", blockGestureZoom);
+      scrim.removeEventListener("gesturechange", blockGestureZoom);
+      scrim.removeEventListener("wheel", blockWheelZoom);
+    };
+  }, [props.open]);
 
   const handleVideoDetailsToggle = (event: SyntheticEvent<HTMLDetailsElement>) => {
     const open = event.currentTarget.open;
@@ -323,7 +346,7 @@ export function PreviewModalStage(props: PreviewModalStageProps) {
   };
 
   return (
-    <div className={`modal-scrim preview-scrim${immersivePreview ? " preview-scrim-immersive" : ""}${previewViewer === "image" ? " preview-scrim-image" : ""}`} onClick={handlePreviewScrimClick} role="presentation">
+    <div ref={scrimRef} className={`modal-scrim preview-scrim${immersivePreview ? " preview-scrim-immersive" : ""}${previewViewer === "image" ? " preview-scrim-image" : ""}`} onClick={handlePreviewScrimClick} role="presentation">
       <section ref={dialogRef} aria-label={`Preview ${fileName}`} aria-modal="true" className={`preview-modal panel${immersivePreview ? " preview-modal-immersive" : ""}${previewViewer === "video" ? " preview-modal-video" : ""}`} onClick={handlePreviewModalClick} role="dialog" tabIndex={-1}>
         <header className="preview-header">
           {previewViewer === "video" ? renderVideoOverlay() : (

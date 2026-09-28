@@ -98,10 +98,11 @@ describe("opened-file repository", () => {
     const current = await get<{ readonly limitBytes: number }>(indexKey(account.cacheNamespace));
     if (!current) throw new Error("expected current V2 index");
     await del(indexKey(account.cacheNamespace));
+    const { readable: _flag, ...flagless } = file("kept.txt", blob);
     await set(legacyIndexKey(account.cacheNamespace), {
       version: 2,
       limitBytes: current.limitBytes,
-      files: { "kept.txt": { ...file("kept.txt", blob), normalCacheOwnership: "none", blobSize: blob.size } },
+      files: { "kept.txt": { ...flagless, normalCacheOwnership: "none", blobSize: blob.size } },
       roots: { [rootId]: { id: rootId, rootPath: "kept", rootName: "kept", kind: "folder", folderRoots: [], status: "complete", addedAt: "2026-01-01T00:00:00.000Z" } },
       memberships: { "kept.txt": [rootId] }
     });
@@ -231,6 +232,44 @@ describe("opened-file repository", () => {
     expect(await get(blobKey("alpha", "preview.txt"))).toBeUndefined();
     expect(snapshot.files).toContainEqual(expect.objectContaining({ path: "preview.txt", blobSize: 0, readable: false }));
     expect((await success(await repository.readPreview(account, "preview.txt")))?.blob).toBeUndefined();
+  });
+
+  it("does not rewrite the index for reads inside the last-accessed persist window", async () => {
+    const blob = new Blob(["preview"]);
+    await success(await repository.writePreview(account, { file: file("preview.txt", blob), blob }));
+    const afterWrite = await get<{ files: Record<string, { lastAccessedAt?: string }> }>(indexKey("alpha"));
+    const writtenAt = afterWrite?.files["preview.txt"]?.lastAccessedAt;
+    expect(writtenAt).toBeDefined();
+
+    await success(await repository.readPreview(account, "preview.txt"));
+
+    const afterRead = await get<{ files: Record<string, { lastAccessedAt?: string }> }>(indexKey("alpha"));
+    expect(afterRead?.files["preview.txt"]?.lastAccessedAt).toBe(writtenAt);
+  });
+
+  it("persists a newer lastAccessedAt only when the stored timestamp is stale", async () => {
+    const blob = new Blob(["preview"]);
+    const stale = { ...file("preview.txt", blob), readable: true, normalCacheOwnership: "owned" as const, cachedAt: "2020-01-01T00:00:00.000Z", lastAccessedAt: "2020-01-01T00:00:00.000Z", sourceRevision: "source-1" };
+    await set(indexKey("alpha"), { version: 2, limitBytes: 1024 * 1024, limitPolicy: "custom", files: { "preview.txt": stale }, roots: {}, memberships: {} });
+    await set(blobKey("alpha", "preview.txt"), blob);
+
+    await success(await repository.readPreview(account, "preview.txt"));
+
+    const stored = await get<{ files: Record<string, { lastAccessedAt?: string }> }>(indexKey("alpha"));
+    expect(stored?.files["preview.txt"]?.lastAccessedAt).not.toBe("2020-01-01T00:00:00.000Z");
+  });
+
+  it("backfills and persists readable flags for records stored without them", async () => {
+    const blob = new Blob(["kept"]);
+    const { readable: _flag, ...flagless } = file("kept.txt", blob);
+    await set(indexKey("alpha"), { version: 2, limitBytes: 1024 * 1024, limitPolicy: "custom", files: { "kept.txt": { ...flagless, normalCacheOwnership: "owned" } }, roots: {}, memberships: {} });
+    await set(blobKey("alpha", "kept.txt"), blob);
+
+    const snapshot = await success(await repository.readSnapshot(account));
+
+    expect(snapshot.files).toContainEqual(expect.objectContaining({ path: "kept.txt", readable: true }));
+    const stored = await get<{ files: Record<string, { readable?: boolean }> }>(indexKey("alpha"));
+    expect(stored?.files["kept.txt"]?.readable).toBe(true);
   });
 
   it("keeps metadata-only normal previews addressable through replacement and normal cache clearing", async () => {

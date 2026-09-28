@@ -15,6 +15,9 @@ export const DEFAULT_OPENED_FILE_CACHE_LIMIT = Number.isFinite(envLimit) && envL
 /** Default shipped before explicit limit policies existed; used only to re-interpret legacy persisted indexes. */
 const LEGACY_DEFAULT_OPENED_FILE_CACHE_LIMIT = 4 * 1024 * 1024;
 
+/** Minimum staleness before a read persists a newer lastAccessedAt. */
+const LAST_ACCESSED_PERSIST_INTERVAL_MS = 60_000;
+
 type RootKind = "file" | "folder" | "batch";
 type RootStatus = "incomplete" | "complete";
 type NormalCacheOwnership = "none" | "owned";
@@ -70,6 +73,12 @@ interface StoredFile {
   preview?: FilePreview;
   blobSize: number;
   normalCacheOwnership: NormalCacheOwnership;
+  /**
+   * Persisted blob-presence flag. Records written before the flag existed have
+   * it backfilled once by load(); snapshot() trusts it so reporting a snapshot
+   * does not fetch every stored blob.
+   */
+  readable?: boolean;
   cachedAt?: string;
   lastAccessedAt?: string;
   sourceRevision?: string;
@@ -392,7 +401,10 @@ function parseFile(value: unknown): StoredFile | undefined {
   const sourceRevision = value.sourceRevision === undefined ? undefined : text(value.sourceRevision);
   const derivative = value.derivative === undefined ? undefined : parseDerivative(value.derivative);
   if (!path || !name || !mimeType || size === undefined || size < 0 || blobSize === undefined || blobSize < 0 || !ownership || (value.preview !== undefined && !preview) || (value.cachedAt !== undefined && !cachedAt) || (value.lastAccessedAt !== undefined && !lastAccessedAt) || (value.sourceRevision !== undefined && !sourceRevision)) return undefined;
-  return { path, name, mimeType, size, blobSize, normalCacheOwnership: ownership, ...(preview ? { preview } : {}), ...(cachedAt ? { cachedAt } : {}), ...(lastAccessedAt ? { lastAccessedAt } : {}), ...(sourceRevision ? { sourceRevision } : {}), ...(derivative ? { derivative } : {}) };
+  const readable = value.readable === undefined ? undefined : value.readable === true;
+  // Key order must match writeFile so load() can detect "unchanged" via
+  // JSON.stringify and skip the redundant index write.
+  return { path, name, mimeType, size, blobSize, ...(readable === undefined ? {} : { readable }), normalCacheOwnership: ownership, ...(preview ? { preview } : {}), ...(cachedAt ? { cachedAt } : {}), ...(lastAccessedAt ? { lastAccessedAt } : {}), ...(sourceRevision ? { sourceRevision } : {}), ...(derivative ? { derivative } : {}) };
 }
 
 function parseRoot(value: unknown): StoredRoot | undefined {
@@ -592,10 +604,10 @@ function immutable<T>(value: T): T {
 }
 
 async function snapshot(account: RetentionAccountShape, index: StoredIndex): Promise<RetentionSnapshotShape> {
-  const files = await Promise.all(Object.values(index.files).map(async (file) => {
-    const blob = await get<unknown>(blobKey(account.cacheNamespace, file.path));
-    return { ...file, readable: blob instanceof Blob };
-  }));
+  // readPreview re-checks the actual blob, so a stale flag here only affects
+  // summary readability until the next write; flags are maintained at every
+  // blob write/delete site and backfilled by load().
+  const files = Object.values(index.files).map((file) => ({ ...file, readable: file.readable === true }));
   const evictable = normalCacheEntries(index);
   return immutable({
     account: { accountId: account.accountId, cacheNamespace: account.cacheNamespace },
@@ -611,19 +623,50 @@ function failure(error: unknown): RetentionResultShape<never> {
 }
 
 export function createOpenedFileRepository(): OpenedFileRepository {
+  // One-time backfill of persisted readable flags for records written before
+  // the flag existed, so snapshot() stops fetching every stored blob. Returns
+  // true when at least one flag was populated (index needs persisting).
+  async function backfillReadable(namespace: string, index: StoredIndex): Promise<boolean> {
+    const results = await Promise.all(Object.values(index.files).map(async (file) => {
+      if (file.readable !== undefined) return false;
+      file.readable = (await get<unknown>(blobKey(namespace, file.path))) instanceof Blob;
+      return true;
+    }));
+    return results.includes(true);
+  }
+
   async function load(namespace: string): Promise<StoredIndex> {
-    const raw = await get<unknown>(indexKey(namespace));
-    const legacy = await get<unknown>(legacyIndexKey(namespace));
+    const [raw, legacy] = await Promise.all([
+      get<unknown>(indexKey(namespace)),
+      get<unknown>(legacyIndexKey(namespace))
+    ]);
     if (legacy !== undefined) await migrateLegacyNamespaces(await keys(), [namespace], false);
     if (raw !== undefined) {
-      const v2 = parseV2(raw) ?? emptyIndex();
-      v2.limitBytes = effectiveLimitBytes(v2);
-      await set(indexKey(namespace), v2);
+      const v2 = parseV2(raw);
+      if (v2 === undefined) {
+        const repaired = emptyIndex();
+        await set(indexKey(namespace), repaired);
+        return repaired;
+      }
+      const effective = effectiveLimitBytes(v2);
+      // Persist only when load actually changed the index — repair,
+      // normalization, structural drops, or the readable backfill. Writing on
+      // every read serializes IndexedDB transactions and slows every preview.
+      let dirty = !isRecord(raw)
+        || raw.limitBytes !== effective
+        || raw.limitPolicy !== v2.limitPolicy
+        || !isRecord(raw.files) || Object.keys(raw.files).length !== Object.keys(v2.files).length
+        || !isRecord(raw.roots) || Object.keys(raw.roots).length !== Object.keys(v2.roots).length
+        || !isRecord(raw.memberships) || Object.keys(raw.memberships).length !== Object.keys(v2.memberships).length;
+      v2.limitBytes = effective;
+      if (await backfillReadable(namespace, v2)) dirty = true;
+      if (dirty) await set(indexKey(namespace), v2);
       return v2;
     }
     const migrated = parseLegacyIndex(legacy);
     const index = migrated ?? emptyIndex();
     index.limitBytes = effectiveLimitBytes(index);
+    await backfillReadable(namespace, index);
     if (migrated) await set(indexKey(namespace), index);
     return index;
   }
@@ -646,21 +689,37 @@ export function createOpenedFileRepository(): OpenedFileRepository {
         const index = await load(account.cacheNamespace);
         const file = index.files[path];
         if (!file) return { kind: "success", value: undefined };
-        const now = new Date().toISOString();
+        const nowMs = Date.now();
+        const now = new Date(nowMs).toISOString();
+        // lastAccessedAt exists only for LRU ordering; persisting it on every
+        // read adds a serializing write transaction, so rewrite it only when
+        // it is meaningfully stale.
+        const accessedMs = Date.parse(file.lastAccessedAt ?? "");
+        let needsIndexWrite = !Number.isFinite(accessedMs) || nowMs - accessedMs > LAST_ACCESSED_PERSIST_INTERVAL_MS;
         file.lastAccessedAt = now;
-        file.sourceRevision ??= newSourceRevision();
+        if (file.sourceRevision === undefined) {
+          file.sourceRevision = newSourceRevision();
+          needsIndexWrite = true;
+        }
         const storedDerivative = file.derivative;
-        const derivativeBlob = storedDerivative?.sourceRevision === file.sourceRevision
-          ? await get<unknown>(derivativeKey(account.cacheNamespace, path))
-          : undefined;
+        const [derivativeBlob, blob] = await Promise.all([
+          storedDerivative?.sourceRevision === file.sourceRevision
+            ? get<unknown>(derivativeKey(account.cacheNamespace, path))
+            : Promise.resolve(undefined),
+          get<unknown>(blobKey(account.cacheNamespace, path))
+        ]);
         if (storedDerivative !== undefined && !(derivativeBlob instanceof Blob)) {
           delete file.derivative;
           await del(derivativeKey(account.cacheNamespace, path));
+          needsIndexWrite = true;
         } else if (storedDerivative !== undefined) {
-          storedDerivative.lastAccessedAt = now;
+          const derivativeAccessedMs = Date.parse(storedDerivative.lastAccessedAt);
+          if (!Number.isFinite(derivativeAccessedMs) || nowMs - derivativeAccessedMs > LAST_ACCESSED_PERSIST_INTERVAL_MS) {
+            storedDerivative.lastAccessedAt = now;
+            needsIndexWrite = true;
+          }
         }
-        await set(indexKey(account.cacheNamespace), index);
-        const blob = await get<unknown>(blobKey(account.cacheNamespace, path));
+        if (needsIndexWrite) await set(indexKey(account.cacheNamespace), index);
         return { kind: "success", value: {
           file: immutable({ ...file, readable: blob instanceof Blob }),
           ...(blob instanceof Blob ? { blob } : {}),
@@ -683,6 +742,7 @@ export function createOpenedFileRepository(): OpenedFileRepository {
         if (selected.blob !== undefined) await del(derivativeKey(account.cacheNamespace, file.path));
         if (selected.blob === undefined && membershipCount(index, file.path) === 0) {
           file.blobSize = 0;
+          file.readable = false;
           await deleteCanonicalBlob(account.cacheNamespace, file.path);
         } else {
           await writeBlob(account.cacheNamespace, file.path, selected.blob);
@@ -782,6 +842,7 @@ export function createOpenedFileRepository(): OpenedFileRepository {
               file.mimeType = derivative.mimeType;
               file.size = derivative.blobSize;
               file.blobSize = derivative.blobSize;
+              file.readable = true;
               file.normalCacheOwnership = "owned";
               file.cachedAt = derivative.cachedAt;
               file.lastAccessedAt = derivative.lastAccessedAt;
@@ -864,6 +925,7 @@ function writeFile(index: StoredIndex, input: RetainedFileShape, blob: Blob | un
     mimeType,
     size,
     blobSize: inputBlobSize ?? existing?.blobSize ?? input.blobSize,
+    readable: blob !== undefined ? true : (existing?.readable ?? false),
     normalCacheOwnership: ownership,
     ...(preview ?? existing?.preview ? { preview: preview ?? existing?.preview } : {}),
     cachedAt: existing?.cachedAt ?? now,

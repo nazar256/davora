@@ -294,6 +294,29 @@ describe("PreviewModalStage", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("blocks browser page zoom over the preview while leaving plain wheel free", () => {
+    render(
+      <PreviewModalStage
+        {...buildProps({
+          file: buildFilePreview("Projects/roadmap.txt", { viewer: "text", name: "roadmap.txt" })
+        })}
+      />
+    );
+
+    const scrim = document.querySelector(".preview-scrim");
+    if (!(scrim instanceof HTMLElement)) {
+      throw new Error("Expected preview scrim element.");
+    }
+
+    const zoomWheel = new WheelEvent("wheel", { bubbles: true, cancelable: true, ctrlKey: true });
+    scrim.dispatchEvent(zoomWheel);
+    expect(zoomWheel.defaultPrevented).toBe(true);
+
+    const plainWheel = new WheelEvent("wheel", { bubbles: true, cancelable: true });
+    scrim.dispatchEvent(plainWheel);
+    expect(plainWheel.defaultPrevented).toBe(false);
+  });
+
   it("registers gallery Space advance through keydown ports", () => {
     const addWindowKeydownListener = vi.fn<(listener: (event: KeyboardEvent) => void) => () => void>(() => vi.fn());
     const onNext = vi.fn();
