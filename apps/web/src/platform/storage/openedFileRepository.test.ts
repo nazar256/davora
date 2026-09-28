@@ -472,6 +472,48 @@ describe("opened-file repository", () => {
     expect(snapshot.normalCache).toEqual({ itemCount: 1, totalBytes: payload.size, limitBytes: 1024 * 1024 });
   });
 
+  it("re-interprets an index persisted at the former shipped default as following the current default", async () => {
+    const payload = new Blob([new Uint8Array(1024 * 1024)]);
+    await set(indexKey("alpha"), { version: 2, limitBytes: 4 * 1024 * 1024, files: {}, roots: {}, memberships: {} });
+
+    for (const path of ["a.txt", "b.txt", "c.txt", "d.txt", "e.txt"]) {
+      await success(await repository.writePreview(account, { file: file(path, payload), blob: payload }));
+    }
+
+    const snapshot = await success(await repository.readSnapshot(account));
+    expect(snapshot.normalCache.itemCount).toBe(5);
+    expect(snapshot.normalCache.limitBytes).toBe(Math.min(8 * 1024 * 1024 * 1024, Math.max(1024 * 1024, Math.round(DEFAULT_OPENED_FILE_CACHE_LIMIT))));
+    for (const path of ["a.txt", "b.txt", "c.txt", "d.txt", "e.txt"]) {
+      expect((await success(await repository.readPreview(account, path)))?.blob).toBeInstanceOf(Blob);
+    }
+    const stored = await get<{ limitBytes: number; limitPolicy: string }>(indexKey("alpha"));
+    expect(stored?.limitPolicy).toBe("default");
+    expect(stored?.limitBytes).toBe(snapshot.normalCache.limitBytes);
+  });
+
+  it("preserves non-default stored limits as custom policy across loads", async () => {
+    await set(indexKey("alpha"), { version: 2, limitBytes: 8 * 1024 * 1024, files: {}, roots: {}, memberships: {} });
+    const snapshot = await success(await repository.readSnapshot(account));
+    expect(snapshot.normalCache.limitBytes).toBe(8 * 1024 * 1024);
+    expect((await get<{ limitPolicy: string }>(indexKey("alpha")))?.limitPolicy).toBe("custom");
+  });
+
+  it("keeps an explicit custom policy below the current default", async () => {
+    await set(indexKey("alpha"), { version: 2, limitBytes: 1024 * 1024, limitPolicy: "custom", files: {}, roots: {}, memberships: {} });
+    expect((await success(await repository.readSnapshot(account))).normalCache.limitBytes).toBe(1024 * 1024);
+  });
+
+  it("follows the current default for default-policy indexes that stored a stale limit", async () => {
+    await set(indexKey("alpha"), { version: 2, limitBytes: 1024 * 1024, limitPolicy: "default", files: {}, roots: {}, memberships: {} });
+    const snapshot = await success(await repository.readSnapshot(account));
+    expect(snapshot.normalCache.limitBytes).toBe(Math.min(8 * 1024 * 1024 * 1024, Math.max(1024 * 1024, Math.round(DEFAULT_OPENED_FILE_CACHE_LIMIT))));
+  });
+
+  it("marks a configured limit as custom policy", async () => {
+    await success(await repository.configureNormalCacheLimit(account, 2 * 1024 * 1024));
+    expect((await get<{ limitBytes: number; limitPolicy: string }>(indexKey("alpha")))).toMatchObject({ limitBytes: 2 * 1024 * 1024, limitPolicy: "custom" });
+  });
+
   it("uses an injective V2 codec for namespaces and colon-bearing paths", async () => {
     const alphaColonPath = "beta:foo.txt";
     const alphaBeta = { accountId: "alpha-beta", cacheNamespace: "alpha:beta" };

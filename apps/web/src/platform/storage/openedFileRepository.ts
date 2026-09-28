@@ -11,11 +11,19 @@ const VERSION = 2;
 const envLimit = Number.parseInt(text(isRecord(import.meta.env) ? import.meta.env.VITE_OPENED_FILE_CACHE_LIMIT_BYTES : undefined) ?? "", 10);
 export const MIN_OPENED_FILE_CACHE_LIMIT = 1024 * 1024;
 export const MAX_OPENED_FILE_CACHE_LIMIT = 8 * 1024 * 1024 * 1024;
-export const DEFAULT_OPENED_FILE_CACHE_LIMIT = Number.isFinite(envLimit) && envLimit > 0 ? envLimit : 24 * 1024 * 1024;
+export const DEFAULT_OPENED_FILE_CACHE_LIMIT = Number.isFinite(envLimit) && envLimit > 0 ? envLimit : 512 * 1024 * 1024;
+/** Default shipped before explicit limit policies existed; used only to re-interpret legacy persisted indexes. */
+const LEGACY_DEFAULT_OPENED_FILE_CACHE_LIMIT = 4 * 1024 * 1024;
 
 type RootKind = "file" | "folder" | "batch";
 type RootStatus = "incomplete" | "complete";
 type NormalCacheOwnership = "none" | "owned";
+/**
+ * Whether the namespace limit follows the build's shipped default or a value
+ * the user configured explicitly. Legacy indexes lack the field and are
+ * re-interpreted from their stored limit.
+ */
+type LimitPolicy = "default" | "custom";
 
 export interface RetentionAccountShape {
   readonly accountId: string;
@@ -90,6 +98,7 @@ interface StoredRoot {
 interface StoredIndex {
   readonly version: typeof VERSION;
   limitBytes: number;
+  limitPolicy: LimitPolicy;
   files: Record<string, StoredFile>;
   roots: Record<string, StoredRoot>;
   memberships: Record<string, string[]>;
@@ -334,8 +343,21 @@ function derivativeKey(namespace: string, path: string): string {
   return openedFileDerivativeKey(namespace, path);
 }
 
-function emptyIndex(limitBytes = DEFAULT_OPENED_FILE_CACHE_LIMIT): StoredIndex {
-  return { version: VERSION, limitBytes: clampLimit(limitBytes), files: {}, roots: {}, memberships: {} };
+function parseLimitPolicy(value: unknown): LimitPolicy | undefined {
+  return value === "default" || value === "custom" ? value : undefined;
+}
+
+/** Indexes persisted before limit policies only carried a raw byte limit. */
+function inferLimitPolicy(limitBytes: number): LimitPolicy {
+  return clampLimit(limitBytes) === LEGACY_DEFAULT_OPENED_FILE_CACHE_LIMIT ? "default" : "custom";
+}
+
+function effectiveLimitBytes(index: StoredIndex): number {
+  return index.limitPolicy === "default" ? clampLimit(DEFAULT_OPENED_FILE_CACHE_LIMIT) : index.limitBytes;
+}
+
+function emptyIndex(limitBytes = DEFAULT_OPENED_FILE_CACHE_LIMIT, limitPolicy: LimitPolicy = "default"): StoredIndex {
+  return { version: VERSION, limitBytes: clampLimit(limitBytes), limitPolicy, files: {}, roots: {}, memberships: {} };
 }
 
 let nextSourceRevision = 1;
@@ -399,7 +421,8 @@ function parseV2(value: unknown): StoredIndex | undefined {
     const ids = [...new Set(rawRootIds.filter((id): id is string => typeof id === "string" && Boolean(roots[id])))];
     if (ids.length > 0) memberships[path] = ids.sort();
   }
-  return { version: VERSION, limitBytes: clampLimit(limitBytes), files, roots, memberships };
+  const limitPolicy = parseLimitPolicy(value.limitPolicy) ?? inferLimitPolicy(limitBytes);
+  return { version: VERSION, limitBytes: clampLimit(limitBytes), limitPolicy, files, roots, memberships };
 }
 
 function parseLegacyEntry(value: unknown): LegacyEntry | undefined {
@@ -481,7 +504,10 @@ async function migrateLegacyNamespaces(allKeys: readonly unknown[], namespaces: 
       if (scan.indexes.has(reference.namespace)) await set(blobKey(reference.namespace, reference.path), blob);
     }
   }
-  for (const [namespace, index] of scan.indexes) await set(indexKey(namespace), index);
+  for (const [namespace, index] of scan.indexes) {
+    index.limitBytes = effectiveLimitBytes(index);
+    await set(indexKey(namespace), index);
+  }
 
   if (removeLegacy) {
     const legacyKeys = allKeys.filter((key): key is string => typeof key === "string" && isLegacyCacheKey(key));
@@ -497,7 +523,7 @@ function migrateLegacy(value: unknown): StoredIndex | undefined {
   if (!isRecord(value) || !isRecord(value.entries)) return undefined;
   const limitBytes = finiteNumber(value.limitBytes);
   if (limitBytes === undefined) return undefined;
-  const index = emptyIndex(limitBytes);
+  const index = emptyIndex(limitBytes, inferLimitPolicy(limitBytes));
   for (const rawEntry of Object.values(value.entries)) {
     const entry = parseLegacyEntry(rawEntry);
     if (!entry) continue;
@@ -591,11 +617,13 @@ export function createOpenedFileRepository(): OpenedFileRepository {
     if (legacy !== undefined) await migrateLegacyNamespaces(await keys(), [namespace], false);
     if (raw !== undefined) {
       const v2 = parseV2(raw) ?? emptyIndex();
+      v2.limitBytes = effectiveLimitBytes(v2);
       await set(indexKey(namespace), v2);
       return v2;
     }
     const migrated = parseLegacyIndex(legacy);
     const index = migrated ?? emptyIndex();
+    index.limitBytes = effectiveLimitBytes(index);
     if (migrated) await set(indexKey(namespace), index);
     return index;
   }
@@ -803,6 +831,7 @@ export function createOpenedFileRepository(): OpenedFileRepository {
       try {
         const index = await load(account.cacheNamespace);
         index.limitBytes = clampLimit(limitBytes);
+        index.limitPolicy = "custom";
         return { kind: "success", value: await save(account, index) };
       } catch (error) { return failure(error); }
     }
