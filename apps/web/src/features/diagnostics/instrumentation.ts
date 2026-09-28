@@ -194,18 +194,48 @@ const wrapDiagnosticsPreviewAcquire = (
 
 const wrapDiagnosticsPreviewCache = (
   cache: PreviewCachePort,
-  commands: CommandsRef
+  commands: CommandsRef,
+  clock: DiagnosticsClock
 ): PreviewCachePort => ({
   // Bundle ports may be class instances; delegate instead of spreading so
   // prototype methods and `this` survive.
   read: async (key, abort) => {
-    const entry = await cache.read(key, abort);
+    const started = clock.nowMs();
+    let entry;
+    try {
+      entry = await cache.read(key, abort);
+    } catch (error) {
+      commands.current.record({ kind: "perf.marker", name: "preview.cache.read", durationMs: Math.round(clock.nowMs() - started), detail: "error" });
+      throw error;
+    }
+    commands.current.record({
+      kind: "perf.marker",
+      name: "preview.cache.read",
+      durationMs: Math.round(clock.nowMs() - started),
+      detail: entry ? `hit:${entry.acquisition.snapshot.source}` : "miss"
+    });
     if (entry?.acquisition.snapshot.unsupported === "heic-fallback") {
       reportHeicFallback(commands.current, entry.acquisition.snapshot.preview.unsupportedReason);
     }
     return entry;
   },
-  write: (key, acquisition, abort) => cache.write(key, acquisition, abort)
+  write: async (key, acquisition, abort) => {
+    const started = clock.nowMs();
+    let result;
+    try {
+      result = await cache.write(key, acquisition, abort);
+    } catch (error) {
+      commands.current.record({ kind: "perf.marker", name: "preview.cache.write", durationMs: Math.round(clock.nowMs() - started), detail: "error" });
+      throw error;
+    }
+    commands.current.record({
+      kind: "perf.marker",
+      name: "preview.cache.write",
+      durationMs: Math.round(clock.nowMs() - started),
+      detail: result.kind === "stored" ? `stored:${acquisition.snapshot.source}` : `skipped:${result.reason}`
+    });
+    return result;
+  }
 });
 
 export const wrapDiagnosticsPreviewSession = (
@@ -217,7 +247,7 @@ export const wrapDiagnosticsPreviewSession = (
     const bundle = base.createSessionAdapters(input);
     return {
       ...bundle,
-      cache: wrapDiagnosticsPreviewCache(bundle.cache, commands),
+      cache: wrapDiagnosticsPreviewCache(bundle.cache, commands, clock),
       live: {
         acquire: wrapDiagnosticsPreviewAcquire(
           (key, abort) => bundle.live.acquire(key, abort),

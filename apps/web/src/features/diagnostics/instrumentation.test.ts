@@ -217,12 +217,63 @@ describe("preview diagnostics instrumentation", () => {
     ).createSessionAdapters({ tokenFor: () => "token" });
 
     await wrapped.cache.read(previewKey(), previewAbort());
-    expect(spy.calls).toEqual(["event:error.reported"]);
+    expect(spy.calls).toEqual(["event:perf.marker", "event:error.reported"]);
     expect(spy.events[0]).toMatchObject({
+      kind: "perf.marker",
+      name: "preview.cache.read",
+      detail: "hit:blob"
+    });
+    expect(spy.events[1]).toMatchObject({
       kind: "error.reported",
       area: "preview",
       errorKind: "heic-decode-failed"
     });
+  });
+
+  it("records cache read misses and reads errors as perf markers", async () => {
+    const spy = commands();
+    const wrapped = wrapDiagnosticsPreviewSession(
+      { createSessionAdapters: () => previewBundle({}) },
+      { current: spy },
+      createFakeDiagnosticsClock()
+    ).createSessionAdapters({ tokenFor: () => "token" });
+
+    await wrapped.cache.read(previewKey(), previewAbort());
+    expect(spy.events).toEqual([
+      expect.objectContaining({ kind: "perf.marker", name: "preview.cache.read", detail: "miss" })
+    ]);
+  });
+
+  it("records cache read failures as perf markers and rethrows", async () => {
+    const spy = commands();
+    const wrapped = wrapDiagnosticsPreviewSession(
+      {
+        createSessionAdapters: () => previewBundle({
+          read: async () => { throw new Error("idb gone"); }
+        })
+      },
+      { current: spy },
+      createFakeDiagnosticsClock()
+    ).createSessionAdapters({ tokenFor: () => "token" });
+
+    await expect(wrapped.cache.read(previewKey(), previewAbort())).rejects.toThrow("idb gone");
+    expect(spy.events).toEqual([
+      expect.objectContaining({ kind: "perf.marker", name: "preview.cache.read", detail: "error" })
+    ]);
+  });
+
+  it("records cache write outcomes as perf markers", async () => {
+    const spy = commands();
+    const wrapped = wrapDiagnosticsPreviewSession(
+      { createSessionAdapters: () => previewBundle({}) },
+      { current: spy },
+      createFakeDiagnosticsClock()
+    ).createSessionAdapters({ tokenFor: () => "token" });
+
+    await wrapped.cache.write(previewKey(), previewAcquisition(), previewAbort());
+    expect(spy.events).toEqual([
+      expect.objectContaining({ kind: "perf.marker", name: "preview.cache.write", detail: "skipped:not-cacheable" })
+    ]);
   });
 });
 
