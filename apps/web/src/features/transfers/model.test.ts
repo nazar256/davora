@@ -161,6 +161,102 @@ describe("transfer ledger", () => {
     expect(ledger.tasks.find((task) => task.id === "partial")).toMatchObject({ phase: "partial", errorMessage: "Partial" });
   });
 
+  it("restarts a terminal task in place, clearing its failure state", () => {
+    const ledger = apply(
+      createTransferLedger(),
+      {
+        type: "enqueued",
+        at: "2026-07-17T10:00:00Z",
+        task: {
+          id: "sync-1",
+          accountId: "account-a",
+          kind: "sync",
+          label: "A",
+          dedupeKey: "root:A",
+          syncRootEntries: [{ path: "A", name: "A", isFolder: true }],
+          totalBytes: 40
+        }
+      },
+      { type: "progressReported", id: "sync-1", stage: "transferring", loadedBytes: 20, totalBytes: 40 },
+      {
+        type: "partiallyCompleted",
+        id: "sync-1",
+        at: "2026-07-17T10:01:00Z",
+        failures: [{ sourcePath: "A/bad.txt", error: "network" }],
+        message: "1 file failed",
+        loadedBytes: 20,
+        totalBytes: 40
+      },
+      {
+        type: "restarted",
+        at: "2026-07-17T10:02:00Z",
+        task: {
+          id: "sync-1",
+          accountId: "account-a",
+          kind: "sync",
+          label: "A",
+          dedupeKey: "root:A",
+          syncRootEntries: [{ path: "A", name: "A", isFolder: true }]
+        }
+      }
+    );
+
+    expect(ledger.tasks).toHaveLength(1);
+    expect(ledger.tasks[0]).toEqual({
+      id: "sync-1",
+      accountId: "account-a",
+      kind: "sync",
+      label: "A",
+      dedupeKey: "root:A",
+      syncRootEntries: [{ path: "A", name: "A", isFolder: true }],
+      loadedBytes: 0,
+      phase: "queued",
+      startedAt: "2026-07-17T10:02:00Z"
+    });
+  });
+
+  it("restarts move the task to the front and enqueue when the id is absent", () => {
+    let ledger = apply(
+      createTransferLedger(),
+      enqueueDownload("newer"),
+      enqueueDownload("failed")
+    );
+    ledger = apply(ledger, { type: "failed", id: "failed", at: "2026-07-17T10:01:00Z", message: "boom" });
+    ledger = apply(ledger, {
+      type: "restarted",
+      at: "2026-07-17T10:02:00Z",
+      task: { id: "failed", accountId: "account-a", kind: "download", label: "Download failed" }
+    });
+
+    expect(ledger.tasks.map((task) => task.id)).toEqual(["failed", "newer"]);
+    expect(ledger.tasks[0]).toMatchObject({ phase: "queued", loadedBytes: 0, startedAt: "2026-07-17T10:02:00Z" });
+    expect("errorMessage" in ledger.tasks[0]).toBe(false);
+
+    const enqueuedForMissing = apply(ledger, {
+      type: "restarted",
+      at: "2026-07-17T10:03:00Z",
+      task: { id: "ghost", accountId: "account-a", kind: "download", label: "Download ghost" }
+    });
+    expect(enqueuedForMissing.tasks[0]).toMatchObject({ id: "ghost", phase: "queued" });
+  });
+
+  it("ignores restarts for active tasks and invalid drafts", () => {
+    let ledger = apply(createTransferLedger(), enqueueDownload("active"));
+    const restartedActive = apply(ledger, {
+      type: "restarted",
+      at: "2026-07-17T10:02:00Z",
+      task: { id: "active", accountId: "account-a", kind: "download", label: "Download active" }
+    });
+    expect(restartedActive).toBe(ledger);
+
+    const invalid = apply(ledger, {
+      type: "restarted",
+      at: "2026-07-17T10:02:00Z",
+      task: { id: "", accountId: "account-a", kind: "download", label: "Download" }
+    });
+    expect(invalid).toBe(ledger);
+  });
+
   it("snapshots caller-owned sync roots and failure facts", () => {
     const roots = [{ path: "A", name: "A", isFolder: true }];
     const failure = { sourcePath: "A/private.txt", error: "Denied" };

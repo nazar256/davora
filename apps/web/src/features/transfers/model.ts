@@ -98,6 +98,7 @@ export type TransferFailureMessage = string | Readonly<Record<TransferKind, stri
 
 export type TransferEvent =
   | { readonly type: "enqueued"; readonly at: string; readonly task: TransferTaskDraft }
+  | { readonly type: "restarted"; readonly at: string; readonly task: TransferTaskDraft }
   | { readonly type: "preparationStarted"; readonly id: string; readonly loadedBytes?: number; readonly totalBytes?: number | null }
   | { readonly type: "transferStarted"; readonly id: string; readonly label?: string; readonly loadedBytes?: number; readonly totalBytes?: number | null }
   | { readonly type: "progressReported"; readonly id: string; readonly stage: "preparing" | "transferring"; readonly loadedBytes: number; readonly totalBytes?: number | null }
@@ -197,26 +198,42 @@ function withTotalBytes(task: TransferTask, totalBytes: number | null | undefine
   return { ...task, totalBytes };
 }
 
+function toQueuedTransferTask(draft: TransferTaskDraft, at: string): TransferTask {
+  return draft.kind === "sync"
+    ? {
+        ...draft,
+        syncRootEntries: draft.syncRootEntries.map((entry) => ({ ...entry })),
+        loadedBytes: draft.loadedBytes ?? 0,
+        phase: "queued",
+        startedAt: at
+      }
+    : {
+        ...draft,
+        loadedBytes: draft.loadedBytes ?? 0,
+        phase: "queued",
+        startedAt: at
+      };
+}
+
 export function reduceTransferLedger(ledger: TransferLedger, event: TransferEvent): TransferLedger {
   if (event.type === "enqueued") {
     if (!isValidTransferTaskDraft(event.task) || ledger.tasks.some((task) => task.id === event.task.id)) {
       return ledger;
     }
-    const task: TransferTask = event.task.kind === "sync"
-      ? {
-          ...event.task,
-          syncRootEntries: event.task.syncRootEntries.map((entry) => ({ ...entry })),
-          loadedBytes: event.task.loadedBytes ?? 0,
-          phase: "queued",
-          startedAt: event.at
-        }
-      : {
-          ...event.task,
-          loadedBytes: event.task.loadedBytes ?? 0,
-          phase: "queued",
-          startedAt: event.at
-        };
+    const task = toQueuedTransferTask(event.task, event.at);
     return { ...ledger, tasks: retainHistory([task, ...ledger.tasks], ledger.maxTerminal) };
+  }
+  if (event.type === "restarted") {
+    if (!isValidTransferTaskDraft(event.task)) {
+      return ledger;
+    }
+    const existing = ledger.tasks.find((task) => task.id === event.task.id);
+    if (existing && isActiveTransferTask(existing)) {
+      return ledger;
+    }
+    const task = toQueuedTransferTask(event.task, event.at);
+    const rest = ledger.tasks.filter((entry) => entry.id !== event.task.id);
+    return { ...ledger, tasks: retainHistory([task, ...rest], ledger.maxTerminal) };
   }
   if (event.type === "accountHistoryCleared") {
     const tasks = ledger.tasks.filter((task) => task.accountId !== event.accountId || isActiveTransferTask(task));

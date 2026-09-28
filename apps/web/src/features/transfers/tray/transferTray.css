@@ -310,6 +310,14 @@
   background: var(--color-accent);
 }
 
+.transfer-tray-item-error .transfer-tray-meter-bar {
+  background: var(--color-danger);
+}
+
+.transfer-tray-item-partial .transfer-tray-meter-bar {
+  background: var(--color-warning);
+}
+
 .transfer-tray-item-error,
 .transfer-tray-failure-list span {
   color: var(--color-danger);
@@ -368,6 +376,14 @@
 
 .transfer-tray-meter-bar {
   background: var(--color-accent);
+}
+
+.transfer-tray-item-error .transfer-tray-meter-bar {
+  background: var(--color-danger);
+}
+
+.transfer-tray-item-partial .transfer-tray-meter-bar {
+  background: var(--color-warning);
 }
 
 .transfer-tray-item-error,

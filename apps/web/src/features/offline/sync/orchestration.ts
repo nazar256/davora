@@ -48,6 +48,8 @@ export interface OfflineSyncConfirmInput {
   readonly accountName: string;
   readonly cacheNamespace: string;
   readonly pendingEstimate?: OfflineSyncPendingEstimate;
+  /** Terminal task being retried: requeued in place so its error clears immediately. */
+  readonly resumeTaskId?: string;
 }
 
 export async function runOfflineSyncOpenOrchestration(
@@ -153,9 +155,9 @@ export async function runOfflineSyncConfirmOrchestration(
     }
   }
 
-  const transferId = ports.transfers.createId();
+  const transferId = input.resumeTaskId ?? ports.transfers.createId();
   ports.presentation.setBusy(true);
-  ports.transfers.enqueue({
+  const transferDraft = {
     id: transferId,
     accountId,
     label: rootName,
@@ -166,7 +168,12 @@ export async function runOfflineSyncConfirmOrchestration(
       isFolder: entry.isFolder
     })),
     dedupeKey
-  });
+  };
+  if (input.resumeTaskId === undefined) {
+    ports.transfers.enqueue(transferDraft);
+  } else {
+    ports.transfers.requeue(transferDraft);
+  }
   ports.presentation.setDialog(undefined);
   ports.presentation.setBusy(false);
   ports.transfers.openTray();

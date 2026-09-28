@@ -64,6 +64,7 @@ function createPorts(): OfflineSyncPorts {
     transfers: {
       createId: vi.fn(() => "transfer-1"),
       enqueue: vi.fn(),
+      requeue: vi.fn(),
       beginPreparation: vi.fn(),
       beginTransfer: vi.fn(),
       reportProgress: vi.fn(),
@@ -211,7 +212,7 @@ describe("useOfflineSync", () => {
     expect(estimateCall?.[1]?.signal).toBeInstanceOf(AbortSignal);
   });
 
-  it("retries failed sync entries for the active account", async () => {
+  it("retries a failed sync directly without opening the confirmation dialog", async () => {
     const ports = createPorts();
     const context = createOperationContextToken();
     const { result } = renderHook(() => useOfflineSync({
@@ -249,7 +250,79 @@ describe("useOfflineSync", () => {
       await Promise.resolve();
     });
 
-    expect(ports.open.presentation.setDialog).toHaveBeenCalled();
+    expect(ports.open.presentation.setDialog).not.toHaveBeenCalled();
+    expect(result.current.dialog).toBeUndefined();
+    expect(ports.confirm.transfers.requeue).toHaveBeenCalledWith(expect.objectContaining({
+      id: "sync-1",
+      accountId: "alpha",
+      label: "roadmap.txt",
+      dedupeKey: "sync:Projects/roadmap.txt",
+      syncRootEntries: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false }]
+    }));
+    expect(ports.confirm.transfers.enqueue).not.toHaveBeenCalled();
+    expect(ports.confirm.transfers.openTray).toHaveBeenCalled();
+    await waitFor(() => expect(ports.confirm.retention.beginRoot).toHaveBeenCalled());
+  });
+
+  it("rejects a failed-sync retry without a session and keeps the dialog closed", async () => {
+    const ports = createPorts();
+    const context = createOperationContextToken();
+    const { result } = renderHook(() => useOfflineSync(createInput(ports, context, {
+      hasSession: () => false,
+      getAccountId: () => "alpha"
+    })));
+
+    await act(async () => {
+      result.current.retryFailedOfflineSync({
+        id: "sync-1",
+        accountId: "alpha",
+        kind: "sync",
+        label: "roadmap.txt",
+        dedupeKey: "sync:Projects/roadmap.txt",
+        syncRootEntries: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false }],
+        loadedBytes: 0,
+        startedAt: "2026-07-21T10:00:00.000Z",
+        phase: "error",
+        finishedAt: "2026-07-21T10:00:01.000Z",
+        errorMessage: "sync failed",
+        failedFiles: [{ sourcePath: "Projects/roadmap.txt", error: "network" }]
+      });
+      await Promise.resolve();
+    });
+
+    expect(ports.confirm.presentation.reportListError).toHaveBeenCalledWith(new Error(OFFLINE_SYNC_NO_SESSION_MESSAGE));
+    expect(ports.confirm.transfers.requeue).not.toHaveBeenCalled();
+    expect(ports.open.presentation.setDialog).not.toHaveBeenCalled();
+  });
+
+  it("rejects a failed-sync retry while offline-cache mode is blocked", async () => {
+    const ports = createPorts();
+    const context = createOperationContextToken();
+    const { result } = renderHook(() => useOfflineSync(createInput(ports, context, {
+      isCacheOnlyBlocked: () => true,
+      isOffline: () => true
+    })));
+
+    await act(async () => {
+      result.current.retryFailedOfflineSync({
+        id: "sync-1",
+        accountId: "alpha",
+        kind: "sync",
+        label: "roadmap.txt",
+        dedupeKey: "sync:Projects/roadmap.txt",
+        syncRootEntries: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false }],
+        loadedBytes: 0,
+        startedAt: "2026-07-21T10:00:00.000Z",
+        phase: "partial",
+        finishedAt: "2026-07-21T10:00:01.000Z",
+        errorMessage: "1 file failed to sync.",
+        failedFiles: [{ sourcePath: "Projects/roadmap.txt", error: "network" }]
+      });
+      await Promise.resolve();
+    });
+
+    expect(ports.confirm.presentation.reportListError).toHaveBeenCalled();
+    expect(ports.confirm.transfers.requeue).not.toHaveBeenCalled();
   });
 
   it("rejects a late estimate from a reopened dialog in the same context", async () => {

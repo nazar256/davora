@@ -22,16 +22,20 @@ export interface OfflineSyncRegistryPort {
   }): OfflineSyncRequestScope | undefined;
 }
 
+export interface OfflineSyncTransferEnqueueInput {
+  readonly id: string;
+  readonly accountId: string;
+  readonly label: string;
+  readonly totalBytes?: number;
+  readonly syncRootEntries: readonly { readonly path: string; readonly name: string; readonly isFolder: boolean }[];
+  readonly dedupeKey: string;
+}
+
 export interface OfflineSyncTransferPort {
   createId(): string;
-  enqueue(input: {
-    readonly id: string;
-    readonly accountId: string;
-    readonly label: string;
-    readonly totalBytes?: number;
-    readonly syncRootEntries: readonly { readonly path: string; readonly name: string; readonly isFolder: boolean }[];
-    readonly dedupeKey: string;
-  }): void;
+  enqueue(input: OfflineSyncTransferEnqueueInput): void;
+  /** Requeue a terminal task in place (clears its error/failure state); enqueues when absent. */
+  requeue(input: OfflineSyncTransferEnqueueInput): void;
   beginPreparation(id: string, progress?: { readonly loadedBytes?: number; readonly totalBytes?: number | null }): void;
   beginTransfer(
     id: string,

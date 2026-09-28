@@ -963,9 +963,9 @@ describe("offline application App integration", () => {
     const transferStatus = await screen.findByRole("dialog", { name: /Transfer status/i });
     fireEvent.click(within(transferStatus).getByRole("button", { name: /Retry failed sync/i }));
 
-    const retryDialog = await screen.findByRole("dialog", { name: /Keep offline confirmation/i });
-    fireEvent.click(within(retryDialog).getByRole("button", { name: /Start sync/i }));
-
+    expect(screen.queryByRole("dialog", { name: /Keep offline confirmation/i })).not.toBeInTheDocument();
+    await waitFor(() => expect(within(transferStatus).queryByRole("button", { name: /Retry failed sync/i })).not.toBeInTheDocument());
+    await waitFor(() => expect(transferStatus.querySelector(".transfer-tray-failure-list")).toBeNull());
     await waitFor(() => expectRetainedFilePersisted("Projects/roadmap.txt"));
   });
 
@@ -1038,16 +1038,12 @@ describe("offline application App integration", () => {
     expect(within(transferStatus).getByText("Projects/bad.pdf")).toBeInTheDocument();
     fireEvent.click(within(transferStatus).getByRole("button", { name: /Retry failed sync/i }));
 
-    const retryDialog = await screen.findByRole("dialog", { name: /Keep offline confirmation/i });
-    await waitFor(() => expect(within(retryDialog).getByText("Projects")).toBeInTheDocument());
-    expect(within(retryDialog).getByText(/Synced recursively/i)).toBeInTheDocument();
-    expect(within(retryDialog).getByText("2")).toBeInTheDocument();
-    expect(within(retryDialog).queryByText("bad.pdf")).not.toBeInTheDocument();
-
-    fireEvent.click(within(retryDialog).getByRole("button", { name: /Start sync/i }));
+    expect(screen.queryByRole("dialog", { name: /Keep offline confirmation/i })).not.toBeInTheDocument();
+    await waitFor(() => expect(within(transferStatus).queryByText("Projects/bad.pdf")).not.toBeInTheDocument());
 
     await waitFor(() => expectRetainedFilePersisted("Projects/bad.pdf"));
-    expect(mockedRetentionRepository.beginRoot).toHaveBeenCalledWith(retentionAccountFor(account), expect.objectContaining({ rootPath: "Projects", kind: "folder" }));
+    expect(mockedRetentionRepository.beginRoot).toHaveBeenCalledTimes(2);
+    expect(mockedRetentionRepository.beginRoot).toHaveBeenLastCalledWith(retentionAccountFor(account), expect.objectContaining({ rootPath: "Projects", kind: "folder" }));
   });
 
   it("clears normal cache without removing explicitly kept-offline copies", async () => {

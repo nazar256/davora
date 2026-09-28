@@ -33,17 +33,20 @@ export interface OfflineSyncRegistrySource {
   } | undefined;
 }
 
+export interface OfflineSyncTransferDraftInput {
+  readonly id: string;
+  readonly accountId: string;
+  readonly kind: "sync";
+  readonly label: string;
+  readonly totalBytes?: number;
+  readonly syncRootEntries: readonly { readonly path: string; readonly name: string; readonly isFolder: boolean }[];
+  readonly dedupeKey: string;
+}
+
 export interface OfflineSyncTransferSource {
   createId(): string;
-  enqueue(input: {
-    readonly id: string;
-    readonly accountId: string;
-    readonly kind: "sync";
-    readonly label: string;
-    readonly totalBytes?: number;
-    readonly syncRootEntries: readonly { readonly path: string; readonly name: string; readonly isFolder: boolean }[];
-    readonly dedupeKey: string;
-  }): void;
+  enqueue(input: OfflineSyncTransferDraftInput): void;
+  requeue(input: OfflineSyncTransferDraftInput): void;
   beginPreparation(id: string, progress?: { readonly loadedBytes?: number; readonly totalBytes?: number | null }): void;
   beginTransfer(id: string, details?: { readonly loadedBytes?: number; readonly totalBytes?: number | null }): void;
   reportProgress(id: string, phase: "transferring", loadedBytes: number, totalBytes?: number | null): void;
@@ -206,6 +209,17 @@ export function createOfflineSyncPorts(input: CreateOfflineSyncPortsInput): Offl
           totalBytes: enqueueInput.totalBytes,
           syncRootEntries: enqueueInput.syncRootEntries,
           dedupeKey: enqueueInput.dedupeKey
+        });
+      },
+      requeue: (requeueInput) => {
+        input.transfers.requeue({
+          id: requeueInput.id,
+          accountId: requeueInput.accountId,
+          kind: "sync",
+          label: requeueInput.label,
+          totalBytes: requeueInput.totalBytes,
+          syncRootEntries: requeueInput.syncRootEntries,
+          dedupeKey: requeueInput.dedupeKey
         });
       },
       beginPreparation: (id, progress) => {

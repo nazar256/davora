@@ -149,6 +149,11 @@ const transferEventArb: fc.Arbitrary<TransferEvent> = fc.oneof(
     at,
     task
   })),
+  fc.record({ at: atArb, task: taskDraftArb }).map(({ at, task }) => ({
+    type: "restarted" as const,
+    at,
+    task
+  })),
   perIdEventArb,
   fc.record({
     accountId: accountArb,

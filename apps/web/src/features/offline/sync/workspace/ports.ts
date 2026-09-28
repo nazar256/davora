@@ -38,7 +38,7 @@ export interface OfflineSyncWorkspaceRetention {
 }
 
 export interface OfflineSyncWorkspaceTransfers {
-  readonly controller: Pick<TransfersController, "enqueue" | "beginPreparation" | "beginTransfer" | "reportProgress" | "reportFailure" | "complete" | "completePartial" | "fail">;
+  readonly controller: Pick<TransfersController, "enqueue" | "requeue" | "beginPreparation" | "beginTransfer" | "reportProgress" | "reportFailure" | "complete" | "completePartial" | "fail">;
   readonly tasks: readonly TransferTask[];
 }
 

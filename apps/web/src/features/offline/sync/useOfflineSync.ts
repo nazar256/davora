@@ -218,10 +218,9 @@ export function useOfflineSync(input: UseOfflineSyncInput) {
     }, orchestrationPorts);
   }, [setAttemptDialog, updateAttemptDialog]);
 
-  const confirmOfflineSync = useCallback(async () => {
+  const startConfirmedSync = useCallback(async (dialog: OfflineSyncDialogSnapshot, resumeTaskId?: string) => {
     const current = inputRef.current;
-    const dialog = inputRef.current ? dialogStateRef.current : undefined;
-    if (!dialog || !current.isCurrentOperationHandler()
+    if (!current.isCurrentOperationHandler()
       || !current.isCurrentOperationContext(dialog.context)
       || !current.hasSession()
       || !current.getCacheNamespace()
@@ -272,7 +271,8 @@ export function useOfflineSync(input: UseOfflineSyncInput) {
         accountId,
         accountName: current.getAccountName(),
         cacheNamespace: current.getCacheNamespace()!,
-        ...(pendingEstimate === undefined ? {} : { pendingEstimate })
+        ...(pendingEstimate === undefined ? {} : { pendingEstimate }),
+        ...(resumeTaskId === undefined ? {} : { resumeTaskId })
       }, orchestrationPorts);
     } finally {
       if (confirmInFlightRef.current === attempt) {
@@ -280,6 +280,14 @@ export function useOfflineSync(input: UseOfflineSyncInput) {
       }
     }
   }, [isAttemptCurrent]);
+
+  const confirmOfflineSync = useCallback(async () => {
+    const dialog = dialogStateRef.current;
+    if (!dialog) {
+      return;
+    }
+    await startConfirmedSync(dialog);
+  }, [startConfirmedSync]);
 
   const retryFailedOfflineSync = useCallback((task: TransferTask) => {
     const current = inputRef.current;
@@ -299,13 +307,28 @@ export function useOfflineSync(input: UseOfflineSyncInput) {
       isFolder: false
     } satisfies FileEntry)) ?? [];
     const accountId = current.getAccountId();
-    if (retryEntries.length > 0
-      && accountId
-      && retryTask.accountId === accountId
-      && current.isOperationAllowed({ kind: "keepOffline", count: retryEntries.length })) {
-      void openOfflineSyncDialog(retryEntries);
+    if (retryEntries.length === 0 || !accountId || retryTask.accountId !== accountId) {
+      return;
     }
-  }, [openOfflineSyncDialog]);
+    if (!current.hasSession()) {
+      current.ports.confirm.presentation.reportListError(new Error(OFFLINE_SYNC_NO_SESSION_MESSAGE));
+      return;
+    }
+    if (current.isCacheOnlyBlocked()) {
+      current.ports.confirm.presentation.reportListError(new Error(buildOfflineSyncBlockedMessage(current.isOffline())));
+      return;
+    }
+    if (!current.isOperationAllowed({ kind: "keepOffline", count: retryEntries.length })) {
+      return;
+    }
+    const resumeDialog: OfflineSyncDialogSnapshot = {
+      context: current.getOperationContextToken(),
+      entries: toEntrySnapshots(retryEntries),
+      archiveInput: current.resolveArchiveInput(retryEntries),
+      phase: "unknown"
+    };
+    void startConfirmedSync(resumeDialog, task.id);
+  }, [startConfirmedSync]);
 
   const dismiss = useCallback(() => {
     invalidate();

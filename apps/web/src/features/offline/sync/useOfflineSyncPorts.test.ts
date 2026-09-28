@@ -50,6 +50,7 @@ function createInput(overrides: Partial<CreateOfflineSyncPortsInput> = {}): Crea
     transfers: {
       createId: vi.fn(() => "transfer-1"),
       enqueue: vi.fn(),
+      requeue: vi.fn(),
       beginPreparation: vi.fn(),
       beginTransfer: vi.fn(),
       reportProgress: vi.fn(),

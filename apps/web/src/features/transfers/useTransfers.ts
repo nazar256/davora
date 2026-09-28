@@ -15,6 +15,9 @@ export function useTransfers(clock: TransferClock) {
   const enqueue = useCallback((task: TransferTaskDraft) => {
     dispatch({ type: "enqueued", task, at: clock.nowIso() });
   }, [clock]);
+  const requeue = useCallback((task: TransferTaskDraft) => {
+    dispatch({ type: "restarted", task, at: clock.nowIso() });
+  }, [clock]);
   const beginPreparation = useCallback((id: string, progress: { readonly loadedBytes?: number; readonly totalBytes?: number | null } = {}) => {
     dispatch({ type: "preparationStarted", id, ...progress });
   }, []);
@@ -55,6 +58,7 @@ export function useTransfers(clock: TransferClock) {
   return {
     tasks: ledger.tasks,
     enqueue,
+    requeue,
     beginPreparation,
     beginTransfer,
     reportProgress,

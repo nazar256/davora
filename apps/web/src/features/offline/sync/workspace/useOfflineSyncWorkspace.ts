@@ -35,6 +35,7 @@ function createWorkspacePorts(input: OfflineSyncWorkspaceInput): OfflineSyncPort
     transfers: {
       createId: runtime.createTransferId,
       enqueue: input.transfers.controller.enqueue,
+      requeue: input.transfers.controller.requeue,
       beginPreparation: input.transfers.controller.beginPreparation,
       beginTransfer: input.transfers.controller.beginTransfer,
       reportProgress: input.transfers.controller.reportProgress,

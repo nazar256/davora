@@ -734,12 +734,9 @@ describe("AppBar App integration", () => {
       (trayProps.onToggleOpen as () => void)();
       (trayProps.onRetryFailedSync as (task: TransferTask) => void)(retryTask);
     });
-    await waitFor(() => expect(retryDialogCount()).toBeGreaterThan(beforeRetryDialogs));
-    const retryDialog = [...appShellCapture.history].reverse().find((entry) => entry.kind === "workspace" && entry.overlays.offlineSync.open);
-    if (retryDialog?.kind === "workspace") expect(retryDialog.overlays.offlineSync.selectionLabel).toContain(retryTask.failedFiles?.[0]?.sourcePath.split("/").pop() ?? "");
-    if (screen.queryByRole("dialog", { name: /Keep offline confirmation/i })) {
-      fireEvent.click(within(screen.getByRole("dialog", { name: /Keep offline confirmation/i })).getByRole("button", { name: /Cancel/i }));
-    }
+    await waitFor(() => expect(mockedApi.fetchDownloadBlob).toHaveBeenCalledTimes(2));
+    expect(retryDialogCount()).toBe(beforeRetryDialogs);
+    expect(screen.queryByRole("dialog", { name: /Keep offline confirmation/i })).not.toBeInTheDocument();
     const beforeClearTaskCount = (([...appShellCapture.history].reverse().find((entry) => entry.kind === "workspace") as Extract<AppShellProps, { kind: "workspace" }>).common.appBar.transferTray);
     expect(isValidElement(beforeClearTaskCount)).toBe(true);
     if (isValidElement(beforeClearTaskCount)) {
