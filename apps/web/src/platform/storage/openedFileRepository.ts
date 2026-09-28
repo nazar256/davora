@@ -645,7 +645,7 @@ export function createOpenedFileRepository(): OpenedFileRepository {
       const v2 = parseV2(raw);
       if (v2 === undefined) {
         const repaired = emptyIndex();
-        await set(indexKey(namespace), repaired);
+        void set(indexKey(namespace), repaired).catch(() => {});
         return repaired;
       }
       const effective = effectiveLimitBytes(v2);
@@ -660,14 +660,17 @@ export function createOpenedFileRepository(): OpenedFileRepository {
         || !isRecord(raw.memberships) || Object.keys(raw.memberships).length !== Object.keys(v2.memberships).length;
       v2.limitBytes = effective;
       if (await backfillReadable(namespace, v2)) dirty = true;
-      if (dirty) await set(indexKey(namespace), v2);
+      // Self-healing persists (repair/normalization/backfill) are detached:
+      // every one re-derives from stored state on the next load, so a stalled
+      // write queue must never hold a read on the interactive path.
+      if (dirty) void set(indexKey(namespace), v2).catch(() => {});
       return v2;
     }
     const migrated = parseLegacyIndex(legacy);
     const index = migrated ?? emptyIndex();
     index.limitBytes = effectiveLimitBytes(index);
     await backfillReadable(namespace, index);
-    if (migrated) await set(indexKey(namespace), index);
+    if (migrated) void set(indexKey(namespace), index).catch(() => {});
     return index;
   }
 
@@ -710,7 +713,8 @@ export function createOpenedFileRepository(): OpenedFileRepository {
         ]);
         if (storedDerivative !== undefined && !(derivativeBlob instanceof Blob)) {
           delete file.derivative;
-          await del(derivativeKey(account.cacheNamespace, path));
+          // Best-effort cleanup: a stalled write must never block a read.
+          void del(derivativeKey(account.cacheNamespace, path)).catch(() => {});
           needsIndexWrite = true;
         } else if (storedDerivative !== undefined) {
           const derivativeAccessedMs = Date.parse(storedDerivative.lastAccessedAt);
@@ -719,7 +723,11 @@ export function createOpenedFileRepository(): OpenedFileRepository {
             needsIndexWrite = true;
           }
         }
-        if (needsIndexWrite) await set(indexKey(account.cacheNamespace), index);
+        // LRU metadata and self-healing backfills are best-effort writes: all
+        // idempotent and re-derived on the next read, so they are detached —
+        // under write contention a queued readwrite transaction can stall
+        // indefinitely and must never hold an interactive open.
+        if (needsIndexWrite) void set(indexKey(account.cacheNamespace), index).catch(() => {});
         return { kind: "success", value: {
           file: immutable({ ...file, readable: blob instanceof Blob }),
           ...(blob instanceof Blob ? { blob } : {}),
