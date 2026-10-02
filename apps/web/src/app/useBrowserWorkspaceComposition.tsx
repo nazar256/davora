@@ -16,6 +16,7 @@ import { useWorkspaceStatus } from "../features/workspace";
 import { useSettingsPreferencesWorkspace } from "../features/settings";
 import {
   closedChromeSurfaces,
+  useFolderScrollMemory,
   useWorkspaceNavigation,
   useNavigationSurfaceWorkspace,
   useResponsiveViewport,
@@ -576,6 +577,11 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
       environment: services.pullToRefreshEnvironment,
       refreshPath: folderLoadCoordination.loadFolder
     }
+  });
+  useFolderScrollMemory({
+    fileListRef: navigationSurfaceWorkspace.pullToRefresh.fileListRef,
+    viewKey: JSON.stringify([activeAccount?.id ?? "", currentPath, searchActive ? browsingQuery.raw : null]),
+    listReady: visibleItems.length > 0
   });
   const wakeLock = useWakeLock({
     keepAwakeEnabled: uiSettings.keepAwakeEnabled,

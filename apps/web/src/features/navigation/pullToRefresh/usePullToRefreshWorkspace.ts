@@ -1,4 +1,4 @@
-import { useRef, type ComponentProps, type Ref } from "react";
+import { useRef, type ComponentProps, type RefObject } from "react";
 
 import type { OpenSurfacesSnapshot } from "../model";
 import { usePullToRefresh } from "./usePullToRefresh";
@@ -28,7 +28,7 @@ export interface PullToRefreshShellBinding {
 
 export interface PullToRefreshWorkspace {
   readonly shell: PullToRefreshShellBinding;
-  readonly fileListRef: Ref<HTMLElement>;
+  readonly fileListRef: RefObject<HTMLElement>;
 }
 
 export function usePullToRefreshWorkspace(input: PullToRefreshWorkspaceInput): PullToRefreshWorkspace {

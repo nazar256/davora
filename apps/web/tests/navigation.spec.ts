@@ -350,3 +350,77 @@ test("breadcrumbs use a home root with slash separators and replace redundant na
   await breadcrumbs.getByRole("button", { name: /Go to home folder/i }).click();
   await expect(page.getByRole("button", { name: /Open folder Projects/i })).toBeVisible();
 });
+
+test("restores each folder's scroll position when navigating back through nested folders", async ({ page }) => {
+  const padFolders = (parent: string, prefix: string) =>
+    Array.from({ length: 28 }, (_, index) => ({
+      path: `${parent}${prefix}${String(index).padStart(2, "0")}`,
+      name: `${prefix}${String(index).padStart(2, "0")}`,
+      isFolder: true
+    }));
+  await page.route("**/api/files?**", async (route) => {
+    const path = new URL(route.request().url()).searchParams.get("path") ?? "";
+    if (path === "zzz-alpha") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            path,
+            items: [
+              ...padFolders("zzz-alpha/", "sub-"),
+              { path: "zzz-alpha/zz-inner", name: "zz-inner", isFolder: true }
+            ]
+          }
+        })
+      });
+      return;
+    }
+    if (path !== "") {
+      await route.fallback();
+      return;
+    }
+    const response = await route.fetch();
+    const body = await response.json();
+    body.data.items = [
+      ...body.data.items,
+      ...padFolders("", "pad-"),
+      { path: "zzz-alpha", name: "zzz-alpha", isFolder: true }
+    ];
+    await route.fulfill({ response, body: JSON.stringify(body) });
+  });
+
+  await connectAccount(page, "Scroll memory workspace");
+  const panel = page.locator(".file-list-panel");
+  const scrollTop = () => panel.evaluate((element) => element.scrollTop);
+  const scrollToBottom = async () => {
+    await panel.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+      element.dispatchEvent(new Event("scroll", { bubbles: true }));
+    });
+  };
+
+  await expect(page.getByRole("button", { name: "Open folder zzz-alpha", exact: true })).toBeVisible();
+  await scrollToBottom();
+  const rootScroll = await scrollTop();
+  expect(rootScroll).toBeGreaterThan(0);
+
+  await page.getByRole("button", { name: "Open folder zzz-alpha", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Open folder zz-inner", exact: true })).toBeVisible();
+  expect(await scrollTop()).toBe(0);
+
+  await scrollToBottom();
+  const alphaScroll = await scrollTop();
+  expect(alphaScroll).toBeGreaterThan(0);
+
+  await page.getByRole("button", { name: "Open folder zz-inner", exact: true }).click();
+  await expect(page).toHaveURL(/path=zzz-alpha%2Fzz-inner/);
+
+  await page.goBack();
+  await expect(page.getByRole("button", { name: "Open folder zz-inner", exact: true })).toBeVisible();
+  await expect.poll(async () => Math.abs((await scrollTop()) - alphaScroll)).toBeLessThan(64);
+
+  await page.goBack();
+  await expect(page.getByRole("button", { name: "Open folder zzz-alpha", exact: true })).toBeVisible();
+  await expect.poll(async () => Math.abs((await scrollTop()) - rootScroll)).toBeLessThan(64);
+});
