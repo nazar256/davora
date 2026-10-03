@@ -146,7 +146,7 @@ export function useDestinationPicker(input: UseDestinationPickerInput) {
           return previous;
         }
         if (outcome.kind === "success") {
-          return applyDestinationListingSuccess(previous, outcome.entries);
+          return applyDestinationListingSuccess(previous, outcome.entries, outcome.completeness);
         }
         if (outcome.kind === "error") {
           return { ...previous, entries: [], loading: false, error: outcome.message };

@@ -23,19 +23,30 @@ function folder(path: string): FileEntry {
 }
 
 describe("buildBatchDownloadPlan", () => {
+  it("rejects an unverified folder listing before planning any archive files", async () => {
+    const fetchFile = vi.fn();
+
+    await expect(buildBatchDownloadPlan({
+      roots: [{ entry: folder("Archive"), archiveRoot: "Archive" }],
+      archiveLabel: "home",
+      listFiles: async () => ({ items: [file("Archive/visible.txt")], completeness: "partial" as const })
+    })).rejects.toThrow(/complete folder listing/i);
+    expect(fetchFile).not.toHaveBeenCalled();
+  });
+
   it("expands folders and keeps mixed current-folder selections together in one archive", async () => {
     const listFiles = vi.fn(async (path: string) => {
       if (path === "Archive") {
-        return {
+        return { completeness: "complete" as const,
           items: [file("Archive/photo.png", 5), folder("Archive/docs")]
         };
       }
       if (path === "Archive/docs") {
-        return {
+        return { completeness: "complete" as const,
           items: [file("Archive/docs/readme.txt", 7)]
         };
       }
-      return { items: [] };
+      return { completeness: "complete" as const, items: [] };
     });
 
     const plan = await buildBatchDownloadPlan({
@@ -56,7 +67,7 @@ describe("buildBatchDownloadPlan", () => {
   });
 
   it("drops descendant duplicates when a selected folder already covers them", async () => {
-    const listFiles = vi.fn(async () => ({ items: [file("Projects/roadmap.txt", 2)] }));
+    const listFiles = vi.fn(async () => ({ completeness: "complete" as const, items: [file("Projects/roadmap.txt", 2)] }));
 
     const plan = await buildBatchDownloadPlan({
       roots: [{ entry: folder("Projects"), archiveRoot: "Projects" }, { entry: file("Projects/roadmap.txt", 2), archiveRoot: "Projects/roadmap.txt" }],
@@ -72,7 +83,7 @@ describe("buildBatchDownloadPlan", () => {
     const plan = await buildBatchDownloadPlan({
       roots: [{ entry: file("Projects/roadmap.txt", 2), archiveRoot: "Projects/roadmap.txt" }],
       archiveLabel: "search-results",
-      listFiles: async () => ({ items: [] })
+      listFiles: async () => ({ completeness: "complete" as const, items: [] })
     });
 
     expect(plan.archiveName).toBe("projects-roadmap.txt.zip");
@@ -86,7 +97,7 @@ describe("buildBatchDownloadPlan", () => {
         { entry: file("Archive/report.txt", 3), archiveRoot: "Archive/report.txt" }
       ],
       archiveLabel: "search-results",
-      listFiles: async () => ({ items: [] })
+      listFiles: async () => ({ completeness: "complete" as const, items: [] })
     });
 
     expect(plan.archiveName).toBe("davora-search-results-download.zip");
@@ -96,7 +107,7 @@ describe("buildBatchDownloadPlan", () => {
 
 describe("downloadSelectionAsZip", () => {
   it("continues downloading after a single file fails and reports the failure", async () => {
-    const listFiles = vi.fn(async () => ({ items: [] }));
+    const listFiles = vi.fn(async () => ({ completeness: "complete" as const, items: [] }));
     const fetchFile = vi.fn(async (path: string) => {
       if (path === "alpha.txt") {
         throw new Error("Permission denied");
@@ -121,11 +132,11 @@ describe("downloadSelectionAsZip", () => {
   it("continues downloading recursive folder siblings after one child fails", async () => {
     const listFiles = vi.fn(async (path: string) => {
       if (path === "Documents") {
-        return {
+        return { completeness: "complete" as const,
           items: [file("Documents/good.txt", 2), file("Documents/bad%file.txt", 3)]
         };
       }
-      return { items: [] };
+      return { completeness: "complete" as const, items: [] };
     });
     const fetchFile = vi.fn(async (path: string) => {
       if (path === "Documents/bad%file.txt") {
@@ -160,7 +171,7 @@ describe("downloadSelectionAsZip", () => {
     const { plan } = await downloadSelectionAsZip({
       roots: [{ entry: file("a.txt", 1), archiveRoot: "a.txt" }, { entry: file("b.txt", 2), archiveRoot: "b.txt" }],
       archiveLabel: "home",
-      listFiles: async () => ({ items: [] }),
+      listFiles: async () => ({ completeness: "complete" as const, items: [] }),
       fetchFile
     });
 
@@ -175,11 +186,26 @@ describe("downloadSelectionAsZip", () => {
     const { plan } = await downloadSelectionAsZip({
       roots: [{ entry: file("ok.txt", 5), archiveRoot: "ok.txt" }],
       archiveLabel: "home",
-      listFiles: async () => ({ items: [] }),
+      listFiles: async () => ({ completeness: "complete" as const, items: [] }),
       fetchFile
     });
 
     expect(plan.failedFiles).toHaveLength(0);
     expect(fetchFile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("incomplete recursive listings", () => {
+  it.each(["partial", "unknown"] as const)("rejects nested %s listings before any ZIP body fetch", async (completeness) => {
+    const fetchFile = vi.fn();
+    const onPlanReady = vi.fn();
+    await expect(downloadSelectionAsZip({
+      roots: [{ entry: folder("Archive"), archiveRoot: "Archive" }], archiveLabel: "home", fetchFile, onPlanReady,
+      listFiles: async (path) => path === "Archive"
+        ? { completeness: "complete", items: [file("Archive/visible.txt"), folder("Archive/nested")] }
+        : { completeness, items: [] }
+    })).rejects.toThrow(/complete folder listing/i);
+    expect(fetchFile).not.toHaveBeenCalled();
+    expect(onPlanReady).not.toHaveBeenCalled();
   });
 });

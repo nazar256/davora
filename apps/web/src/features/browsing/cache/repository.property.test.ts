@@ -93,8 +93,8 @@ describe("browsing cache repository properties", () => {
         const bFolder = [folderItem(path, "b")];
         const aSearch = [searchItem(path, "a", 10)];
         const bSearch = [searchItem(path, "b", 20)];
-        expect(repository.writeFolder(namespaceA, path, aFolder)).toEqual({ kind: "written" });
-        expect(repository.writeFolder(namespaceB, path, bFolder)).toEqual({ kind: "written" });
+        expect(repository.writeFolder(namespaceA, path, aFolder, "complete")).toEqual({ kind: "written" });
+        expect(repository.writeFolder(namespaceB, path, bFolder, "complete")).toEqual({ kind: "written" });
         expect(repository.writeSearch(namespaceA, path, query, aSearch)).toEqual({ kind: "written" });
         expect(repository.writeSearch(namespaceB, path, query, bSearch)).toEqual({ kind: "written" });
         const bKeys = [folderCacheKey(namespaceB, path), searchCacheKey(namespaceB, path, query)];
@@ -104,7 +104,7 @@ describe("browsing cache repository properties", () => {
 
         expect(repository.readFolder(namespaceA, path)).toEqual({ kind: "miss" });
         expect(repository.readSearch(namespaceA, path, query)).toEqual({ kind: "miss" });
-        expect(repository.readFolder(namespaceB, path)).toEqual({ kind: "hit", cachedAt: "2026-09-01T00:00:00.000Z", items: bFolder });
+        expect(repository.readFolder(namespaceB, path)).toEqual({ completeness: "complete" as const, kind: "hit", cachedAt: "2026-09-01T00:00:00.000Z", items: bFolder });
         expect(repository.readSearch(namespaceB, path, query)).toEqual({ kind: "hit", items: bSearch });
         expect(bKeys.map((key) => values.get(key))).toEqual(bValuesBefore);
       }),
@@ -119,10 +119,10 @@ describe("browsing cache repository properties", () => {
         const repository = createRepository(storage);
         const descendant = `${scope}/child`;
         const peer = `${scope}-peer`;
-        repository.writeFolder(namespaceA, scope, [folderItem(scope, "root")]);
-        repository.writeFolder(namespaceA, descendant, [folderItem(descendant, "child")]);
-        repository.writeFolder(namespaceA, peer, [folderItem(peer, "peer")]);
-        repository.writeFolder(namespaceB, scope, [folderItem(scope, "foreign")]);
+        repository.writeFolder(namespaceA, scope, [folderItem(scope, "root")], "complete");
+        repository.writeFolder(namespaceA, descendant, [folderItem(descendant, "child")], "complete");
+        repository.writeFolder(namespaceA, peer, [folderItem(peer, "peer")], "complete");
+        repository.writeFolder(namespaceB, scope, [folderItem(scope, "foreign")], "complete");
 
         expect(repository.clearFolderPath(namespaceA, scope)).toEqual({ kind: "cleared" });
         expect(repository.readFolder(namespaceA, scope)).toEqual({ kind: "miss" });
@@ -148,7 +148,7 @@ describe("browsing cache repository properties", () => {
           const foldersBefore = structuredClone(folders);
           const searchesBefore = structuredClone(searches);
 
-          expect(repository.writeFolder("owner", path, folders)).toEqual({ kind: "written" });
+          expect(repository.writeFolder("owner", path, folders, "complete")).toEqual({ kind: "written" });
           expect(repository.writeSearch("owner", path, query, searches)).toEqual({ kind: "written" });
           expect(folders).toEqual(foldersBefore);
           expect(searches).toEqual(searchesBefore);

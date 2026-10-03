@@ -5,7 +5,7 @@ import type { HistoryPort, ResponsiveViewportPort } from "../features/navigation
 import type { PullToRefreshEnvironmentPort } from "../features/navigation/pullToRefresh";
 import type { ConnectivityPort } from "../features/offline/connectivity";
 import type { ExplicitOfflineModeRuntimePort } from "../features/offline/mode";
-import type { SettingsService } from "../features/settings";
+import type { SettingsService, EstimateStorage } from "../features/settings";
 import type { TransferClock } from "../features/transfers";
 import type { FavouritesPointerEnvironment } from "../features/browsing/favourites/ports";
 import type { AccountTransport } from "../features/accounts";
@@ -18,6 +18,7 @@ import type { FavouriteResolveRuntimePort } from "../features/browsing/navDrawer
 import type { DiagnosticsRuntimePorts } from "../features/diagnostics";
 
 export interface AppServices {
+  readonly estimateStorage?: EstimateStorage;
   readonly accountRegistry: AccountRegistryService;
   readonly accountTransport: AccountTransport;
   readonly accountSession: AccountSessionPorts;

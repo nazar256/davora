@@ -19,7 +19,7 @@ const setup = (overrides: Partial<FolderPorts> = {}, accept = true) => {
   const events: FolderEvent[] = [];
   const ports: FolderPorts = {
     createAbortHandle: () => new AbortController(),
-    loadFolder: vi.fn(async (): Promise<FolderLoadOutcome> => ({ kind: "success", items: liveItems })),
+    loadFolder: vi.fn(async (): Promise<FolderLoadOutcome> => ({ completeness: "complete" as const, kind: "success", items: liveItems })),
     readCachedFolder: vi.fn(() => undefined),
     writeCachedFolder: vi.fn(() => undefined),
     ...overrides
@@ -51,30 +51,30 @@ describe("folder load controller", () => {
   it("shows cache synchronously, refreshes live, and writes only an accepted result", async () => {
     const deferred = createDeferred<FolderLoadOutcome>();
     const { callbacks, events, ports } = setup({
-      readCachedFolder: vi.fn(() => ({ items: cachedItems, cachedAt: "2026-01-01" })),
+      readCachedFolder: vi.fn(() => ({ completeness: "complete" as const, items: cachedItems, cachedAt: "2026-01-01" })),
       loadFolder: vi.fn(() => deferred.promise)
     });
 
     const completion = executeFolderLoad(input(), ports, callbacks);
     expect(events.map((event) => event.type)).toEqual(["request-started", "cached-snapshot-shown"]);
-    deferred.resolve({ kind: "success", items: liveItems });
+    deferred.resolve({ completeness: "complete" as const, kind: "success", items: liveItems });
     await completion;
 
-    expect(events.at(-1)).toMatchObject({ type: "live-response-accepted", items: liveItems, message: "refreshed" });
-    expect(ports.writeCachedFolder).toHaveBeenCalledWith("ns-alpha", "Docs", liveItems);
+    expect(events.at(-1)).toMatchObject({ completeness: "complete" as const, type: "live-response-accepted", items: liveItems, message: "refreshed" });
+    expect(ports.writeCachedFolder).toHaveBeenCalledWith("ns-alpha", "Docs", liveItems, "complete");
     expect(callbacks.onWorkerAvailable).toHaveBeenCalledOnce();
   });
 
   it("retains cached items without a load failure when live refresh fails", async () => {
     const error = new Error("refresh failed");
     const { events, ports, callbacks } = setup({
-      readCachedFolder: vi.fn(() => ({ items: cachedItems })),
+      readCachedFolder: vi.fn(() => ({ completeness: "complete" as const, items: cachedItems })),
       loadFolder: vi.fn(async (): Promise<FolderLoadOutcome> => ({ kind: "failure", error }))
     });
 
     await executeFolderLoad(input(), ports, callbacks);
 
-    expect(events.at(-1)).toEqual({ type: "refresh-failed", request, items: cachedItems });
+    expect(events.at(-1)).toEqual({ completeness: "complete" as const, type: "refresh-failed", request, items: cachedItems });
     expect(ports.writeCachedFolder).not.toHaveBeenCalled();
   });
 
@@ -95,7 +95,7 @@ describe("folder load controller", () => {
 
     await executeFolderLoad(input({ mode: "explicit-offline", token: undefined, explicitOfflineItems: cachedItems }), ports, callbacks);
 
-    expect(events.at(-1)).toEqual({ type: "explicit-offline-snapshot-shown", request, items: cachedItems });
+    expect(events.at(-1)).toEqual({  type: "explicit-offline-snapshot-shown", request, items: cachedItems });
     expect(ports.readCachedFolder).not.toHaveBeenCalled();
     expect(ports.loadFolder).not.toHaveBeenCalled();
   });

@@ -29,12 +29,12 @@ describe("browser app services", () => {
     const folderItem = buildFileEntry("Docs/a.txt");
     const searchItem = { ...folderItem, score: 1 };
 
-    services.folder.writeCachedFolder("ns", "Docs", [folderItem]);
+    services.folder.writeCachedFolder("ns", "Docs", [folderItem], "complete");
     services.search.writeCachedSearch("ns", "Docs", "A", [searchItem]);
 
-    expect(folderWrite).toHaveBeenCalledWith("ns", "Docs", [folderItem]);
+    expect(folderWrite).toHaveBeenCalledWith("ns", "Docs", [folderItem], "complete");
     expect(searchWrite).toHaveBeenCalledWith("ns", "Docs", "A", [searchItem]);
-    expect(services.browsingCache.readFolder("ns", "Docs")).toMatchObject({ kind: "hit", items: [folderItem] });
+    expect(services.browsingCache.readFolder("ns", "Docs")).toMatchObject({ completeness: "complete" as const, kind: "hit", items: [folderItem] });
     expect(services.browsingCache.readSearch("ns", "Docs", "a")).toMatchObject({ kind: "hit", items: [searchItem] });
     expect(services.responsiveViewport.getSnapshot()).toEqual({ kind: "wide" });
   });

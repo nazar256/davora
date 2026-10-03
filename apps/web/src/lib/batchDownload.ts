@@ -1,5 +1,4 @@
 import type { FileEntry } from "@davora/shared";
-import JSZip from "jszip";
 
 export interface BatchDownloadFile {
   sourcePath: string;
@@ -68,7 +67,7 @@ export function createBatchDownloadArchiveName(label: string): string {
 export async function buildBatchDownloadPlan(options: {
   roots: readonly BatchDownloadRoot[];
   archiveLabel: string;
-  listFiles: (path: string) => Promise<{ items: FileEntry[] }>;
+  listFiles: (path: string) => Promise<{ completeness: "complete" | "partial" | "unknown"; items: readonly FileEntry[] }>;
   archiveName?: string;
 }): Promise<BatchDownloadPlan> {
   const roots = dedupeRootSelections(options.roots);
@@ -80,7 +79,10 @@ export async function buildBatchDownloadPlan(options: {
     if (entry.isFolder) {
       directories.add(archivePath);
       const response = await options.listFiles(entry.path);
-      const children = Array.isArray(response.items) ? response.items : [];
+      if (response.completeness !== "complete") {
+        throw new Error(`A complete folder listing is required for ${entry.path}. Open a smaller folder or select individual files.`);
+      }
+      const children = response.items;
       for (const child of children) {
         await collect(child, `${archivePath}/${child.name}`);
       }
@@ -119,7 +121,7 @@ export async function buildBatchDownloadPlan(options: {
 export async function downloadSelectionAsZip(options: {
   roots: readonly BatchDownloadRoot[];
   archiveLabel: string;
-  listFiles: (path: string) => Promise<{ items: FileEntry[] }>;
+  listFiles: (path: string) => Promise<{ completeness: "complete" | "partial" | "unknown"; items: readonly FileEntry[] }>;
   fetchFile: (path: string, callbacks?: { onProgress?: (loadedBytes: number, totalBytes?: number) => void }) => Promise<{ blob: Blob; filename?: string }>;
   archiveName?: string;
   onPlanReady?: (plan: BatchDownloadPlan) => void;
@@ -130,6 +132,7 @@ export async function downloadSelectionAsZip(options: {
   const plan = await buildBatchDownloadPlan(options);
   options.onPlanReady?.(plan);
 
+  const { default: JSZip } = await import("jszip");
   const zip = new JSZip();
   for (const directory of plan.directories) {
     if (directory) {

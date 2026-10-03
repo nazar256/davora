@@ -12,8 +12,8 @@ import {
 export interface OfflineSyncPlanDeps {
   readonly token: string;
   readonly cacheNamespace?: string;
-  readonly listFiles: (path: string, token: string, signal?: AbortSignal) => Promise<{ items: FileEntry[] }>;
-  readonly cacheFolder?: (namespace: string, path: string, items: FileEntry[]) => void;
+  readonly listFiles: (path: string, token: string, signal?: AbortSignal) => Promise<{ completeness: "complete" | "partial"; items: FileEntry[] }>;
+  readonly cacheFolder?: (namespace: string, path: string, items: FileEntry[], completeness: "complete" | "partial") => void;
 }
 
 export interface OfflineSyncPlanOptions {
@@ -48,7 +48,7 @@ export async function buildOfflineSyncPlanFromArchive(
         throw buildOfflineSyncSupersededError();
       }
       if (deps.cacheNamespace && deps.cacheFolder) {
-        deps.cacheFolder(deps.cacheNamespace, path, response.items);
+        deps.cacheFolder(deps.cacheNamespace, path, response.items, response.completeness);
       }
       return response;
     }

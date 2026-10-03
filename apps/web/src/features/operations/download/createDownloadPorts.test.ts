@@ -42,7 +42,7 @@ function createInput(overrides: Partial<CreateDownloadPortsInput> = {}): CreateD
         return { blob: new Blob(["download"]), filename: "notes.txt" };
       }),
       fetchDownloadBlob: vi.fn(async () => ({ blob: new Blob(["batch"]), filename: "notes.txt" })),
-      listFiles: vi.fn(async () => ({ items: [] })),
+      listFiles: vi.fn(async () => ({ completeness: "complete" as const, items: [] })),
       triggerBrowserDownload: vi.fn()
     },
     batch: {
@@ -134,7 +134,7 @@ describe("createDownloadPorts", () => {
     await ports.batch.downloadSelectionAsZip({
       roots: [],
       archiveLabel: "home",
-      listFiles: vi.fn(async () => ({ items: [] })),
+      listFiles: vi.fn(async () => ({ completeness: "complete" as const, items: [] })),
       fetchFile: vi.fn(async () => ({ blob: new Blob(["file"]) }))
     });
 

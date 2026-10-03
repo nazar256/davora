@@ -280,7 +280,7 @@ function createWorkflowPorts() {
         path: "Projects/photo.png",
         destinationPath: "Archive/photo.png"
       } satisfies MutationResult)),
-      listChildren: vi.fn(async () => ({ items: [] }))
+      listChildren: vi.fn(async () => ({ completeness: "complete" as const, items: [] }))
     },
     refresh: {
       getCurrentPath: vi.fn(() => "Projects"),
@@ -331,7 +331,7 @@ function createPorts(): MutationWorkspaceInput["ports"] {
     workflow: createWorkflowPorts(),
     destination: {
       listing: {
-        listFiles: vi.fn(async () => ({ items: [entry("Archive")] })),
+        listFiles: vi.fn(async () => ({ completeness: "complete" as const, items: [entry("Archive")] })),
         isUnauthorized: vi.fn(() => false),
         isReconnectRequired: vi.fn(() => false)
       },

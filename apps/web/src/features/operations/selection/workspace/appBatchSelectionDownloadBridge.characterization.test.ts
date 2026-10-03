@@ -215,7 +215,7 @@ function makePorts(overrides: Partial<DownloadOrchestrationPorts> = {}): Downloa
   return {
     registry: { acquire: vi.fn(() => scope) },
     transfers: { createId: vi.fn(() => "download-1"), enqueue: vi.fn(), beginPreparation: vi.fn(), beginTransfer: vi.fn(), reportProgress: vi.fn(), reportFailure: vi.fn(), complete: vi.fn(), completePartial: vi.fn(), fail: vi.fn() },
-    files: { prepareDownload: vi.fn(async () => ({ blob: new Blob(["file"]), filename: "file.txt" })), fetchBlob: vi.fn(), listFiles: vi.fn(async () => ({ items: [] })), triggerBrowserDownload: vi.fn() },
+    files: { prepareDownload: vi.fn(async () => ({ blob: new Blob(["file"]), filename: "file.txt" })), fetchBlob: vi.fn(), listFiles: vi.fn(async () => ({ completeness: "complete" as const, items: [] })), triggerBrowserDownload: vi.fn() },
     batch: { downloadSelectionAsZip: vi.fn(async () => ({ blob: new Blob(["zip"]), plan: { archiveName: "selection.zip", selectedCount: 2, selectedFileCount: 2, selectedDirectoryCount: 0, directories: [], files: [], failedFiles: [], totalBytes: 10 } })) },
     context: { isCurrent: vi.fn(() => true) }, session: { terminateExpired: vi.fn(), terminateReconnectRequired: vi.fn() }, errors: { isUnauthorized: vi.fn(() => false), isReconnectRequired: vi.fn(() => false), toErrorMessage: vi.fn((_error: unknown, fallback: string): string => fallback) }, presentation: { reportStatus: vi.fn(), reportListError: vi.fn() }, ...overrides
   };

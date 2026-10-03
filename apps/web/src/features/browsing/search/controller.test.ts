@@ -16,7 +16,7 @@ const setup = () => {
   const events: SearchEvent[] = [];
   const ports: SearchPorts = {
     createAbortHandle: () => new AbortController(),
-    loadSearch: vi.fn().mockResolvedValue({ kind: "success", items: [searchItem("Docs/live.txt", 2)] }),
+    loadSearch: vi.fn().mockResolvedValue({ completeness: "complete" as const, kind: "success", items: [searchItem("Docs/live.txt", 2)] }),
     readCachedSearch: vi.fn(),
     writeCachedSearch: vi.fn()
   };
@@ -31,12 +31,12 @@ describe("search controller", () => {
   it("loads live first, preserves order, then writes only accepted results", async () => {
     const { ports, callbacks, events } = setup();
     const items = [searchItem("Docs/z.txt", 2), searchItem("Docs/a.txt", 1)];
-    vi.mocked(ports.loadSearch).mockResolvedValue({ kind: "success", items });
+    vi.mocked(ports.loadSearch).mockResolvedValue({ completeness: "complete" as const, kind: "success", items });
 
     await executeSearch({ request, token: "token", mode: "online", explicitOfflineItems: [], signal: new AbortController().signal }, ports, callbacks);
 
     expect(ports.readCachedSearch).not.toHaveBeenCalled();
-    expect(events.at(-1)).toMatchObject({ type: "live-response-accepted", items });
+    expect(events.at(-1)).toMatchObject({ completeness: "complete" as const, type: "live-response-accepted", items });
     expect(ports.writeCachedSearch).toHaveBeenCalledWith("namespace", "Docs", " Raw ", items);
   });
 

@@ -1,6 +1,9 @@
+import type { SearchCoverage } from "../search";
+
 export interface FileListEmptyPresentationInput {
   readonly visibleItemCount: number;
   readonly searchActive: boolean;
+  readonly searchCoverage?: SearchCoverage;
   readonly loadingFolder: boolean;
   readonly hasEverCachedFolder: boolean;
   readonly visibleListError?: Error;
@@ -16,17 +19,27 @@ export interface FileListEmptyPresentation {
   readonly listRecoveryAvailable: boolean;
 }
 
+const searchEmptyTitles: Record<SearchCoverage, string> = {
+  complete: "No matches in this folder.",
+  partial: "No matches in the searched portion.",
+  saved: "No matches in saved results.",
+  offline: "No matches in saved files.",
+  failed: "Unable to load search results.",
+  searching: "Searching…"
+};
+
 export function buildFileListEmptyPresentation(input: FileListEmptyPresentationInput): FileListEmptyPresentation {
   const listRecoveryAvailable = Boolean(input.folderError)
     && !input.searchActive
     && !input.loadingFolder
     && !input.cacheOnlyMode;
   const showEmptyState = input.visibleItemCount === 0
+    && (!input.searchActive || (input.searchCoverage !== "searching" && input.searchCoverage !== undefined))
     && !(input.loadingFolder && !input.hasEverCachedFolder && !input.searchActive);
   const emptyTitle = input.searchActive
     ? input.visibleListError
       ? "Unable to load search results."
-      : "No files match this search yet."
+      : searchEmptyTitles[input.searchCoverage ?? "searching"]
     : input.visibleListError
       ? input.hasEverCachedFolder
         ? "Unable to load this folder."

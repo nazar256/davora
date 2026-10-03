@@ -18,7 +18,7 @@ function createPorts(): {
   listFiles: ReturnType<typeof vi.fn>;
   resetSession: ReturnType<typeof vi.fn>;
 } {
-  const listFiles = vi.fn(async () => ({ items: [entry("Archive/existing.txt")] }));
+  const listFiles = vi.fn(async () => ({ completeness: "complete" as const, items: [entry("Archive/existing.txt")] }));
   const resetSession = vi.fn();
   return {
     ports: {
@@ -103,12 +103,12 @@ describe("useDestinationPicker", () => {
 
   it("does not publish stale listing results after supersede", async () => {
     const { result, context, listFiles } = renderDestinationPicker();
-    let resolveFirst: ((value: { items: FileEntry[] }) => void) | undefined;
+    let resolveFirst: ((value: { completeness: "complete" | "partial"; items: FileEntry[] }) => void) | undefined;
     listFiles
       .mockImplementationOnce(() => new Promise((resolve) => {
         resolveFirst = resolve;
       }))
-      .mockResolvedValueOnce({ items: [entry("Archive/newer.txt")] });
+      .mockResolvedValueOnce({ completeness: "complete" as const, items: [entry("Archive/newer.txt")] });
     const selected = entry("Projects/report.txt");
 
     act(() => {
@@ -123,7 +123,7 @@ describe("useDestinationPicker", () => {
     });
 
     await act(async () => {
-      resolveFirst?.({ items: [entry("Projects/stale.txt")] });
+      resolveFirst?.({ completeness: "complete" as const, items: [entry("Projects/stale.txt")] });
     });
 
     expect(result.current.currentDestinationPicker?.entries).toEqual([entry("Archive/newer.txt")]);

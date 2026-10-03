@@ -297,13 +297,13 @@ describe("persisted-data compatibility matrix", () => {
     const cache = createBrowsingCacheRepository(cacheStorage, { nowIso: () => "2026-09-01T00:00:00.000Z" });
     const alpha = [buildFileEntry("docs/alpha.txt")];
     const beta = [buildFileEntry("docs/beta.txt")];
-    expect(cache.writeFolder("alpha", "docs", alpha)).toEqual({ kind: "written" });
-    expect(cache.writeFolder("beta", "docs", beta)).toEqual({ kind: "written" });
-    expect(cache.readFolder("alpha", "docs")).toMatchObject({ kind: "hit", items: alpha });
-    expect(cache.readFolder("beta", "docs")).toMatchObject({ kind: "hit", items: beta });
+    expect(cache.writeFolder("alpha", "docs", alpha, "complete")).toEqual({ kind: "written" });
+    expect(cache.writeFolder("beta", "docs", beta, "complete")).toEqual({ kind: "written" });
+    expect(cache.readFolder("alpha", "docs")).toMatchObject({ completeness: "complete" as const, kind: "hit", items: alpha });
+    expect(cache.readFolder("beta", "docs")).toMatchObject({ completeness: "complete" as const, kind: "hit", items: beta });
     expect(cache.clearNamespace("alpha")).toEqual({ kind: "cleared" });
     expect(cache.readFolder("alpha", "docs")).toEqual({ kind: "miss" });
-    expect(cache.readFolder("beta", "docs")).toMatchObject({ kind: "hit", items: beta });
+    expect(cache.readFolder("beta", "docs")).toMatchObject({ completeness: "complete" as const, kind: "hit", items: beta });
   });
 
   it("preserves account registry state when its next commit fails", () => {

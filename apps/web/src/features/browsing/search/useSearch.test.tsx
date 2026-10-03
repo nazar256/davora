@@ -19,7 +19,7 @@ describe("useSearch", () => {
     let oldSignal: AbortSignal | undefined;
     const ports = createPorts(vi.fn<SearchPorts["loadSearch"]>(({ query, signal }) => {
       if (query === "old") { oldSignal = signal; return old.promise; }
-      return Promise.resolve({ kind: "success", items: [item("Docs/new.txt")] });
+      return Promise.resolve({ completeness: "complete" as const, kind: "success", items: [item("Docs/new.txt")] });
     }));
     const { result, rerender } = renderHook(({ searchKey }) => useSearch({ key: searchKey, token: "token", mode: "online", explicitOfflineItems: [], ports }), {
       initialProps: { searchKey: key("old") }
@@ -28,7 +28,7 @@ describe("useSearch", () => {
     expect(result.current.state.kind).toBe("searching");
     await waitFor(() => expect(result.current.state).toMatchObject({ kind: "ready", items: [item("Docs/new.txt")] }));
     expect(oldSignal?.aborted).toBe(true);
-    old.resolve({ kind: "success", items: [item("Docs/old.txt")] });
+    old.resolve({ completeness: "complete" as const, kind: "success", items: [item("Docs/old.txt")] });
     await act(async () => { await old.promise; });
     expect(result.current.state).toMatchObject({ kind: "ready", items: [item("Docs/new.txt")] });
   });
@@ -38,7 +38,7 @@ describe("useSearch", () => {
     const onSessionTerminated = vi.fn();
     const ports = createPorts(vi.fn<SearchPorts["loadSearch"]>(({ token }) => token === "old"
       ? old.promise
-      : Promise.resolve({ kind: "success", items: [item("Docs/new.txt")] })));
+      : Promise.resolve({ completeness: "complete" as const, kind: "success", items: [item("Docs/new.txt")] })));
     const { result, rerender } = renderHook(({ searchKey, token }) => useSearch({ key: searchKey, token, mode: "online", explicitOfflineItems: [], ports, onSessionTerminated }), {
       initialProps: { searchKey: key("q"), token: "old" }
     });
@@ -56,8 +56,7 @@ describe("useSearch", () => {
       oldSignal = input.signal;
       return old.promise;
     }));
-    const newPorts = createPorts(vi.fn<SearchPorts["loadSearch"]>(async () => ({
-      kind: "success",
+    const newPorts = createPorts(vi.fn<SearchPorts["loadSearch"]>(async () => ({ completeness: "complete" as const, kind: "success",
       items: [item("Docs/new-port.txt")]
     })));
     const { result, rerender } = renderHook(({ ports }) => useSearch({
@@ -73,7 +72,7 @@ describe("useSearch", () => {
     await waitFor(() => expect(result.current.state).toMatchObject({ kind: "ready", items: [item("Docs/new-port.txt")] }));
 
     expect(oldSignal?.aborted).toBe(true);
-    old.resolve({ kind: "success", items: [item("Docs/late-old-port.txt")] });
+    old.resolve({ completeness: "complete" as const, kind: "success", items: [item("Docs/late-old-port.txt")] });
     await act(async () => { await old.promise; });
     expect(result.current.state).toMatchObject({ kind: "ready", items: [item("Docs/new-port.txt")] });
     expect(oldPorts.writeCachedSearch).not.toHaveBeenCalled();
@@ -90,14 +89,14 @@ describe("useSearch", () => {
       ? old.promise
       : vi.mocked(ports.loadSearch).mock.calls.length === 1
         ? old.promise
-        : Promise.resolve({ kind: "success", items: [item(`${replacementKey.path}/new.txt`)] })));
+        : Promise.resolve({ completeness: "complete" as const, kind: "success", items: [item(`${replacementKey.path}/new.txt`)] })));
     const { result, rerender } = renderHook(({ searchKey }) => useSearch({ key: searchKey, token: "token", mode: "online", explicitOfflineItems: [], ports }), {
       initialProps: { searchKey: key("q") }
     });
 
     rerender({ searchKey: replacementKey });
     await waitFor(() => expect(result.current.state).toMatchObject({ kind: "ready", key: replacementKey }));
-    old.resolve({ kind: "success", items: [item("Docs/late.txt")] });
+    old.resolve({ completeness: "complete" as const, kind: "success", items: [item("Docs/late.txt")] });
     await act(async () => { await old.promise; });
 
     expect(result.current.state).toMatchObject({ kind: "ready", key: replacementKey });
@@ -129,7 +128,7 @@ describe("useSearch", () => {
     const old = createDeferred<SearchLoadOutcome>();
     const ports = createPorts(vi.fn<SearchPorts["loadSearch"]>(({ token }) => token === "token-alpha"
       ? old.promise
-      : Promise.resolve({ kind: "success", items: [item("Docs/beta.txt")] })));
+      : Promise.resolve({ completeness: "complete" as const, kind: "success", items: [item("Docs/beta.txt")] })));
     const alphaKey = key("q", "alpha");
     const betaKey: SearchKey = { ...key("q", "beta"), cacheNamespace: "ns-beta" };
     const { result, rerender } = renderHook(({ searchKey, token }) => useSearch({
@@ -142,7 +141,7 @@ describe("useSearch", () => {
 
     rerender({ searchKey: betaKey, token: "token-beta" });
     await waitFor(() => expect(result.current.state).toMatchObject({ kind: "ready", key: betaKey, items: [item("Docs/beta.txt")] }));
-    old.resolve({ kind: "success", items: [item("Docs/alpha-late.txt")] });
+    old.resolve({ completeness: "complete" as const, kind: "success", items: [item("Docs/alpha-late.txt")] });
     await act(async () => { await old.promise; });
 
     expect(result.current.state).toMatchObject({ kind: "ready", key: betaKey, items: [item("Docs/beta.txt")] });

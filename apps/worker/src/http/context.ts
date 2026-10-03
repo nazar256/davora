@@ -6,20 +6,20 @@ import type {
   WorkerEnv
 } from "../types";
 import { workerFailure } from "./failure";
-import type { WorkerRoute } from "./router";
+import type { MatchedWorkerRoute } from "./router";
 
 export type WorkerRequestContext =
   | {
       readonly auth: "public";
       readonly request: Request;
-      readonly route: WorkerRoute;
+      readonly route: MatchedWorkerRoute;
       readonly env: WorkerEnv;
       readonly origin: string | null;
     }
   | {
       readonly auth: "browser";
       readonly request: Request;
-      readonly route: WorkerRoute;
+      readonly route: MatchedWorkerRoute;
       readonly env: WorkerEnv;
       readonly origin: string | null;
       readonly owner: BrowserOwnership;
@@ -27,7 +27,7 @@ export type WorkerRequestContext =
   | {
       readonly auth: "session";
       readonly request: Request;
-      readonly route: WorkerRoute;
+      readonly route: MatchedWorkerRoute;
       readonly env: WorkerEnv;
       readonly origin: string | null;
       readonly session: SessionPayload;
@@ -36,7 +36,7 @@ export type WorkerRequestContext =
   | {
       readonly auth: "stream";
       readonly request: Request;
-      readonly route: WorkerRoute;
+      readonly route: MatchedWorkerRoute;
       readonly env: WorkerEnv;
       readonly origin: string | null;
       readonly stream: StreamTokenPayload;
@@ -78,7 +78,7 @@ function assertAccountClaims(
 
 export async function createWorkerRequestContext(
   request: Request,
-  route: WorkerRoute,
+  route: MatchedWorkerRoute,
   env: WorkerEnv,
   dependencies: WorkerContextDependencies
 ): Promise<WorkerRequestContext> {

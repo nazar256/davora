@@ -21,6 +21,7 @@ import { createBrowserAccountTransport } from "../platform/api/browserAccountTra
 import { createSystemClock } from "../platform/time/systemClock";
 import { createBrowserAccountRegistryClock } from "../platform/time/browserAccountRegistryClock";
 import type { AppServices } from "./AppServices";
+import { estimateBrowserStorage } from "../platform/storage/browserStorageEstimate";
 import { createBrowserOperationRuntime } from "../platform/api/browserOperationRuntime";
 import { createBrowserOfflineSyncRuntime } from "../platform/offline/browserOfflineSyncRuntime";
 import { createOpenedFileRepository } from "../platform/storage/openedFileRepository";
@@ -28,6 +29,9 @@ import { createPreviewComposition } from "./createPreviewComposition";
 import { createAccountRemovalRuntime } from "./createAccountRemovalRuntime";
 import { createBrowserBackendNetworkGate } from "../platform/network/browserBackendNetworkGate";
 import { createBrowserExplicitOfflineModeStorage } from "../platform/storage/browserExplicitOfflineModeStorage";
+import { createBrowserAccountPlaybackCleanup } from "../platform/storage/browserAccountPlaybackCleanup";
+import { audioPreviewPositionStorageKey } from "../lib/audioResume";
+import { folderAudioStorageKey } from "../features/preview/folderAudio";
 import { createBrowserFavouriteResolveRuntime } from "../platform/api/browserFavouriteResolveRuntime";
 import { createBrowserDiagnosticsStore } from "../platform/storage/browserDiagnosticsStore";
 import { createBrowserDiagnosticsEnvironment } from "../platform/diagnostics/browserDiagnosticsEnvironment";
@@ -56,6 +60,11 @@ export const createBrowserAppServices = (): AppServices => {
     storage: createBrowserExplicitOfflineModeStorage(),
     network: createBrowserBackendNetworkGate()
   };
+  const playbackCleanup = createBrowserAccountPlaybackCleanup({
+    storage,
+    folderAudioKeyPrefix: (accountId) => folderAudioStorageKey(accountId, ""),
+    audioResumeKeyPrefix: (accountId) => audioPreviewPositionStorageKey({ accountId, path: "" })
+  });
   const previewRuntime = createPreviewComposition({ retentionRepository });
   const history = createBrowserHistoryPort() satisfies HistoryPort;
   const accountRegistry = createAccountRegistryService(storage, createBrowserAccountRegistryClock(), {
@@ -68,7 +77,9 @@ export const createBrowserAppServices = (): AppServices => {
     retentionRepository,
     browsingCache,
     favourites,
-    folderSorts
+    folderSorts,
+    explicitOfflineMode: explicitOfflineRuntime.storage,
+    playbackCleanup
   });
   const diagnostics: DiagnosticsRuntimePorts = {
     store: createBrowserDiagnosticsStore(),
@@ -99,6 +110,7 @@ export const createBrowserAppServices = (): AppServices => {
     responsiveViewport: createBrowserResponsiveViewportPort() satisfies ResponsiveViewportPort,
     search: createBrowserSearchPorts(browsingCache),
     settings: createSettingsService(storage),
+    estimateStorage: estimateBrowserStorage,
     operationRuntime: createBrowserOperationRuntime(),
     offlineSyncRuntime: createBrowserOfflineSyncRuntime(),
     retentionRepository,

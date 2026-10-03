@@ -2,6 +2,7 @@ import type { FileEntry } from "@davora/shared";
 import { basename, fileEntrySchema, parseNormalizedPath } from "@davora/shared";
 
 import { ApiRequestError, listFiles as requestFolder } from "../../lib/api";
+type FolderCompleteness = "complete" | "partial" | "unknown";
 
 type FolderDiagnosticValueType = "undefined" | "null" | "boolean" | "number" | "string" | "array" | "object";
 type FolderNameDifferenceCategory = "end" | "control" | "whitespace" | "letter" | "number" | "mark" | "punctuation" | "symbol" | "other";
@@ -52,13 +53,13 @@ interface FolderResponseRejectionDiagnostic {
 
 interface FolderCache {
   readFolder(cacheNamespace: string, path: string):
-    | { readonly kind: "hit"; readonly cachedAt: string; readonly items: FileEntry[] }
+    | { readonly kind: "hit"; readonly cachedAt: string; readonly completeness: FolderCompleteness; readonly items: FileEntry[] }
     | { readonly kind: "miss" };
-  writeFolder(cacheNamespace: string, path: string, items: readonly FileEntry[]): unknown;
+  writeFolder(cacheNamespace: string, path: string, items: readonly FileEntry[], completeness: Exclude<FolderCompleteness, "unknown">): unknown;
 }
 
 interface FolderApi {
-  listFiles(path: string, token: string, signal: AbortSignal): Promise<{ path: string; items: unknown }>;
+  listFiles(path: string, token: string, signal: AbortSignal): Promise<{ path: string; completeness: "complete" | "partial"; items: unknown }>;
 }
 
 const canonicalPath = (path: string): string | undefined => {
@@ -299,16 +300,19 @@ export const createBrowserFolderPorts = (
           diagnostic: parsed.diagnostic
         } as const;
       }
-      return { kind: "success", items: parsed.items } as const;
+      if (response.completeness !== "complete" && response.completeness !== "partial") {
+        return { kind: "failure", error: new Error("The server returned invalid folder completeness.") } as const;
+      }
+      return { kind: "success", items: parsed.items, completeness: response.completeness } as const;
     } catch (error) {
       return classifyFolderError(error);
     }
   },
   readCachedFolder(cacheNamespace: string, path: string) {
     const result = cache.readFolder(cacheNamespace, path);
-    return result.kind === "hit" ? { items: result.items, cachedAt: result.cachedAt } : undefined;
+    return result.kind === "hit" ? { items: result.items, cachedAt: result.cachedAt, completeness: result.completeness } : undefined;
   },
-  writeCachedFolder(cacheNamespace: string, path: string, items: FileEntry[]): void {
-    cache.writeFolder(cacheNamespace, path, items);
+  writeCachedFolder(cacheNamespace: string, path: string, items: FileEntry[], completeness: "complete" | "partial"): void {
+    cache.writeFolder(cacheNamespace, path, items, completeness);
   }
 });

@@ -31,7 +31,7 @@ function favourite(overrides: Partial<FavouriteEntry> = {}): FavouriteEntry {
 function createPorts(overrides: Partial<FavouriteActionsPorts> = {}): FavouriteActionsPorts {
   return {
     resolve: {
-      listFiles: vi.fn(async () => ({ items: [] as FileEntry[] })),
+      listFiles: vi.fn(async () => ({ completeness: "complete" as const, items: [] as FileEntry[] })),
       cacheFolder: vi.fn(),
       toDisplayPath: (path) => (path ? `/${path}` : "/"),
       ...overrides.resolve
@@ -83,7 +83,7 @@ describe("favourites controller", () => {
   it("lists the parent folder, caches namespaced results, and resolves live entries", async () => {
     const ports = createPorts({
       resolve: {
-        listFiles: vi.fn(async () => ({
+        listFiles: vi.fn(async () => ({ completeness: "complete" as const,
           items: [{ path: "Projects", name: "Projects", isFolder: true }]
         })),
         cacheFolder: vi.fn(),
@@ -99,13 +99,13 @@ describe("favourites controller", () => {
     }, ports)).resolves.toEqual({ path: "Projects", name: "Projects", isFolder: true });
 
     expect(ports.resolve.listFiles).toHaveBeenCalledWith("", "session");
-    expect(ports.resolve.cacheFolder).toHaveBeenCalledWith("alpha-cache", "", [{ path: "Projects", name: "Projects", isFolder: true }]);
+    expect(ports.resolve.cacheFolder).toHaveBeenCalledWith("alpha-cache", "", [{ path: "Projects", name: "Projects", isFolder: true }], "complete");
   });
 
   it("fails live resolve with unavailable copy when the entry is missing", async () => {
     const ports = createPorts({
       resolve: {
-        listFiles: vi.fn(async () => ({ items: [] })),
+        listFiles: vi.fn(async () => ({ completeness: "complete" as const, items: [] })),
         cacheFolder: vi.fn(),
         toDisplayPath: () => "/Projects"
       }
@@ -120,7 +120,7 @@ describe("favourites controller", () => {
   it("clears unavailableReason, closes navigation chrome, and navigates folders on successful open", async () => {
     const ports = createPorts({
       resolve: {
-        listFiles: vi.fn(async () => ({
+        listFiles: vi.fn(async () => ({ completeness: "complete" as const,
           items: [{ path: "Projects", name: "Projects", isFolder: true }]
         })),
         cacheFolder: vi.fn(),
@@ -145,7 +145,7 @@ describe("favourites controller", () => {
     const resolved = { path: "roadmap.txt", name: "roadmap.txt", isFolder: false };
     const ports = createPorts({
       resolve: {
-        listFiles: vi.fn(async () => ({ items: [resolved] })),
+        listFiles: vi.fn(async () => ({ completeness: "complete" as const, items: [resolved] })),
         cacheFolder: vi.fn(),
         toDisplayPath: (path) => `/${path}`
       }
@@ -162,7 +162,7 @@ describe("favourites controller", () => {
   it("patches unavailableReason, sets list error, and reports status on failed open", async () => {
     const ports = createPorts({
       resolve: {
-        listFiles: vi.fn(async () => ({ items: [] })),
+        listFiles: vi.fn(async () => ({ completeness: "complete" as const, items: [] })),
         cacheFolder: vi.fn(),
         toDisplayPath: () => "/Projects"
       }
@@ -233,5 +233,16 @@ describe("favourites controller", () => {
     expect(reportFavouriteSaveFailure({ kind: "added", entries: [] }, ports)).toBe(false);
     expect(reportFavouriteSaveFailure({ kind: "save-failed", error: new Error("blocked") }, ports)).toBe(true);
     expect(ports.surface.setStatus).toHaveBeenCalledWith("Unable to save Favourites in this browser.");
+  });
+});
+
+describe("partial favourite resolution", () => {
+  it("does not persist unavailable when a partial listing omits the favourite", async () => {
+    const ports = createPorts();
+    vi.mocked(ports.resolve.listFiles).mockResolvedValue({ completeness: "partial", items: [] });
+    const store = createStore();
+    await openFavourite(favourite(), { token: "session", cacheOnlyMode: false }, store, ports);
+    expect(store.patch).not.toHaveBeenCalled();
+    expect(vi.mocked(ports.surface.reportListError).mock.calls[0]?.[0]?.message).toMatch(/could not be verified/i);
   });
 });

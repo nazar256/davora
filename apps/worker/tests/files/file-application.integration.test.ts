@@ -11,7 +11,7 @@ beforeEach(() => {
 describe("worker file application", () => {
   it("returns a strict account-bound search envelope with the raw query", async () => {
     const { token } = await createSessionToken();
-    const response = await authorizedRequest(token, "/api/search?path=Projects&q=%20roadmap%20");
+    const response = await authorizedRequest(token, "/api/search?path=Projects&q=%20roadmap%20&coverage=bounded-v1");
     expect(response.status).toBe(200);
     const payload = searchEndpoint.successSchema.parse(await response.json());
     expect(payload.data.path).toBe("Projects");
@@ -270,3 +270,13 @@ describe("worker file application", () => {
   })
 });
 
+
+describe("listing selector authentication ordering", () => {
+  it.each(["", "unsupported"])("authenticates before rejecting selector %s", async (listing) => {
+    const path = `/api/files?path=Projects&listing=${listing}`;
+    const unauthenticated = await handleRequest(new Request(`http://127.0.0.1:8787${path}`, { headers: { origin: "http://127.0.0.1:4173" } }), env);
+    expect(unauthenticated.status).toBe(401);
+    const { token } = await createSessionToken();
+    expect((await authorizedRequest(token, path)).status).toBe(400);
+  });
+});

@@ -42,8 +42,46 @@ describe("AccountFormStage", () => {
     expect(screen.getByLabelText("Username")).toHaveValue("");
     expect(screen.getByLabelText("App password")).toHaveValue("");
     expect(screen.getByLabelText("Root folder")).toHaveValue("");
+    expect(screen.getByLabelText("Root folder")).toHaveAttribute("placeholder", "Default folder");
     expect(screen.getByLabelText("Label")).toHaveValue("");
+    expect(screen.getByText("Davora saves your app password encrypted on the server, not in browser storage.")).toBeInTheDocument();
+    const help = document.querySelector("details.account-form-help");
+    expect(help).toBeInTheDocument();
+    expect(help).not.toHaveAttribute("open");
+    expect(help?.querySelector("summary")).toHaveAttribute("aria-label", "Connection help");
     expect(screen.getByRole("button", { name: /^Add account$/i })).toBeInTheDocument();
+  });
+
+  it("opens connection help without submitting or exposing form values", () => {
+    const onSubmit = vi.fn(preventDefaultSubmit);
+    const password = "sentinel-password-never-rendered";
+    render(
+      <AccountFormStage
+        {...buildProps({
+          form: { ...createEmptyAccountForm("add"), appPassword: password },
+          onSubmit
+        })}
+      />
+    );
+
+    const details = document.querySelector("details.account-form-help");
+    if (!details) throw new Error("connection help details are unavailable");
+    fireEvent.click(details.querySelector("summary")!);
+
+    expect(details).toHaveAttribute("open");
+    expect(screen.getByText(/without a file or share link/i)).toBeInTheDocument();
+    expect(screen.getByText(/may differ from your display name/i)).toBeInTheDocument();
+    expect(screen.getByText(/Personal settings → Security/i)).toBeInTheDocument();
+    expect(screen.getByText(/Optional folder inside Nextcloud/i)).toBeInTheDocument();
+    expect(screen.getByText(/Remove the account to delete Davora[’']s saved password/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Nextcloud help/i })).toHaveAttribute(
+      "href",
+      "https://docs.nextcloud.com/server/stable/user_manual/en/session_management.html"
+    );
+    expect(screen.getByRole("link", { name: /Nextcloud help/i })).toHaveAttribute("target", "_blank");
+    expect(screen.getByRole("link", { name: /Nextcloud help/i })).toHaveAttribute("rel", "noopener noreferrer");
+    expect(document.body.textContent).not.toContain(password);
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it("renders reconnect projection with prefilled non-secret fields", () => {

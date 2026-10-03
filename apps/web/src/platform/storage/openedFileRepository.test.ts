@@ -671,3 +671,24 @@ describe("opened-file repository", () => {
     expect(await get(legacyIndexKey(beta.cacheNamespace))).toBeUndefined();
   });
 });
+
+describe("retained enumeration proof", () => {
+  it.each(["folder", "batch", "file"] as const)("preserves %s root bytes while normalizing legacy completion", async (kind) => {
+    const started = await success(await repository.beginRoot(account, root("kept", kind)));
+    const rootId = requiredRootId(started);
+    const blob = new Blob(["original"]);
+    await success(await repository.persistRetainedFile(account, { rootId, file: file("one.txt", blob), blob }));
+    await success(await repository.completeRoot(account, rootId));
+    const stored = await get<{ roots: Record<string, { completionProofVersion?: 1 }> }>(indexKey("alpha"));
+    if (!stored?.roots[rootId]) throw new Error("Missing stored root");
+    expect(stored.roots[rootId].completionProofVersion).toBe(1);
+    expect((await success(await createOpenedFileRepository().readSnapshot(account))).roots[0]?.status).toBe("complete");
+    delete stored.roots[rootId].completionProofVersion;
+    await set(indexKey("alpha"), stored);
+    const snapshot = await success(await createOpenedFileRepository().readSnapshot(account));
+    expect(snapshot.roots[0]?.status).toBe(kind === "file" ? "complete" : "incomplete");
+    expect(snapshot.memberships).toHaveLength(1);
+    expect(snapshot.files[0]?.readable).toBe(true);
+    expect(await (await get<Blob>(blobKey("alpha", "one.txt")))?.text()).toBe("original");
+  });
+});

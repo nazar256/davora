@@ -191,12 +191,12 @@ test("captures image preview viewport edge navigation", async ({ page }, testInf
   test.skip(testInfo.project.name !== "desktop-chrome", "Desktop evidence only.");
   await connectAccount(page, "Image edge workspace");
   const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9pP3Un0AAAAASUVORK5CYII=", "base64");
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: ["photo-a.png", "photo-b.png", "photo-c.png"].map((name) => ({
             path: `Projects/${name}`,
@@ -288,12 +288,12 @@ test("captures streaming-only media playback evidence", async ({ page }, testInf
     });
   });
   const largeVideoSize = 32 * 1024 * 1024;
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [{ path: "Projects/clip.mp4", name: "clip.mp4", isFolder: false, size: largeVideoSize, mimeType: "video/mp4" }]
         }
@@ -366,12 +366,12 @@ test("captures mobile video-only previous and next navigation", async ({ page },
   });
   await connectAccount(page, "PER-65 video navigation workspace");
   await setThemeMode(page, "Light");
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [
             { path: "Projects/clip.mp4", name: "clip.mp4", isFolder: false, size: 16, mimeType: "video/mp4" },
@@ -463,12 +463,12 @@ test("captures the mobile folder audio player", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chrome", "Mobile evidence only.");
   await connectAccount(page, "Folder audio workspace");
   await setThemeMode(page, "Light");
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [
             { path: "Projects/chapter.m4a", name: "chapter.m4a", isFolder: false, size: 18, mimeType: "audio/mp4" },

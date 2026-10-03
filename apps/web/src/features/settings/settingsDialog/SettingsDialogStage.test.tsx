@@ -297,6 +297,9 @@ describe("SettingsDialogStage", () => {
             name: "roadmap.txt",
             kind: "file",
             fileCount: 1,
+            readableFileCount: 1,
+            readiness: "available",
+            recoverable: true,
             totalBytes: 128
           }]
         })}

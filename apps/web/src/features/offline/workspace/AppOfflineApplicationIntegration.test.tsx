@@ -29,7 +29,7 @@ import { buildHealthResponse } from "../../../test/api";
 type ConnectedAccount = StoredAccountRecord["account"];
 type AppSession = ReturnType<typeof buildSession>;
 type FileEntry = Parameters<FavouritesService["create"]>[0];
-type MockListFiles = (path: string, token: string, signal?: AbortSignal) => Promise<{ path: string; items: FileEntry[] }>;
+type MockListFiles = (path: string, token: string, signal?: AbortSignal) => Promise<{ completeness: "complete" | "partial"; path: string; items: FileEntry[] }>;
 
 vi.mock("virtual:pwa-register/react", () => ({
   useRegisterSW: () => ({
@@ -101,7 +101,7 @@ function createAccountFixture(): AppServices {
   let accountRegistry: AccountRegistryService | undefined;
   const getAccountRegistry = () => accountRegistry ??= createAccountRegistryService(storage, { isExpired: (expiresAt) => Date.parse(expiresAt) <= Date.now() });
   const listFiles = async (path: string, token = "", signal?: AbortSignal) => mockedApi.listFiles(path, token, signal);
-  const listFilesForRuntime = async (path: string, token: string, signal?: AbortSignal) => ({ items: (await listFiles(path, token, signal)).items });
+  const listFilesForRuntime = async (path: string, token: string, signal?: AbortSignal) => ({ completeness: "complete" as const, items: (await listFiles(path, token, signal)).items });
   const accountTransport: AccountTransport = {
     getHealth: mockedApi.getHealth,
     connectAccount: mockedApi.connectAccount,
@@ -127,7 +127,7 @@ function createAccountFixture(): AppServices {
       if (signal.aborted) return { kind: "cancelled" };
       try {
         const result = await listFiles(path);
-        return { kind: "success", items: result.items };
+        return { completeness: "complete" as const, kind: "success", items: result.items };
       } catch (error) {
         return { kind: "failure", error: error instanceof Error ? error : new Error("Unable to load folder.") };
       }
@@ -137,7 +137,7 @@ function createAccountFixture(): AppServices {
   };
   const search: SearchPorts = {
     createAbortHandle: abortHandle,
-    loadSearch: async () => ({ kind: "success", items: [] }),
+    loadSearch: async () => ({ completeness: "complete" as const, kind: "success", items: [] }),
     readCachedSearch: () => undefined,
     writeCachedSearch: vi.fn()
   };
@@ -189,7 +189,7 @@ function createAccountFixture(): AppServices {
     accountTransport,
     accountSession,
     browsingCache: cache,
-    favouriteResolveRuntime: { listFiles: async () => ({ items: [] }), cacheFolder: () => undefined },
+    favouriteResolveRuntime: { listFiles: async () => ({ completeness: "complete" as const, items: [] }), cacheFolder: () => undefined },
     connectivity,
     explicitOfflineRuntime,
     clock,
@@ -265,8 +265,8 @@ beforeEach(() => {
   mockedApi.createSession.mockImplementation(async ({ accountId }) => buildSession(buildAccount(accountId)));
   mockedApi.deleteConnectedAccount.mockResolvedValue(undefined);
   mockedApi.listFiles.mockImplementation(async (path, _token, _signal) => path === "Projects"
-    ? { path, items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] }
-    : { path, items: [{ path: "Projects", name: "Projects", isFolder: true }, { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] });
+    ? { completeness: "complete" as const, path, items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] }
+    : { completeness: "complete" as const, path, items: [{ path: "Projects", name: "Projects", isFolder: true }, { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] });
   mockedApi.fetchDownloadBlob.mockResolvedValue({ blob: new Blob(["download"], { type: "application/octet-stream" }), filename: undefined });
   mockedApi.prepareDownloadFile.mockResolvedValue({ blob: new Blob(["download"], { type: "application/octet-stream" }), filename: "download.bin" });
 });
@@ -584,7 +584,7 @@ describe("offline application App integration", () => {
   it("uses injective batch root and dedupe identities for historical delimiter collisions", async () => {
     const account = buildAccount("alpha", { displayName: "Batch identity workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "",
       items: [
         { path: "a|b", name: "a|b", isFolder: false, size: 1, mimeType: "text/plain" },
@@ -759,7 +759,7 @@ describe("offline application App integration", () => {
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     mockedApi.listFiles.mockImplementation(async (path: string) => {
       if (path === "Projects") {
-        return {
+        return { completeness: "complete" as const,
           path,
           items: [
             { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 16, mimeType: "text/plain" },
@@ -768,12 +768,12 @@ describe("offline application App integration", () => {
         };
       }
       if (path === "Projects/Nested") {
-        return {
+        return { completeness: "complete" as const,
           path,
           items: [{ path: "Projects/Nested/notes.txt", name: "notes.txt", isFolder: false, size: 8, mimeType: "text/plain" }]
         };
       }
-      return { path, items: [{ path: "Projects", name: "Projects", isFolder: true }] };
+      return { completeness: "complete" as const, path, items: [{ path: "Projects", name: "Projects", isFolder: true }] };
     });
     mockedApi.fetchDownloadBlob.mockImplementation(async (path: string) => ({ blob: new Blob([path], { type: "text/plain" }), filename: path.split("/").pop() }));
 
@@ -790,8 +790,8 @@ describe("offline application App integration", () => {
 
     await waitFor(() => expectRetainedFilePersisted("Projects/Nested/notes.txt"));
     expect(mockedRetentionRepository.beginRoot).toHaveBeenCalledWith(retentionAccountFor(account), expect.objectContaining({ rootPath: "Projects", kind: "folder" }));
-    expect(mockedCache.writeFolder).toHaveBeenCalledWith("ns-alpha", "Projects", expect.any(Array));
-    expect(mockedCache.writeFolder).toHaveBeenCalledWith("ns-alpha", "Projects/Nested", expect.any(Array));
+    expect(mockedCache.writeFolder).toHaveBeenCalledWith("ns-alpha", "Projects", expect.any(Array), "complete");
+    expect(mockedCache.writeFolder).toHaveBeenCalledWith("ns-alpha", "Projects/Nested", expect.any(Array), "complete");
   });
 
   it("aborts a deferred recursive estimate when entering explicit offline mode", async () => {
@@ -801,13 +801,13 @@ describe("offline application App integration", () => {
     let estimateSignal: AbortSignal | undefined;
     mockedApi.listFiles.mockImplementation(async (path: string, _token: string, signal?: AbortSignal) => {
       if (path === "") {
-        return { path, items: [{ path: "Projects", name: "Projects", isFolder: true }] };
+        return { completeness: "complete" as const, path, items: [{ path: "Projects", name: "Projects", isFolder: true }] };
       }
       if (path === "Projects") {
         estimateSignal = signal;
         return deferred.promise;
       }
-      return { path, items: [{ path: `${path}/late.txt`, name: "late.txt", isFolder: false, size: 1 }] };
+      return { completeness: "complete" as const, path, items: [{ path: `${path}/late.txt`, name: "late.txt", isFolder: false, size: 1 }] };
     });
 
     render(<App />);
@@ -820,13 +820,13 @@ describe("offline application App integration", () => {
     fireEvent.click(await screen.findByRole("button", { name: /^Go offline$/i }));
     await waitFor(() => expect(estimateSignal?.aborted).toBe(true));
 
-    deferred.resolve({
+    deferred.resolve({ completeness: "complete" as const,
       path: "Projects",
       items: [{ path: "Projects/Nested", name: "Nested", isFolder: true }]
     });
     await act(async () => { await Promise.resolve(); });
     expect(mockedApi.listFiles).not.toHaveBeenCalledWith("Projects/Nested", "token-alpha", expect.anything());
-    expect(mockedCache.writeFolder).not.toHaveBeenCalledWith("ns-alpha", "Projects", expect.any(Array));
+    expect(mockedCache.writeFolder).not.toHaveBeenCalledWith("ns-alpha", "Projects", expect.any(Array), "complete");
     expect(screen.queryByRole("dialog", { name: /Keep offline confirmation/i })).not.toBeInTheDocument();
   });
 
@@ -836,12 +836,12 @@ describe("offline application App integration", () => {
     const projectsListing = createDeferred<Awaited<ReturnType<typeof mockedApi.listFiles>>>();
     mockedApi.listFiles.mockImplementation(async (path: string) => {
       if (path === "") {
-        return { path, items: [{ path: "Projects", name: "Projects", isFolder: true }] };
+        return { completeness: "complete" as const, path, items: [{ path: "Projects", name: "Projects", isFolder: true }] };
       }
       if (path === "Projects") {
         return projectsListing.promise;
       }
-      return { path, items: [] };
+      return { completeness: "complete" as const, path, items: [] };
     });
     mockedApi.fetchDownloadBlob.mockImplementation(async (path: string) => ({ blob: new Blob([path], { type: "text/plain" }), filename: path.split("/").pop() }));
 
@@ -860,7 +860,7 @@ describe("offline application App integration", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: /Keep offline confirmation/i })).not.toBeInTheDocument());
     expect(mockedApi.fetchDownloadBlob).not.toHaveBeenCalled();
 
-    projectsListing.resolve({
+    projectsListing.resolve({ completeness: "complete" as const,
       path: "Projects",
       items: [{ path: "Projects/notes.txt", name: "notes.txt", isFolder: false, size: 4, mimeType: "text/plain" }]
     });
@@ -875,12 +875,12 @@ describe("offline application App integration", () => {
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     mockedApi.listFiles.mockImplementation(async (path: string) => {
       if (path === "Archive") {
-        return {
+        return { completeness: "complete" as const,
           path,
           items: [{ path: "Archive/photo.png", name: "photo.png", isFolder: false, size: 4, mimeType: "image/png" }]
         };
       }
-      return {
+      return { completeness: "complete" as const,
         path,
         items: [
           { path: "Archive", name: "Archive", isFolder: true },
@@ -921,8 +921,8 @@ describe("offline application App integration", () => {
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     const download = createDeferred<{ blob: Blob; filename?: string }>();
     mockedApi.listFiles.mockImplementation(async (path: string) => path === "Archive"
-      ? { path, items: [{ path: "Archive/photo.png", name: "photo.png", isFolder: false, size: 4, mimeType: "image/png" }] }
-      : { path, items: [
+      ? { completeness: "complete" as const, path, items: [{ path: "Archive/photo.png", name: "photo.png", isFolder: false, size: 4, mimeType: "image/png" }] }
+      : { completeness: "complete" as const, path, items: [
         { path: "Archive", name: "Archive", isFolder: true },
         { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 12, mimeType: "text/plain" }
       ] });
@@ -1003,7 +1003,7 @@ describe("offline application App integration", () => {
     let badPathAttempts = 0;
     mockedApi.listFiles.mockImplementation(async (path: string) => {
       if (path === "Projects") {
-        return {
+        return { completeness: "complete" as const,
           path,
           items: [
             { path: "Projects/bad.pdf", name: "bad.pdf", isFolder: false, size: 10, mimeType: "application/pdf" },
@@ -1011,7 +1011,7 @@ describe("offline application App integration", () => {
           ]
         };
       }
-      return {
+      return { completeness: "complete" as const,
         path,
         items: [{ path: "Projects", name: "Projects", isFolder: true }]
       };

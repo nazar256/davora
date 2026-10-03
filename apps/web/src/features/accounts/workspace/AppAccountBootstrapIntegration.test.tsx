@@ -102,8 +102,8 @@ function createAccountFixture(): AppServices {
   let accountRegistry: AccountRegistryService | undefined;
   const getAccountRegistry = () => accountRegistry ??= createAccountRegistryService(storage, { isExpired: (expiresAt) => Date.parse(expiresAt) <= Date.now() });
   const listFiles = async (path: string) => path === "Projects"
-    ? { path, items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] }
-    : { path, items: [{ path: "Projects", name: "Projects", isFolder: true }, { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] };
+    ? { completeness: "complete" as const, path, items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] }
+    : { completeness: "complete" as const, path, items: [{ path: "Projects", name: "Projects", isFolder: true }, { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] };
   const accountTransport: AccountTransport = {
     getHealth: mockedApi.getHealth,
     connectAccount: mockedApi.connectAccount,
@@ -138,7 +138,7 @@ function createAccountFixture(): AppServices {
       if (signal.aborted) return { kind: "cancelled" };
       try {
         const result = await listFiles(path);
-        return { kind: "success", items: result.items };
+        return { completeness: "complete" as const, kind: "success", items: result.items };
       } catch (error) {
         return { kind: "failure", error: error instanceof Error ? error : new Error("Unable to load folder.") };
       }
@@ -148,7 +148,7 @@ function createAccountFixture(): AppServices {
   };
   const search: SearchPorts = {
     createAbortHandle: abortHandle,
-    loadSearch: async () => ({ kind: "success", items: [] }),
+    loadSearch: async () => ({ completeness: "complete" as const, kind: "success", items: [] }),
     readCachedSearch: () => undefined,
     writeCachedSearch: vi.fn()
   };
@@ -200,7 +200,7 @@ function createAccountFixture(): AppServices {
     accountTransport,
     accountSession,
     browsingCache: cache,
-    favouriteResolveRuntime: { listFiles: async () => ({ items: [] }), cacheFolder: () => undefined },
+    favouriteResolveRuntime: { listFiles: async () => ({ completeness: "complete" as const, items: [] }), cacheFolder: () => undefined },
     connectivity,
     explicitOfflineRuntime,
     clock,

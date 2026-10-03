@@ -62,10 +62,17 @@ async function executeMergeFolder(
   if (sourceListing.kind !== "completed") {
     return mergeListingFailure(sourceListing, ports);
   }
+  if (!ports.isCurrent()) return { terminal: "superseded" };
+  if (ports.isCancelled?.()) return { terminal: "canceled" };
+  if (sourceListing.completeness !== "complete") return incompleteListing(source.path);
   const destinationListing = await ports.listChildren(destinationPath);
   if (destinationListing.kind !== "completed") {
     return mergeListingFailure(destinationListing, ports);
   }
+
+  if (!ports.isCurrent()) return { terminal: "superseded" };
+  if (ports.isCancelled?.()) return { terminal: "canceled" };
+  if (destinationListing.completeness !== "complete") return incompleteListing(destinationPath);
 
   const existingByName = new Map(destinationListing.entries.map((entry) => [entry.name, entry] as const));
   const discovered = sourceListing.entries.map((child) => ({
@@ -157,10 +164,15 @@ async function executeMergeFolder(
 
   if (input.operation === "move" && allDone) {
     const remaining = await ports.listChildren(source.path);
+    if (!ports.isCurrent()) return { terminal: "superseded" };
+    if (ports.isCancelled?.()) return { terminal: "canceled" };
     if (remaining.kind === "sessionTerminated") return { terminal: "sessionTerminated" };
     if (remaining.kind === "interrupted") return { terminal: interruptedTerminal(ports) };
     if (remaining.kind !== "completed") {
       failures.push(`${source.path}: ${remaining.message}`);
+      allDone = false;
+    } else if (remaining.completeness !== "complete") {
+      failures.push(`A complete folder listing is required for ${source.path}. Source folder was not removed.`);
       allDone = false;
     } else if (remaining.entries.length > 0) {
       allDone = false;
@@ -178,6 +190,10 @@ async function executeMergeFolder(
   return {
     children: { kind: "settled", allDone, failures, skippedCount }
   };
+}
+
+function incompleteListing(path: string): MergeResult {
+  return { children: { kind: "settled", allDone: false, failures: [`A complete folder listing is required for ${path}. Select individual items instead.`], skippedCount: 0 } };
 }
 
 function mergeListingFailure(

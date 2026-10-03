@@ -67,6 +67,8 @@ describe("browsing presentation", () => {
 
   it.each([
     [{ count: 0, path: "", rawSearchQuery: "" }, "0 items in /"],
+    [{ count: 4, path: "Projects", rawSearchQuery: "", completeness: "partial" as const }, "4+ items in /Projects"],
+    [{ count: 4, path: "Projects", rawSearchQuery: "", completeness: "unknown" as const }, "4 items in /Projects"],
     [{ count: 1, path: "Projects", rawSearchQuery: "" }, "1 item in /Projects"],
     [{ count: 0, path: "", rawSearchQuery: "  Plan  " }, "0 results for “Plan” in /"],
     [{ count: 2, path: "Projects/資料", rawSearchQuery: "  Plan  Q3  " }, "2 results for “Plan  Q3” in /Projects/資料"]

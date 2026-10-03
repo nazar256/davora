@@ -11,9 +11,9 @@ import {
   listMockFolder,
   moveMockResource,
   readMockFile,
-  searchMockFiles,
   uploadMockFile
 } from "../mock/data";
+import { boundedSearch } from "./boundedSearch";
 import { normalizeFileBackendCall } from "./fileBackendError";
 
 export class MockFileBackend implements FileBackend {
@@ -41,7 +41,7 @@ export class MockFileBackend implements FileBackend {
   }
 
   search(path: string, query: string) {
-    return normalizeFileBackendCall(() => Promise.resolve(searchMockFiles(this.accountId, query, path)));
+    return normalizeFileBackendCall(() => boundedSearch(path, query, (folderPath) => this.list(folderPath)));
   }
 
   download(path: string): Promise<DownloadContent | undefined> {

@@ -23,14 +23,14 @@ function resolveDialogPresentation(variant: ConnectAccountDialogVariant) {
       return {
         ariaLabel: "Add account",
         title: "Add Nextcloud account",
-        description: "Connect another Nextcloud account without disturbing the current file-manager workspace design.",
+        description: "Connect another Nextcloud account.",
         submitLabel: "Add account"
       };
     case "reconnect":
       return {
         ariaLabel: "Reconnect account",
         title: "Reconnect account",
-        description: "Re-enter the app password so this account can create fresh sessions again.",
+        description: "Enter an app password to restore access.",
         submitLabel: "Reconnect account"
       };
   }

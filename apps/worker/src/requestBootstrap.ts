@@ -11,7 +11,7 @@ import {
   workerFailure,
   workerFailureResponse
 } from "./http/failure";
-import { matchWorkerRoute, type WorkerRoute } from "./http/router";
+import { matchWorkerRoute, type MatchedWorkerRoute } from "./http/router";
 
 export interface ConfigHealth {
   configLoaded: boolean;
@@ -36,7 +36,7 @@ export type RequestBootstrapResult =
   | {
       readonly kind: "admitted";
       readonly env: WorkerEnv;
-      readonly route: WorkerRoute;
+      readonly route: MatchedWorkerRoute;
       readonly origin: string | null;
       readonly allowedOrigins: readonly string[];
     };
@@ -123,7 +123,7 @@ export async function prepareWorkerRequest(
     };
   }
 
-  let route: WorkerRoute;
+  let route: MatchedWorkerRoute;
   try {
     route = await matchWorkerRoute(request);
   } catch (error) {

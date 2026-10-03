@@ -48,7 +48,7 @@ function createInput(): SettingsDialogStageProjectionInput {
     },
     cache: {
       summary: { itemCount: 1, totalBytes: 64, limitBytes: 256 },
-      offlineItems: [{ rootId: "root", rootPath: "Projects", name: "Projects", kind: "folder", fileCount: 2, totalBytes: 64 }],
+      offlineItems: [{ rootId: "root", rootPath: "Projects", name: "Projects", kind: "folder", fileCount: 2, readableFileCount: 2, readiness: "available", recoverable: true, totalBytes: 64 }],
       onClearCache: command,
       onRemoveOfflineItem: command,
       onOpenedFileCacheLimitChange: command

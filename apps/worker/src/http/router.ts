@@ -5,7 +5,9 @@ import {
   type DeleteRequestInput,
   type DiagnosticReportMetadata,
   type FilePathRequest,
+  type FilesRequest,
   type MoveCopyRequestInput,
+  type SearchRequest,
   type SessionRequest,
   type UploadRequestInput
 } from "@davora/shared";
@@ -25,13 +27,13 @@ export type ParsedWorkerRoute =
   | RouteBase<"connectAccount", "browser", ConnectAccountRequest>
   | RouteBase<"deleteAccount", "browser", { accountId: string }>
   | RouteBase<"session", "browser", SessionRequest>
-  | RouteBase<"files", "session", FilePathRequest>
+  | RouteBase<"files", "session", FilesRequest>
   | RouteBase<"metadata", "session", FilePathRequest>
   | RouteBase<"preview", "session", FilePathRequest>
   | RouteBase<"original", "session", FilePathRequest>
   | RouteBase<"streamToken", "session", FilePathRequest>
   | RouteBase<"stream", "session" | "stream", FilePathRequest>
-  | RouteBase<"search", "session", { path: string; query: string }>
+  | RouteBase<"search", "session", SearchRequest>
   | (RouteBase<"download", "session", FilePathRequest> & { readonly authorityToken?: string })
   | RouteBase<"createFolder", "session", CreateFolderRequestInput>
   | RouteBase<"upload", "session", UploadRequestInput>
@@ -55,6 +57,16 @@ export interface InvalidInputRoute {
 }
 
 export type WorkerRoute = ParsedWorkerRoute | InvalidInputRoute;
+
+type SessionMutationId = "createFolder" | "upload" | "move" | "copy" | "delete";
+
+interface PendingMutationRoute {
+  readonly id: SessionMutationId;
+  readonly auth: "session";
+  readonly inputState: "pending-body";
+}
+
+export type MatchedWorkerRoute = WorkerRoute | PendingMutationRoute;
 
 const MALFORMED_JSON = Symbol("malformed-json");
 type ApiEndpointKey = keyof typeof apiEndpoints;
@@ -139,7 +151,14 @@ const catalogRouteParsers = {
     if (!parsed.success) throw workerFailure("invalid_request", "session-body");
     return { id: "session", auth: "browser", input: parsed.data };
   },
-  files: (_request, url) => ({ id: "files", auth: "session", input: pathInput(apiEndpoints.files, url) }),
+  files: (_request, url) => {
+    const parsed = apiEndpoints.files.requestSchema.safeParse({
+      path: url.searchParams.get("path") ?? "",
+      ...(url.searchParams.has("listing") ? { listing: url.searchParams.get("listing") } : {})
+    });
+    if (!parsed.success) throw workerFailure("invalid_file_query", "listing-query");
+    return { id: "files", auth: "session", input: parsed.data };
+  },
   metadata: (_request, url) => ({ id: "metadata", auth: "session", input: pathInput(apiEndpoints.metadata, url) }),
   preview: (_request, url) => ({ id: "preview", auth: "session", input: pathInput(apiEndpoints.preview, url) }),
   original: (_request, url) => ({ id: "original", auth: "session", input: pathInput(apiEndpoints.original, url) }),
@@ -150,7 +169,7 @@ const catalogRouteParsers = {
     input: pathInput(apiEndpoints.stream, url)
   }),
   search: (_request, url) => {
-    const parsed = apiEndpoints.search.requestSchema.safeParse({ path: url.searchParams.get("path") ?? "", query: url.searchParams.get("q") ?? "" });
+    const parsed = apiEndpoints.search.requestSchema.safeParse({ path: url.searchParams.get("path") ?? "", query: url.searchParams.get("q") ?? "", ...(url.searchParams.has("coverage") ? { coverage: url.searchParams.get("coverage") } : {}) });
     if (!parsed.success) throw workerFailure("invalid_file_query", "search-query");
     return { id: "search", auth: "session", input: parsed.data };
   },
@@ -209,7 +228,31 @@ function endpointPathMatches(endpoint: CatalogEndpoint, url: URL): boolean {
     : endpoint.path === url.pathname;
 }
 
-export async function matchWorkerRoute(request: Request): Promise<WorkerRoute> {
+function isSessionMutation(id: ApiEndpointKey): id is SessionMutationId {
+  return id === "createFolder" || id === "upload" || id === "move" || id === "copy" || id === "delete";
+}
+
+async function parseCatalogRoute(request: Request, url: URL, endpointKey: ApiEndpointKey): Promise<WorkerRoute> {
+  try {
+    return await catalogRouteParsers[endpointKey](request, url);
+  } catch (error) {
+    if (isWorkerFailure(error)) {
+      return {
+        id: endpointKey,
+        auth: endpointKey === "stream" && url.searchParams.has("streamToken") ? "stream" : apiEndpoints[endpointKey].auth,
+        inputError: error
+      };
+    }
+    throw error;
+  }
+}
+
+export async function resolveWorkerRouteInput(request: Request, route: MatchedWorkerRoute): Promise<WorkerRoute> {
+  if (!("inputState" in route)) return route;
+  return parseCatalogRoute(request, new URL(request.url), route.id);
+}
+
+export async function matchWorkerRoute(request: Request): Promise<MatchedWorkerRoute> {
   const url = new URL(request.url);
 
   if (url.pathname === "/api/mock/reset" && request.method === "POST") {
@@ -219,18 +262,10 @@ export async function matchWorkerRoute(request: Request): Promise<WorkerRoute> {
     const endpoint = apiEndpoints[endpointKey];
     if (!endpointPathMatches(endpoint, url)) continue;
     if (endpoint.matchPolicy === "method" && request.method !== endpoint.method) continue;
-    try {
-      return await catalogRouteParsers[endpointKey](request, url);
-    } catch (error) {
-      if (isWorkerFailure(error)) {
-        return {
-          id: endpointKey,
-          auth: endpointKey === "stream" && url.searchParams.has("streamToken") ? "stream" : endpoint.auth,
-          inputError: error
-        };
-      }
-      throw error;
+    if (isSessionMutation(endpointKey)) {
+      return { id: endpointKey, auth: "session", inputState: "pending-body" };
     }
+    return parseCatalogRoute(request, url, endpointKey);
   }
 
   throw workerFailure("not_found", "path");

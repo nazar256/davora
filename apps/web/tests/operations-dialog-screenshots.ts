@@ -8,12 +8,12 @@ setupScreenshotSuite();
 test("captures the mobile details sheet", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chrome", "Mobile evidence only.");
   const longFileName = "quarterly-archive-export-with-long-location-name-and-metadata.txt";
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [
             {
@@ -44,12 +44,12 @@ test("captures the mobile delete confirmation without typed-name gate", async ({
   test.skip(testInfo.project.name !== "mobile-chrome", "Mobile evidence only.");
   const longFileName = "Документи-and-a-very-long-delete-target-name-100%.txt";
   const longPath = `Projects/${longFileName}`;
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [
             {

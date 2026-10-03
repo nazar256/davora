@@ -18,7 +18,7 @@ import type { FileBackend } from "../files/backend";
 import type { SessionPayload, StreamTokenPayload, WorkerEnv } from "../types";
 import { createWorkerRequestContext, type WorkerRequestContext } from "./context";
 import { normalizeWorkerFailure, workerFailure, workerFailureResponse } from "./failure";
-import type { ParsedWorkerRoute, WorkerRoute } from "./router";
+import { resolveWorkerRouteInput, type MatchedWorkerRoute, type ParsedWorkerRoute } from "./router";
 
 export interface WorkerApplicationDependencies {
   readonly accountService: AccountService;
@@ -183,7 +183,7 @@ async function executeApplicationRoute(
 
 export async function handleWorkerApplication(
   request: Request,
-  route: WorkerRoute,
+  route: MatchedWorkerRoute,
   env: WorkerEnv,
   dependencies: WorkerApplicationDependencies
 ): Promise<Response> {
@@ -193,8 +193,9 @@ export async function handleWorkerApplication(
       verifyStreamToken: dependencies.verifyStreamToken,
       resolveAuthorizedAccount: dependencies.accountService.resolveAuthorized
     });
-    if (route.inputError !== undefined) throw route.inputError;
-    return await executeApplicationRoute(request, route, context, env, dependencies);
+    const resolvedRoute = await resolveWorkerRouteInput(request, route);
+    if (resolvedRoute.inputError !== undefined) throw resolvedRoute.inputError;
+    return await executeApplicationRoute(request, resolvedRoute, context, env, dependencies);
   } catch (error) {
     return workerFailureResponse(error);
   }

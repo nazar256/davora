@@ -15,7 +15,7 @@ import { useFavouriteActions } from "./useFavouriteActions";
 const NOW = "2026-07-16T20:00:00.000Z";
 
 function createPorts() {
-  const listFiles = vi.fn<CreateFavouriteActionsPortsInput["listFiles"]>(async () => ({ items: [] }));
+  const listFiles = vi.fn<CreateFavouriteActionsPortsInput["listFiles"]>(async () => ({ completeness: "complete" as const, items: [] }));
   const cacheFolder = vi.fn();
   const toDisplayPath = vi.fn((path: string) => (path ? `/${path}` : "/"));
   const closeNavigationChrome = vi.fn();
@@ -85,7 +85,7 @@ describe("useFavouriteActions", () => {
       throw new Error("Expected a favourite entry.");
     }
 
-    listFiles.mockResolvedValue({
+    listFiles.mockResolvedValue({ completeness: "complete",
       items: [{ path: "Projects", name: "Projects", isFolder: true } satisfies FileEntry]
     });
     await act(async () => {
@@ -107,7 +107,7 @@ describe("useFavouriteActions", () => {
   });
 
   it.each(["success", "failure"] as const)("ignores a stale Alpha open after replacing the current owner with Beta (%s)", async (outcome) => {
-    const pending = createDeferred<{ readonly items: readonly FileEntry[] }>();
+    const pending = createDeferred<{ completeness: "complete" | "partial"; readonly items: readonly FileEntry[] }>();
     const storage = createFakeFavouritesStorage({
       "davora-favourites:alpha": JSON.stringify([{ path: "Projects", name: "Projects", isFolder: true }])
     });
@@ -135,7 +135,7 @@ describe("useFavouriteActions", () => {
     rerender({ account: beta });
 
     if (outcome === "success") {
-      pending.resolve({ items: [{ path: "Projects", name: "Projects", isFolder: true }] });
+      pending.resolve({ completeness: "complete" as const, items: [{ path: "Projects", name: "Projects", isFolder: true }] });
     } else {
       pending.reject(new Error("Alpha list failed"));
     }
@@ -151,7 +151,7 @@ describe("useFavouriteActions", () => {
   });
 
   it("ignores an Alpha open that settles after the favourites owner unmounts", async () => {
-    const pending = createDeferred<{ readonly items: readonly FileEntry[] }>();
+    const pending = createDeferred<{ completeness: "complete" | "partial"; readonly items: readonly FileEntry[] }>();
     const storage = createFakeFavouritesStorage({
       "davora-favourites:alpha": JSON.stringify([{ path: "Projects", name: "Projects", isFolder: true }])
     });
@@ -175,7 +175,7 @@ describe("useFavouriteActions", () => {
     const openPromise = result.current.openFavourite(entry);
     const valuesBeforeSettlement = [...storage.values.entries()];
     unmount();
-    pending.resolve({ items: [{ path: "Projects", name: "Projects", isFolder: true }] });
+    pending.resolve({ completeness: "complete" as const, items: [{ path: "Projects", name: "Projects", isFolder: true }] });
     await act(async () => { await openPromise; });
 
     expect(alphaPorts.reportListError).not.toHaveBeenCalled();
@@ -188,7 +188,7 @@ describe("useFavouriteActions", () => {
   });
 
   it("keeps committed Alpha open current when an abandoned Beta render suspends", async () => {
-    const pending = createDeferred<{ readonly items: readonly FileEntry[] }>();
+    const pending = createDeferred<{ completeness: "complete" | "partial"; readonly items: readonly FileEntry[] }>();
     const betaGate = createDeferred<void>();
     const storage = createFakeFavouritesStorage({
       "davora-favourites:alpha": JSON.stringify([{ path: "Projects", name: "Projects", isFolder: true }])
@@ -230,10 +230,10 @@ describe("useFavouriteActions", () => {
     act(() => {
       startTransition(() => root.render(<Harness account={beta} suspend ref={actionsRef} />));
     });
-    pending.resolve({ items: [{ path: "Projects", name: "Projects", isFolder: true }] });
+    pending.resolve({ completeness: "complete" as const, items: [{ path: "Projects", name: "Projects", isFolder: true }] });
     await act(async () => { await openPromise; });
 
-    expect(alphaPorts.cacheFolder).toHaveBeenCalledWith("ns-alpha", "", expect.any(Array));
+    expect(alphaPorts.cacheFolder).toHaveBeenCalledWith("ns-alpha", "", expect.any(Array), "complete");
     expect(alphaPorts.navigateToPath).toHaveBeenCalledWith("Projects");
     expect(alphaPorts.reportListError).not.toHaveBeenCalled();
     expect(alphaPorts.setStatus).not.toHaveBeenCalledWith(expect.stringContaining("Favourite unavailable"));

@@ -115,7 +115,7 @@ describe("browser API contract", () => {
   });
 
   it("summarizes invalid envelope issues without retaining rejected values", async () => {
-    const body = JSON.stringify({ data: { path: "Docs", items: [{ path: "../private-sentinel", name: "x", isFolder: false }] } });
+    const body = JSON.stringify({ data: { completeness: "complete", path: "Docs", items: [{ path: "../private-sentinel", name: "x", isFolder: false }] } });
     vi.stubGlobal("fetch", vi.fn(async () => new Response(body, {
       status: 200,
       headers: { "content-type": "application/json" }
@@ -353,7 +353,7 @@ describe("browser API contract", () => {
     vi.stubGlobal("fetch", fetchMock);
     const controller = new AbortController();
     const request = searchFiles("Docs", " Raw ", "token", controller.signal);
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/api/search?path=Docs&q=%20Raw%20");
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/api/search?path=Docs&q=%20Raw%20&coverage=bounded-v1");
     controller.abort();
     await expect(request).rejects.toMatchObject({ name: "AbortError" });
 
@@ -551,7 +551,7 @@ describe("browser API contract", () => {
       }
 
       if (new URL(url, "http://localhost").pathname === "/api/files") {
-        return new Response(JSON.stringify({ data: { path: "", items: [] } }), {
+        return new Response(JSON.stringify({ data: { completeness: "complete", path: "", items: [] } }), {
           status: 200,
           headers: { "content-type": "application/json" }
         });
@@ -559,7 +559,7 @@ describe("browser API contract", () => {
 
       if (new URL(url, "http://localhost").pathname === "/api/search") {
         const parsed = new URL(url, "http://localhost");
-        return new Response(JSON.stringify({ data: { path: parsed.searchParams.get("path") ?? "", query: parsed.searchParams.get("q") ?? "", items: [] } }), {
+        return new Response(JSON.stringify({ data: { completeness: "complete", path: parsed.searchParams.get("path") ?? "", query: parsed.searchParams.get("q") ?? "", items: [] } }), {
           status: 200,
           headers: { "content-type": "application/json" }
         });
@@ -632,7 +632,7 @@ describe("browser API contract", () => {
         }), { status: 201, headers: { "content-type": "application/json" } });
       }
 
-      return new Response(JSON.stringify({ data: { path: "", items: [], result: { action: "copy", path: "x", parentPath: "" } } }), {
+      return new Response(JSON.stringify({ data: { completeness: "complete", path: "", items: [], result: { action: "copy", path: "x", parentPath: "" } } }), {
         status: 200,
         headers: { "content-type": "application/json" }
       });
@@ -803,5 +803,15 @@ describe("browser API contract", () => {
     expect(resolveApiBase("   http://127.0.0.1:8787   ")).toBe("http://127.0.0.1:8787");
     expect(resolveApiBase(undefined)).toBe("");
     expect(resolveApiBase("   ")).toBe("");
+  });
+});
+
+describe("current folder listing protocol", () => {
+  it("opts in and refuses legacy responses without an unguarded retry", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () => new Response(JSON.stringify({ data: { path: "Docs", items: [] } }), { headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(listFiles("Docs", "token")).rejects.toMatchObject({ code: "invalid_response" });
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(String(fetch.mock.calls[0]?.[0])).toContain("listing=complete-v1");
   });
 });

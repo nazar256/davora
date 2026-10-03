@@ -1,7 +1,8 @@
 import type { FileEntry } from "@davora/shared";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { BatchDownloadPlan } from "../../../lib/batchDownload";
+import { downloadSelectionAsZip } from "../../../lib/batchDownload";
 import { ApiRequestError } from "../../../lib/api";
 import { createOperationContextToken, type OperationContextToken } from "../policy";
 import type { BatchArchiveInput } from "../selection";
@@ -10,6 +11,44 @@ import { runBatchDownloadOrchestration, runFocusedDownloadOrchestration } from "
 import type { DownloadBatchPort, DownloadOrchestrationPorts, DownloadRequestScope } from "./orchestrationPorts";
 
 type BatchZipOptions = Parameters<DownloadBatchPort["downloadSelectionAsZip"]>[0];
+
+class FakeDeferredJsZip {
+  folder(_name: string): this {
+    return this;
+  }
+
+  file(_name: string, _content: unknown): void {}
+
+  async generateAsync(): Promise<Blob> {
+    return new Blob(["zip"]);
+  }
+}
+
+function deferJsZipModule() {
+  let resolveModule: ((module: { default: typeof FakeDeferredJsZip }) => void) | undefined;
+  const moduleReady = new Promise<{ default: typeof FakeDeferredJsZip }>((resolve) => {
+    resolveModule = resolve;
+  });
+  let resolveImportStarted: (() => void) | undefined;
+  const importStarted = new Promise<void>((resolve) => {
+    resolveImportStarted = resolve;
+  });
+  vi.doMock("jszip", async () => {
+    resolveImportStarted?.();
+    return moduleReady;
+  });
+  return {
+    importStarted,
+    resolve() {
+      resolveModule?.({ default: FakeDeferredJsZip });
+    }
+  };
+}
+
+afterEach(() => {
+  vi.doUnmock("jszip");
+  vi.resetModules();
+});
 
 function entry(path: string, isFolder = false): FileEntry {
   return { path, name: path.split("/").pop() ?? path, isFolder };
@@ -84,7 +123,7 @@ function ports(overrides: Partial<DownloadOrchestrationPorts> = {}): MutableFixt
         return { blob: new Blob(["download"]), filename: "download.bin" };
       }),
       fetchBlob: vi.fn(async () => ({ blob: new Blob(["batch"]), filename: "file.txt" })),
-      listFiles: vi.fn(async () => ({ items: [] })),
+      listFiles: vi.fn(async () => ({ completeness: "complete" as const, items: [] })),
       triggerBrowserDownload: vi.fn()
     },
     batch: {
@@ -256,8 +295,8 @@ describe("runFocusedDownloadOrchestration", () => {
 describe("runBatchDownloadOrchestration", () => {
   it("acquires one abort scope and contains deferred batch work after context invalidation", async () => {
     const scopeHolder = createScope();
-    let resolveListing: ((result: { readonly items: readonly FileEntry[] }) => void) | undefined;
-    const listing = new Promise<{ readonly items: readonly FileEntry[] }>((resolve) => {
+    let resolveListing: ((result: { completeness: "complete" | "partial"; readonly items: readonly FileEntry[] }) => void) | undefined;
+    const listing = new Promise<{ completeness: "complete" | "partial"; readonly items: readonly FileEntry[] }>((resolve) => {
       resolveListing = resolve;
     });
     let resolveFetchStarted: (() => void) | undefined;
@@ -307,7 +346,7 @@ describe("runBatchDownloadOrchestration", () => {
     });
     const pending = runBatchDownloadOrchestration(batchInput([entry("Archive", true)]), adapter);
     await Promise.resolve();
-    resolveListing?.({ items: [entry("Archive/photo.png")] });
+    resolveListing?.({ completeness: "complete" as const, items: [entry("Archive/photo.png")] });
     await fetchStarted;
 
     const progressCallsBeforeInvalidation = vi.mocked(adapter.transfers.reportProgress).mock.calls.length;
@@ -344,6 +383,71 @@ describe("runBatchDownloadOrchestration", () => {
     expect(vi.mocked(adapter.transfers.beginTransfer).mock.calls.length).toBe(transferCallsBeforeInvalidation);
     expect(vi.mocked(adapter.transfers.complete).mock.calls.length).toBe(completionCallsBeforeInvalidation);
     expect(vi.mocked(adapter.transfers.completePartial).mock.calls.length).toBe(partialCallsBeforeInvalidation);
+  });
+
+  it("contains late JSZip resolution after batch context invalidation", async () => {
+    const deferred = deferJsZipModule();
+    const scopeHolder = createScope();
+    const adapter = ports({
+      registry: { acquire: vi.fn(() => scopeHolder.scope) },
+      files: {
+        prepareDownload: vi.fn(),
+        listFiles: vi.fn(async () => ({
+          completeness: "complete" as const,
+          items: [entry("Archive/photo.png")]
+        })),
+        fetchBlob: vi.fn(async () => ({ blob: new Blob(["photo"]) })),
+        triggerBrowserDownload: vi.fn()
+      },
+      batch: { downloadSelectionAsZip }
+    });
+
+    const pending = runBatchDownloadOrchestration(batchInput([entry("Archive", true)]), adapter);
+    await deferred.importStarted;
+    const statusCallsBeforeInvalidation = vi.mocked(adapter.presentation.reportStatus).mock.calls.length;
+    adapter.setContextCurrent(false);
+    adapter.setOwned(false);
+    scopeHolder.abort();
+    deferred.resolve();
+    await pending;
+
+    expect(adapter.files.listFiles).toHaveBeenCalledTimes(1);
+    expect(adapter.files.fetchBlob).not.toHaveBeenCalled();
+    expect(adapter.files.triggerBrowserDownload).not.toHaveBeenCalled();
+    expect(adapter.transfers.complete).not.toHaveBeenCalled();
+    expect(adapter.transfers.completePartial).not.toHaveBeenCalled();
+    expect(vi.mocked(adapter.presentation.reportStatus).mock.calls.length).toBe(statusCallsBeforeInvalidation);
+    expect(scopeHolder.scope.release).toHaveBeenCalledTimes(1);
+  });
+
+  it("completes the real batch path when deferred JSZip resolution stays current", async () => {
+    const deferred = deferJsZipModule();
+    const scopeHolder = createScope();
+    const adapter = ports({
+      registry: { acquire: vi.fn(() => scopeHolder.scope) },
+      files: {
+        prepareDownload: vi.fn(),
+        listFiles: vi.fn(async () => ({
+          completeness: "complete" as const,
+          items: [entry("Archive/photo.png")]
+        })),
+        fetchBlob: vi.fn(async () => ({ blob: new Blob(["photo"]) })),
+        triggerBrowserDownload: vi.fn()
+      },
+      batch: { downloadSelectionAsZip }
+    });
+
+    const pending = runBatchDownloadOrchestration(batchInput([entry("Archive", true)]), adapter);
+    await deferred.importStarted;
+    deferred.resolve();
+    await pending;
+
+    expect(adapter.files.listFiles).toHaveBeenCalledTimes(1);
+    expect(adapter.files.fetchBlob).toHaveBeenCalledTimes(1);
+    expect(adapter.files.triggerBrowserDownload).toHaveBeenCalledWith(expect.any(Blob), "archive.zip");
+    expect(adapter.transfers.complete).toHaveBeenCalledWith("transfer-1", { label: "archive.zip" });
+    expect(adapter.transfers.fail).not.toHaveBeenCalled();
+    expect(scopeHolder.scope.release).toHaveBeenCalledTimes(1);
   });
 
   it("contains late batch work when the scope is unregistered while context remains current", async () => {
@@ -440,7 +544,7 @@ describe("runBatchDownloadOrchestration", () => {
           if (failurePoint === "list") {
             throw new Error("list failed");
           }
-          return { items: [entry("notes.txt")] };
+          return { completeness: "complete" as const, items: [entry("notes.txt")] };
         }),
         triggerBrowserDownload: vi.fn()
       },

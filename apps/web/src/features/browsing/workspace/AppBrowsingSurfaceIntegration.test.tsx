@@ -108,8 +108,9 @@ vi.mock("../../../app/AppShell", async () => {
   return { AppShell: captureAppShell };
 });
 
-type FolderResponse = { readonly path: string; readonly items: FileEntry[] };
-type SearchResponse = { readonly query: string; readonly path: string; readonly items: SearchResult[] };
+type FolderResponse = { completeness: "complete" | "partial"; readonly path: string; readonly items: FileEntry[] };
+type SearchResponse = {
+  completeness: "complete" | "partial"; readonly query: string; readonly path: string; readonly items: SearchResult[] };
 type MockedApi = {
   readonly listFiles: ReturnType<typeof vi.fn<(path: string) => Promise<FolderResponse>>>;
   readonly searchFiles: ReturnType<typeof vi.fn<(path: string, query: string, token: string, signal: AbortSignal) => Promise<SearchResponse>>>;
@@ -255,17 +256,17 @@ function createBrowsingFixture(): AppServices {
     loadFolder: async ({ path }) => {
       try {
         const response = await mockedApi.listFiles(path);
-        return { kind: "success", items: response.items };
+        return { completeness: "complete" as const, kind: "success", items: response.items };
       } catch (error) {
         return { kind: "failure", error: error instanceof Error ? error : new Error("Folder listing failed") };
       }
     },
     readCachedFolder: (namespace, path) => {
       const cached = mockedCache.readFolder(namespace, path);
-      return cached.kind === "hit" ? { items: cached.items, cachedAt: cached.cachedAt } : undefined;
+      return cached.kind === "hit" ? { completeness: "complete" as const, items: cached.items, cachedAt: cached.cachedAt } : undefined;
     },
     writeCachedFolder: (namespace, path, items) => {
-      mockedCache.writeFolder(namespace, path, items);
+      mockedCache.writeFolder(namespace, path, items, "complete");
     }
   };
   const search: AppServices["search"] = {
@@ -273,7 +274,7 @@ function createBrowsingFixture(): AppServices {
     loadSearch: async ({ path, query, token, signal }) => {
       try {
         const response = await mockedApi.searchFiles(path, query, token, signal);
-        return { kind: "success", items: response.items };
+        return { completeness: "complete" as const, kind: "success", items: response.items };
       } catch (error) {
         return { kind: "failure", error: error instanceof Error ? error : new Error("Search failed") };
       }
@@ -366,7 +367,7 @@ function createBrowsingFixture(): AppServices {
   };
   return {
     accountRegistry, accountTransport, accountSession, browsingCache,
-    favouriteResolveRuntime: { listFiles: async () => ({ items: [] }), cacheFolder: () => undefined },
+    favouriteResolveRuntime: { listFiles: async () => ({ completeness: "complete" as const, items: [] }), cacheFolder: () => undefined },
     connectivity,
     explicitOfflineRuntime: { storage: createBrowserExplicitOfflineModeStorage(), network: { setBlocked: () => undefined } },
     clock: { nowIso: () => "2026-01-01T00:00:00.000Z" },
@@ -379,8 +380,8 @@ function createBrowsingFixture(): AppServices {
     responsiveViewport: { getSnapshot: () => wideViewportSnapshot, subscribe: () => () => undefined },
     search,
     settings: { load: () => settings, save: (next) => { settings = next; return next; } },
-    operationRuntime: { request: { createAbortHandle: abortHandle, createTransferId: () => "browsing-transfer" }, mutation: { createFolder: async () => ({ action: "createFolder", parentPath: "", path: "" }), deleteFile: async (path, confirmName, token) => (await mockedApi.deleteFile({ path, confirmName }, token)).result, uploadFile: async (input, token) => (await mockedApi.uploadFileWithProgress(input, token)).result, copyOrMove: async () => ({ action: "copy", parentPath: "", path: "" }), listDestination: async () => ({ items: [] }) }, download: { prepareDownloadFile: async () => ({ blob: new Blob(), filename: "" }), fetchDownloadBlob: async () => ({ blob: new Blob() }), listFiles: async (path) => mockedApi.listFiles(path), triggerBrowserDownload: () => undefined, saveDownload: () => undefined }, batch: { downloadSelectionAsZip: async () => { throw new Error("Batch download is not used by the browsing integration fixture."); } }, preview: { createFileStreamUrl: async () => "" }, time: { wait: async () => {} }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) }, isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
-    offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "browsing-sync", listFiles: async () => ({ path: "", items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob() }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
+    operationRuntime: { request: { createAbortHandle: abortHandle, createTransferId: () => "browsing-transfer" }, mutation: { createFolder: async () => ({ action: "createFolder", parentPath: "", path: "" }), deleteFile: async (path, confirmName, token) => (await mockedApi.deleteFile({ path, confirmName }, token)).result, uploadFile: async (input, token) => (await mockedApi.uploadFileWithProgress(input, token)).result, copyOrMove: async () => ({ action: "copy", parentPath: "", path: "" }), listDestination: async () => ({ completeness: "complete" as const, items: [] }) }, download: { prepareDownloadFile: async () => ({ blob: new Blob(), filename: "" }), fetchDownloadBlob: async () => ({ blob: new Blob() }), listFiles: async (path) => mockedApi.listFiles(path), triggerBrowserDownload: () => undefined, saveDownload: () => undefined }, batch: { downloadSelectionAsZip: async () => { throw new Error("Batch download is not used by the browsing integration fixture."); } }, preview: { createFileStreamUrl: async () => "" }, time: { wait: async () => {} }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) }, isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
+    offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "browsing-sync", listFiles: async () => ({ completeness: "complete" as const, path: "", items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob() }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
     retentionRepository, previewRuntime,
     accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
   };
@@ -445,11 +446,11 @@ beforeEach(() => {
   mockedCache.clearFolderPath.mockReset();
   mockedCache.clearNamespaceOrThrow.mockReset();
   mockedCache.clearFolderPathOrThrow.mockReset();
-  mockedApi.listFiles.mockResolvedValue({ path: "", items: [
+  mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const, path: "", items: [
     { path: "Projects", name: "Projects", isFolder: true },
     { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }
   ] });
-  mockedApi.searchFiles.mockResolvedValue({
+  mockedApi.searchFiles.mockResolvedValue({ completeness: "complete",
     query: "roadmap",
     path: "",
     items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain", score: 75 }]
@@ -498,11 +499,11 @@ describe("AppBrowsingSurfaceIntegration", () => {
     }
     const { browseHeader, fileList } = workspaceProps.workspace;
     expect(Object.keys(browseHeader).sort()).toEqual([
-      "browseStatusLabel", "breadcrumbs", "cacheOnlyMode",
+      "browseStatusLabel", "breadcrumbs", "cacheOnlyMode", "listingCompleteness",
       "canCreateFolder", "canUploadFiles", "canUploadFolders", "currentFolderLabel", "currentLocationLabel",
       "currentPath", "directoryUploadInputRef", "fileSizeDisplayMode", "folderDropActive", "mutationBusy",
       "onClearSearch", "onCreateFolder", "onFileSizeDisplayModeChange", "onNavigateToPath",
-      "onSearchQueryChange", "onSortModeChange", "onUploadFiles", "refreshingFolder", "searchActive", "searchQuery",
+      "onSearchQueryChange", "onSortModeChange", "onUploadFiles", "refreshingFolder", "searchActive", "searchCoverage", "searchQuery",
       "showBreadcrumbs", "sortMode", "sortReset", "staleFolder", "status"
     ].sort());
     expect(Object.keys(fileList.props).sort()).toEqual([
@@ -745,7 +746,7 @@ describe("AppBrowsingSurfaceIntegration", () => {
     mockedApi.listFiles.mockReturnValueOnce(pending.promise);
     const account = buildAccount("alpha", { displayName: "Browsing state matrix workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedCache.readFolder.mockReturnValue({
+    mockedCache.readFolder.mockReturnValue({ completeness: "complete" as const,
       kind: "hit",
       cachedAt: "2026-05-21T10:00:00.000Z",
       items: [{ path: "Cached", name: "Cached", isFolder: true }]
@@ -759,7 +760,7 @@ describe("AppBrowsingSurfaceIntegration", () => {
     };
     await waitFor(() => expect(stateWorkspace().browseHeader.staleFolder).toBe(true));
     expect(stateWorkspace().browseHeader.refreshingFolder).toBe(true);
-    pending.resolve({ path: "", items: [] });
+    pending.resolve({ completeness: "complete" as const, path: "", items: [] });
     await waitFor(() => expect(stateWorkspace().fileList.props.showEmptyState).toBe(true));
     expect(stateWorkspace().fileList.props.emptyTitle).toBe("This folder is empty.");
 

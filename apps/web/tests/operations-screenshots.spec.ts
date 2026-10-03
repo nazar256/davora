@@ -91,11 +91,11 @@ test("captures mutation controls", async ({ page }, testInfo) => {
 test("captures mobile folder destination picker", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chrome", "Mobile evidence only.");
   await connectAccount(page, "Destination picker workspace");
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [
             { path: "Projects/Документи 100%", name: "Документи 100%", isFolder: true, lastModified: new Date().toISOString() },
@@ -123,11 +123,11 @@ test("captures compact PER-68 destination picker at small mobile height", async 
   await page.setViewportSize({ width: 360, height: 640 });
   const longFileName = "Документи-and-a-very-long-copy-move-target-name-100%.txt";
   await connectAccount(page, "PER-68 evidence workspace");
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [
             { path: "Projects/Архів 100% довга назва", name: "Архів 100% довга назва", isFolder: true },
@@ -140,7 +140,7 @@ test("captures compact PER-68 destination picker at small mobile height", async 
   await page.route("**/api/files?path=Projects%2F*", async (route) => {
     await route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ data: { path: "Projects/Архів 100% довга назва", items: [] } })
+      body: JSON.stringify({ data: { completeness: "complete", path: "Projects/Архів 100% довга назва", items: [] } })
     });
   });
   await page.getByRole("button", { name: /Open folder Projects/i }).click();

@@ -100,7 +100,7 @@ function ports(overrides: {
       },
       batch: {
         executeCopyMoveTarget: overrides.execute ?? vi.fn(async (): Promise<TargetExecutionResult> => ({ kind: "completed" })),
-        listChildren: overrides.listChildren ?? vi.fn(async (): Promise<FolderListResult> => ({ kind: "completed", entries: [] })),
+        listChildren: overrides.listChildren ?? vi.fn(async (): Promise<FolderListResult> => ({ completeness: "complete" as const, kind: "completed", entries: [] })),
         deleteFolder: overrides.deleteFolder ?? vi.fn(async (): Promise<TargetExecutionResult> => ({ kind: "completed" })),
         refreshFolder: overrides.refreshFolder ?? vi.fn(async (): Promise<FolderRefreshResult> => ({ kind: "completed" }))
       },
@@ -416,7 +416,7 @@ describe("runCopyMoveTask", () => {
     const fixture = ports({
       execute,
       deleteFolder,
-      listChildren: vi.fn(async (path: string): Promise<FolderListResult> => ({ kind: "completed", entries: children[path] ?? [] }))
+      listChildren: vi.fn(async (path: string): Promise<FolderListResult> => ({ completeness: "complete" as const, kind: "completed", entries: children[path] ?? [] }))
     });
     await runCopyMoveTask(spec({
       operation: "move",

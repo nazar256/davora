@@ -40,7 +40,7 @@ const mockedApi = {
   connectAccount: vi.fn<AccountTransport["connectAccount"]>(),
   createSession: vi.fn<AccountTransport["createSession"]>(),
   deleteConnectedAccount: vi.fn<AccountTransport["deleteConnectedAccount"]>(),
-  listFiles: vi.fn<(path: string, token: string, signal: AbortSignal) => Promise<{ path: string; items: FileEntry[] }>>(),
+  listFiles: vi.fn<(path: string, token: string, signal: AbortSignal) => Promise<{ completeness: "complete" | "partial"; path: string; items: FileEntry[] }>>(),
   getFile: vi.fn<PreviewTransport["getFile"]>(),
   fetchOriginalFile: vi.fn<PreviewTransport["fetchOriginalFile"]>(),
   createStreamingFileUrl: vi.fn<PreviewTransport["createStreamingFileUrl"]>(),
@@ -136,13 +136,13 @@ function createImageFixture(): AppServices {
   const listFiles = async (path: string, token: string, signal: AbortSignal) => mockedApi.listFiles(path, token, signal);
   const folder: FolderPorts = {
     createAbortHandle: abortHandle,
-    loadFolder: async ({ path, token, signal }) => { try { const result = await listFiles(path, token, signal); return { kind: "success", items: result.items }; } catch (error) { return { kind: "failure", error: error instanceof Error ? error : new Error("Unable to load folder.") }; } },
+    loadFolder: async ({ path, token, signal }) => { try { const result = await listFiles(path, token, signal); return { completeness: "complete" as const, kind: "success", items: result.items }; } catch (error) { return { kind: "failure", error: error instanceof Error ? error : new Error("Unable to load folder.") }; } },
     readCachedFolder: () => undefined, writeCachedFolder: vi.fn()
   };
   const cache: BrowsingCacheRepository = {
     readFolder: vi.fn(() => ({ kind: "miss" as const })), writeFolder: vi.fn(() => ({ kind: "written" as const })), readSearch: vi.fn(() => ({ kind: "miss" as const })), writeSearch: vi.fn(() => ({ kind: "written" as const })), clearNamespace: vi.fn(() => ({ kind: "cleared" as const })), clearFolderPath: vi.fn(() => ({ kind: "cleared" as const })), clearNamespaceOrThrow: vi.fn(), clearFolderPathOrThrow: vi.fn()
   };
-  const search: SearchPorts = { createAbortHandle: abortHandle, loadSearch: async () => ({ kind: "success", items: [] }), readCachedSearch: () => undefined, writeCachedSearch: vi.fn() };
+  const search: SearchPorts = { createAbortHandle: abortHandle, loadSearch: async () => ({ completeness: "complete" as const, kind: "success", items: [] }), readCachedSearch: () => undefined, writeCachedSearch: vi.fn() };
   const accountSession = { getHealth: accountTransport.getHealth, createSession: accountTransport.createSession, commitSession: (...args: Parameters<AccountRegistryService["commitSession"]>) => getAccountRegistry().commitSession(...args), markAccountReconnectRequired: (...args: Parameters<AccountRegistryService["markAccountReconnectRequired"]>) => getAccountRegistry().markAccountReconnectRequired(...args), clearAccountSession: (...args: Parameters<AccountRegistryService["clearAccountSession"]>) => getAccountRegistry().clearAccountSession(...args), delay: async () => undefined };
   const registry = { getState: () => getAccountRegistry().getState(), getSnapshot: () => getAccountRegistry().getSnapshot(), subscribe: (listener: () => void) => getAccountRegistry().subscribe(listener), repair: () => getAccountRegistry().repair(), connectAccount: (...args: Parameters<AccountRegistryService["connectAccount"]>) => getAccountRegistry().connectAccount(...args), commitConnectedAccount: (...args: Parameters<AccountRegistryService["commitConnectedAccount"]>) => getAccountRegistry().commitConnectedAccount(...args), commitSession: (...args: Parameters<AccountRegistryService["commitSession"]>) => getAccountRegistry().commitSession(...args), clearAccountSession: (...args: Parameters<AccountRegistryService["clearAccountSession"]>) => getAccountRegistry().clearAccountSession(...args), markAccountReconnectRequired: (...args: Parameters<AccountRegistryService["markAccountReconnectRequired"]>) => getAccountRegistry().markAccountReconnectRequired(...args), switchAccount: (...args: Parameters<AccountRegistryService["switchAccount"]>) => getAccountRegistry().switchAccount(...args), removeAccount: (...args: Parameters<AccountRegistryService["removeAccount"]>) => getAccountRegistry().removeAccount(...args), retryRemovalCommit: (...args: Parameters<AccountRegistryService["retryRemovalCommit"]>) => getAccountRegistry().retryRemovalCommit(...args) };
   const operationRuntime: OperationRuntimePort = {
@@ -159,13 +159,13 @@ function createImageFixture(): AppServices {
   const settings = { load: () => { try { return normalizeUiSettings(JSON.parse(localStorage.getItem("davora-ui-settings") ?? "{}")); } catch { return DEFAULT_UI_SETTINGS; } }, save: (value: typeof DEFAULT_UI_SETTINGS) => { localStorage.setItem("davora-ui-settings", JSON.stringify(value)); return value; } };
   const previewTransport: PreviewTransport = { getFile: mockedApi.getFile, fetchOriginalFile: mockedApi.fetchOriginalFile, createStreamingFileUrl: mockedApi.createStreamingFileUrl };
   return {
-    accountRegistry: registry, accountTransport, accountSession, browsingCache: cache, favouriteResolveRuntime: { listFiles: async () => ({ items: [] }), cacheFolder: () => undefined }, connectivity, explicitOfflineRuntime, clock,
+    accountRegistry: registry, accountTransport, accountSession, browsingCache: cache, favouriteResolveRuntime: { listFiles: async () => ({ completeness: "complete" as const, items: [] }), cacheFolder: () => undefined }, connectivity, explicitOfflineRuntime, clock,
     favourites: { load: () => ({ kind: "loaded", entries: [] }), save: () => ({ kind: "saved", entries: [] }), clear: () => ({ kind: "cleared" }), create: (entry: FileEntry) => ({ ...entry, accountId: "alpha", accountBackend: "mock", accountRootPath: "", cacheNamespace: "ns-alpha", addedAt: clock.nowIso() }) },
     favouritesPointerEnvironment: { elementFromPoint: () => null, addWindowListener: () => () => undefined }, folder,
     folderSorts: createMemoryFolderSortService(),
     history: { pushState: (state: unknown, url?: string) => window.history.pushState(state, "", url), replaceState: (state: unknown, url?: string) => window.history.replaceState(state, "", url), getState: (): unknown => window.history.state, getLocation: () => ({ href: window.location.href, search: window.location.search }), subscribe: (listener: (state: unknown) => void) => { const handler = () => listener(window.history.state); window.addEventListener("popstate", handler); return () => window.removeEventListener("popstate", handler); } },
     pullToRefreshEnvironment: { getWindowScrollY: () => window.scrollY }, responsiveViewport, search, settings, operationRuntime,
-    offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "image-sync", listFiles: async (path) => ({ path, items: [] }), fetchDownloadBlob: vi.fn(), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
+    offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "image-sync", listFiles: async (path) => ({ completeness: "complete" as const, path, items: [] }), fetchDownloadBlob: vi.fn(), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
     retentionRepository: retentionFixture.repository, previewRuntime: createPreviewComposition({ retentionRepository: retentionFixture.repository, previewTransport }), accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
   } satisfies AppServices;
 }
@@ -186,7 +186,7 @@ beforeEach(() => {
   mockedApi.connectAccount.mockImplementation(async (request) => ({ kind: "http-success", data: { account: buildAccount(request.accountId ?? "connected", { displayName: request.label?.trim() || `${request.username}@${new URL(request.baseUrl).hostname}`, label: request.label, baseUrl: request.baseUrl, username: request.username, rootPath: request.rootPath ?? "", cacheNamespace: request.cacheNamespace ?? `ns-${request.accountId ?? "connected"}` }) } }));
   mockedApi.createSession.mockImplementation(async ({ accountId }) => buildSession(buildAccount(accountId)));
   mockedApi.deleteConnectedAccount.mockResolvedValue(undefined);
-  mockedApi.listFiles.mockResolvedValue({ path: "", items: [] });
+  mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const, path: "", items: [] });
   mockedApi.getFile.mockResolvedValue({ file: textPreview });
   mockedApi.fetchOriginalFile.mockResolvedValue({ blob: new Blob(["binary"], { type: "image/png" }), mimeType: "image/png", filename: "photo.png" });
   mockedApi.createStreamingFileUrl.mockResolvedValue("blob:stream");
@@ -199,7 +199,7 @@ describe("image preview App integration", () => {
   it("shows an image preview fallback instead of a broken browser image affordance", async () => {
     const account = buildAccount("alpha", { displayName: "Image preview workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "",
       items: [{ path: "Archive/photo.png", name: "photo.png", isFolder: false, size: 12, mimeType: "image/png" }]
     });
@@ -239,7 +239,7 @@ describe("image preview App integration", () => {
   it("lets image previews switch between immersive fill and whole-image fit", async () => {
     const account = buildAccount("alpha", { displayName: "Image fit workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "",
       items: [{ path: "Archive/photo.png", name: "photo.png", isFolder: false, size: 12, mimeType: "image/png" }]
     });
@@ -310,7 +310,7 @@ describe("image preview App integration", () => {
   it("shows HEIC fallback without downloading or decoding when the experiment is disabled", async () => {
     const account = buildAccount("alpha", { displayName: "HEIC fallback workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "",
       items: [{ path: "Archive/photo.heic", name: "photo.heic", isFolder: false, size: 12, mimeType: "image/heic" }]
     });
@@ -347,7 +347,7 @@ describe("image preview App integration", () => {
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     const heicBlob = new Blob(["heic"], { type: "image/heic" });
     const jpegBlob = new Blob(["jpeg"], { type: "image/jpeg" });
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "",
       items: [{ path: "Archive/photo.heic", name: "photo.heic", isFolder: false, size: 12, mimeType: "image/heic" }]
     });
@@ -393,7 +393,7 @@ describe("image preview App integration", () => {
     const account = buildAccount("alpha", { displayName: "HEIC cache workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     const cachedJpeg = new Blob(["cached-jpeg"], { type: "image/jpeg" });
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "",
       items: [{ path: "Archive/photo.heic", name: "photo.heic", isFolder: false, size: 12, mimeType: "image/heic" }]
     });
@@ -431,7 +431,7 @@ describe("image preview App integration", () => {
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     const heicBlob = new Blob(["heic"], { type: "image/heic" });
     const jpegBlob = new Blob(["jpeg"], { type: "image/jpeg" });
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "",
       items: [{ path: "Archive/photo.heic", name: "photo.heic", isFolder: false, size: 12, mimeType: "image/heic" }]
     });
@@ -479,7 +479,7 @@ describe("image preview App integration", () => {
     const freshHeic = new Blob(["fresh-heic"], { type: "image/heic" });
     const staleJpeg = new Blob(["stale-jpeg"], { type: "image/jpeg" });
     const freshJpeg = new Blob(["fresh-jpeg"], { type: "image/jpeg" });
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "",
       items: [{ path: "Archive/photo.heic", name: "photo.heic", isFolder: false, size: freshHeic.size, mimeType: "image/heic" }]
     });
@@ -531,7 +531,7 @@ describe("image preview App integration", () => {
     localStorage.setItem("davora-ui-settings", JSON.stringify({ experimentalHeicPreviewEnabled: true }));
     const account = buildAccount("alpha", { displayName: "HEIC failure workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "",
       items: [{ path: "Archive/huge.heic", name: "huge.heic", isFolder: false, size: 64 * 1024 * 1024, mimeType: "image/heic" }]
     });
@@ -568,7 +568,7 @@ describe("image preview App integration", () => {
     const account = buildAccount("alpha", { displayName: "HEIC decode error workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     const heicBlob = new Blob(["bad-heic"], { type: "image/heic" });
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "",
       items: [{ path: "Archive/bad.heic", name: "bad.heic", isFolder: false, size: 12, mimeType: "image/heic" }]
     });

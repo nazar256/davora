@@ -27,7 +27,8 @@ import type {
   OfflineSyncEstimateAbortHandle,
   OfflineSyncEstimateExecution,
   OfflineSyncOpenOrchestrationPorts,
-  OfflineSyncPendingEstimate
+  OfflineSyncPendingEstimate,
+  OfflineSyncRequestScope
 } from "./orchestrationPorts";
 import type { OfflineSyncValueResult } from "./ports";
 
@@ -50,6 +51,7 @@ export interface OfflineSyncConfirmInput {
   readonly pendingEstimate?: OfflineSyncPendingEstimate;
   /** Terminal task being retried: requeued in place so its error clears immediately. */
   readonly resumeTaskId?: string;
+  readonly registerExecution?: (taskId: string, scope: OfflineSyncRequestScope) => () => void;
 }
 
 export async function runOfflineSyncOpenOrchestration(
@@ -144,101 +146,103 @@ export async function runOfflineSyncConfirmOrchestration(
     return;
   }
 
-  const pendingEstimate = offlineSyncDialog.plan === undefined ? input.pendingEstimate : undefined;
-  if (pendingEstimate) {
-    pendingEstimate.adopt();
-    const abortEstimate = () => pendingEstimate.abort();
-    if (scope.signal.aborted) {
-      abortEstimate();
-    } else {
-      scope.signal.addEventListener("abort", abortEstimate, { once: true });
-    }
-  }
-
-  const transferId = input.resumeTaskId ?? ports.transfers.createId();
-  ports.presentation.setBusy(true);
-  const transferDraft = {
-    id: transferId,
-    accountId,
-    label: rootName,
-    totalBytes: offlineSyncDialog.plan?.totalBytes,
-    syncRootEntries: selectedEntries.map((entry) => ({
-      path: entry.path,
-      name: entry.name,
-      isFolder: entry.isFolder
-    })),
-    dedupeKey
-  };
-  if (input.resumeTaskId === undefined) {
-    ports.transfers.enqueue(transferDraft);
-  } else {
-    ports.transfers.requeue(transferDraft);
-  }
-  ports.presentation.setDialog(undefined);
-  ports.presentation.setBusy(false);
-  ports.transfers.openTray();
-  ports.presentation.setStatus(buildOfflineSyncStartedStatus(rootName, accountName));
-
-  const syncStillOwned = () => scope.isOwned()
-    && ports.context.isCurrentOperationContext(offlineSyncDialog.context, input.currentContext);
-
-  let acceptedPlan = offlineSyncDialog.plan;
-  if (!acceptedPlan && pendingEstimate) {
-    ports.transfers.beginPreparation(transferId, { loadedBytes: 0 });
-    const awaited = await pendingEstimate.promise.then(
-      (plan) => ({ kind: "resolved" as const, plan }),
-      () => ({ kind: "failed" as const })
-    );
-    if (!syncStillOwned()) {
-      ports.transfers.fail(transferId, OFFLINE_SYNC_CONTEXT_CHANGED_MESSAGE);
-      return;
-    }
-    if (awaited.kind === "resolved") {
-      acceptedPlan = awaited.plan;
-    }
-  }
-
-  const syncJob = createOfflineSyncJob({
-    id: ports.transfers.createId(),
-    accountId,
-    cacheNamespace,
-    root: { path: rootPath, name: rootName, kind: rootKind, folderRoots: offlineFolderRoots },
-    selectedEntries: selectedEntries.map((entry) => ({
-      path: entry.path,
-      name: entry.name,
-      isFolder: entry.isFolder,
-      ...(entry.size === undefined ? {} : { size: entry.size })
-    })),
-    planSource: acceptedPlan
-      ? {
-          kind: "acceptedPlan",
-          plan: {
-            files: acceptedPlan.files.map((file) => ({
-              sourcePath: file.sourcePath,
-              ...(file.size === undefined ? {} : { size: file.size })
-            })),
-            ...(acceptedPlan.totalBytes === undefined ? {} : { totalBytes: acceptedPlan.totalBytes })
-          }
-        }
-      : { kind: "resolvePlan", archiveInput: offlineSyncDialog.archiveInput }
-  });
-
-  const classifyError = <T,>(
-    error: unknown,
-    fallback: string
-  ): Exclude<OfflineSyncValueResult<T>, { readonly kind: "success" }> => {
-    if (!syncStillOwned()) {
-      return { kind: "cancelled", reason: scope.signal.aborted ? "aborted" : "superseded" };
-    }
-    if (ports.errors.isUnauthorized(error)) {
-      return { kind: "sessionTerminal", reason: "unauthorized", message: OFFLINE_SYNC_SESSION_EXPIRED_MESSAGE };
-    }
-    if (ports.errors.isReconnectRequired(error)) {
-      return { kind: "sessionTerminal", reason: "reconnectRequired", message: OFFLINE_SYNC_RECONNECT_REQUIRED_MESSAGE };
-    }
-    return { kind: "ordinaryFailure", message: ports.errors.toErrorMessage(error, fallback) };
-  };
+  let unregister: (() => void) | undefined;
   try {
+    const pendingEstimate = offlineSyncDialog.plan === undefined ? input.pendingEstimate : undefined;
+    if (pendingEstimate) {
+      pendingEstimate.adopt();
+      const abortEstimate = () => pendingEstimate.abort();
+      if (scope.signal.aborted) {
+        abortEstimate();
+      } else {
+        scope.signal.addEventListener("abort", abortEstimate, { once: true });
+      }
+    }
+
+    const transferId = input.resumeTaskId ?? ports.transfers.createId();
+    unregister = input.registerExecution?.(transferId, scope);
+    ports.presentation.setBusy(true);
+    const transferDraft = {
+      id: transferId,
+      accountId,
+      label: rootName,
+      totalBytes: offlineSyncDialog.plan?.totalBytes,
+      syncRootEntries: selectedEntries.map((entry) => ({
+        path: entry.path,
+        name: entry.name,
+        isFolder: entry.isFolder
+      })),
+      dedupeKey
+    };
+    if (input.resumeTaskId === undefined) {
+      ports.transfers.enqueue(transferDraft);
+    } else {
+      ports.transfers.requeue(transferDraft);
+    }
+    ports.presentation.setDialog(undefined);
+    ports.presentation.setBusy(false);
+    ports.transfers.openTray();
+    ports.presentation.setStatus(buildOfflineSyncStartedStatus(rootName, accountName));
+
+    const syncStillOwned = () => scope.isOwned()
+      && ports.context.isCurrentOperationContext(offlineSyncDialog.context, input.currentContext);
+
+    let acceptedPlan = offlineSyncDialog.plan;
+    if (!acceptedPlan && pendingEstimate) {
+      ports.transfers.beginPreparation(transferId, { loadedBytes: 0 });
+      const awaited = await pendingEstimate.promise.then(
+        (plan) => ({ kind: "resolved" as const, plan }),
+        () => ({ kind: "failed" as const })
+      );
+      if (!syncStillOwned()) {
+        ports.transfers.fail(transferId, OFFLINE_SYNC_CONTEXT_CHANGED_MESSAGE);
+        return;
+      }
+      if (awaited.kind === "resolved") {
+        acceptedPlan = awaited.plan;
+      }
+    }
+
+    const syncJob = createOfflineSyncJob({
+      id: ports.transfers.createId(),
+      accountId,
+      cacheNamespace,
+      root: { path: rootPath, name: rootName, kind: rootKind, folderRoots: offlineFolderRoots },
+      selectedEntries: selectedEntries.map((entry) => ({
+        path: entry.path,
+        name: entry.name,
+        isFolder: entry.isFolder,
+        ...(entry.size === undefined ? {} : { size: entry.size })
+      })),
+      planSource: acceptedPlan
+        ? {
+            kind: "acceptedPlan",
+            plan: {
+              files: acceptedPlan.files.map((file) => ({
+                sourcePath: file.sourcePath,
+                ...(file.size === undefined ? {} : { size: file.size })
+              })),
+              ...(acceptedPlan.totalBytes === undefined ? {} : { totalBytes: acceptedPlan.totalBytes })
+            }
+          }
+        : { kind: "resolvePlan", archiveInput: offlineSyncDialog.archiveInput }
+    });
+
+    const classifyError = <T,>(
+      error: unknown,
+      fallback: string
+    ): Exclude<OfflineSyncValueResult<T>, { readonly kind: "success" }> => {
+      if (!syncStillOwned()) {
+        return { kind: "cancelled", reason: scope.signal.aborted ? "aborted" : "superseded" };
+      }
+      if (ports.errors.isUnauthorized(error)) {
+        return { kind: "sessionTerminal", reason: "unauthorized", message: OFFLINE_SYNC_SESSION_EXPIRED_MESSAGE };
+      }
+      if (ports.errors.isReconnectRequired(error)) {
+        return { kind: "sessionTerminal", reason: "reconnectRequired", message: OFFLINE_SYNC_RECONNECT_REQUIRED_MESSAGE };
+      }
+      return { kind: "ordinaryFailure", message: ports.errors.toErrorMessage(error, fallback) };
+    };
     const began = await ports.retention.beginRoot(syncJob, syncStillOwned);
     if (began.kind === "ordinaryFailure") {
       throw new Error(began.message);
@@ -348,7 +352,8 @@ export async function runOfflineSyncConfirmOrchestration(
       ports.presentation.reportListError(new Error(outcome.summary.error));
     }
   } finally {
-    scope.release();
+    if (unregister) unregister();
+    else scope.release();
   }
 }
 

@@ -233,7 +233,7 @@ test("offline preview build without primed account data falls back to zero-state
   await expect(page.locator(".badge.offline")).toBeVisible();
   await expect(page.getByRole("heading", { name: /No connected accounts yet/i })).toBeVisible();
   await expect(page.getByRole("button", { name: /Connect account/i })).toBeVisible();
-  await expect(page.getByText(/Connect a Nextcloud account inside Davora to start browsing files/i)).toBeVisible();
+  await expect(page.getByText("Connect Nextcloud to browse your files. You can add more accounts later.")).toBeVisible();
   await expect(page.getByText(/Showing cached data while offline/i)).toHaveCount(0);
   await expect(page.getByText(/cached reads are available, mutations stay disabled/i)).toHaveCount(0);
 });

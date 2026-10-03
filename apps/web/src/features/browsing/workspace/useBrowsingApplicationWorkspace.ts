@@ -17,7 +17,7 @@ export function useBrowsingApplicationWorkspace(input: BrowsingApplicationWorksp
       createAbortHandle: () => portsRef.current.folder.createAbortHandle(),
       loadFolder: (request) => portsRef.current.folder.loadFolder(request),
       readCachedFolder: (cacheNamespace, path) => portsRef.current.folder.readCachedFolder(cacheNamespace, path),
-      writeCachedFolder: (cacheNamespace, path, items) => portsRef.current.folder.writeCachedFolder(cacheNamespace, path, items)
+      writeCachedFolder: (cacheNamespace, path, items, completeness) => portsRef.current.folder.writeCachedFolder(cacheNamespace, path, items, completeness)
     },
     search: {
       createAbortHandle: () => portsRef.current.search.createAbortHandle(),

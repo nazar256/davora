@@ -11,7 +11,7 @@ export type { OfflineSyncWorkspaceContext, OfflineSyncWorkspaceCommands } from "
 export interface OfflineSyncRuntimePort {
   createAbortHandle(): { readonly signal: AbortSignal; abort(): void };
   createTransferId(): string;
-  listFiles(path: string, token: string, signal?: AbortSignal): Promise<{ readonly items: FileEntry[] }>;
+  listFiles(path: string, token: string, signal?: AbortSignal): Promise<{ completeness: "complete" | "partial"; readonly items: FileEntry[] }>;
   fetchDownloadBlob(
     path: string,
     token: string,
@@ -38,7 +38,7 @@ export interface OfflineSyncWorkspaceRetention {
 }
 
 export interface OfflineSyncWorkspaceTransfers {
-  readonly controller: Pick<TransfersController, "enqueue" | "requeue" | "beginPreparation" | "beginTransfer" | "reportProgress" | "reportFailure" | "complete" | "completePartial" | "fail">;
+  readonly controller: Pick<TransfersController, "enqueue" | "requeue" | "beginPreparation" | "beginTransfer" | "reportProgress" | "reportFailure" | "complete" | "completePartial" | "fail" | "markCanceled">;
   readonly tasks: readonly TransferTask[];
 }
 
@@ -49,7 +49,7 @@ export interface OfflineSyncWorkspaceCoordination {
   showMobileActions(): void;
   setStatus(message: string): void;
   reportListError(error: Error): void;
-  writeFolderCache(namespace: string, path: string, items: FileEntry[]): void;
+  writeFolderCache(namespace: string, path: string, items: FileEntry[], completeness: "complete" | "partial"): void;
   formatStorageBytes(value: number): string;
 }
 

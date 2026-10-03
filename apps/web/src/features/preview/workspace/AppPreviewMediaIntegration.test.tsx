@@ -44,7 +44,7 @@ describe("App preview integration", () => {
   it("does not prefetch adjacent videos while keeping them available for explicit navigation", async () => {
     const account = buildAccount("alpha", { displayName: "Media navigation workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete",
       path: "",
       items: [
         { path: "Archive/photo.png", name: "photo.png", isFolder: false, size: 12, mimeType: "image/png" },
@@ -87,7 +87,7 @@ describe("App preview integration", () => {
   it("adds gallery next controls for photos and ignores oversized blobs for browser cache storage", async () => {
     const account = buildAccount("alpha", { displayName: "Gallery workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete",
       path: "",
       items: [
         { path: "Archive/photo.png", name: "photo.png", isFolder: false, size: 12, mimeType: "image/png" },
@@ -134,7 +134,7 @@ describe("App preview integration", () => {
   it("opens audio with a streaming URL before the full file is retained in the background", async () => {
     const account = buildAccount("alpha", { displayName: "Streaming workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete",
       path: "",
       items: [
         { path: "Projects/photo.png", name: "photo.png", isFolder: false, size: 12, mimeType: "image/png" },
@@ -195,7 +195,7 @@ describe("App preview integration", () => {
   it("autoplays audio and video previews and pauses the previous media when switching", async () => {
     const account = buildAccount("alpha", { displayName: "Autoplay workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete",
       path: "",
       items: [
         { path: "Projects/a-photo.png", name: "a-photo.png", isFolder: false, size: 12, mimeType: "image/png" },
@@ -260,7 +260,7 @@ describe("App preview integration", () => {
   it("navigates from audio preview back to the previous media item", async () => {
     const account = buildAccount("alpha", { displayName: "Gallery workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete",
       path: "",
       items: [
         { path: "Projects/photo.png", name: "photo.png", isFolder: false, size: 12, mimeType: "image/png" },

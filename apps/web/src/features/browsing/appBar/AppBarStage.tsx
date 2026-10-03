@@ -1,3 +1,4 @@
+import type { SearchCoverage } from "../search";
 import {
   ArrowDownAZ,
   ArrowDownNarrowWide,
@@ -22,6 +23,7 @@ import {
   type SortMode
 } from "../model";
 import { buildFolderSortResetQuestion } from "../folderSort";
+import { ListingCompletenessDisclosure, SearchCoverageDisclosure } from "../browseHeader";
 import type { AppBarSortPanelBinding } from "./useAppBarSortPanel";
 
 function buildHeaderStatusBadgeLabel(input: {
@@ -58,6 +60,8 @@ export interface AppBarStageProps {
   readonly mobileSearchOpen: boolean;
   readonly searchQuery: string;
   readonly currentPath: string;
+  readonly searchCoverage?: SearchCoverage;
+  readonly listingCompleteness?: "complete" | "partial" | "unknown";
   readonly sortPanel: AppBarSortPanelBinding;
   readonly sortMode: SortMode;
   readonly showRoutineCachedRefresh: boolean;
@@ -122,6 +126,7 @@ export function AppBarStage(props: AppBarStageProps) {
                   placeholder="Search files"
                   value={props.searchQuery}
                 />
+                <SearchCoverageDisclosure coverage={props.searchCoverage} />
                 <button
                   aria-label="Close search"
                   className="mobile-search-close-button"
@@ -159,6 +164,7 @@ export function AppBarStage(props: AppBarStageProps) {
           )}
         </div>
         <div className="app-bar-actions">
+          {props.compactMobileHeader && !props.mobileSearchOpen ? props.searchCoverage ? <SearchCoverageDisclosure coverage={props.searchCoverage} /> : <ListingCompletenessDisclosure completeness={props.listingCompleteness} compact /> : null}
           {showContextualActions ? (
             <div className="app-bar-contextual-actions">
               {props.hasSession && props.install.available ? (

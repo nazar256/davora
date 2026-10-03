@@ -9,7 +9,7 @@ describe("App offline integration", () => {
   it("labels only files and complete folder roots that are available offline", async () => {
     const account = buildAccount("alpha", { displayName: "Offline indicators workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete",
       path: "",
       items: [
         { path: "Projects", name: "Projects", isFolder: true },
@@ -36,7 +36,7 @@ describe("App offline integration", () => {
   it("does not label metadata-only files or roots with an unreadable offline entry", async () => {
     const account = buildAccount("alpha", { displayName: "Unreadable offline workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete",
       path: "",
       items: [
         { path: "Projects", name: "Projects", isFolder: true },
@@ -137,7 +137,7 @@ describe("App offline integration", () => {
     const folderListing = createDeferred<Awaited<ReturnType<typeof mockedApi.listFiles>>>();
     mockedApi.listFiles.mockImplementation(async (path: string) => path === "Projects"
       ? folderListing.promise
-      : { path, items: [{ path: "Projects", name: "Projects", isFolder: true }] });
+      : { completeness: "complete" as const, path, items: [{ path: "Projects", name: "Projects", isFolder: true }] });
 
     render(<App />);
     await screen.findByRole("button", { name: /Open actions for Projects/i });
@@ -151,7 +151,7 @@ describe("App offline integration", () => {
     fireEvent.change(accountSelect, { target: { value: beta.id } });
 
     await waitFor(() => expect(screen.queryByRole("dialog", { name: /Keep offline confirmation/i })).not.toBeInTheDocument());
-    folderListing.resolve({ path: "Projects", items: [] });
+    folderListing.resolve({ completeness: "complete" as const, path: "Projects", items: [] });
     await act(async () => folderListing.promise);
     expect(screen.queryByRole("dialog", { name: /Keep offline confirmation/i })).not.toBeInTheDocument();
     expect(mockedApi.fetchDownloadBlob).not.toHaveBeenCalled();

@@ -28,7 +28,7 @@ import {
   apiErrorEnvelopeSchema,
   type ApiError
 } from "@davora/shared";
-import { assertBackendNetworkAllowed, backendFetch, registerBackendRequestAbort } from "./networkPolicy";
+import { assertBackendNetworkAllowed, withBackendResponse, registerBackendRequestAbort } from "./networkPolicy";
 
 export function resolveApiBase(rawBaseUrl: string | undefined): string {
   return (rawBaseUrl?.trim() || "") || "";
@@ -175,53 +175,53 @@ export async function request<T>(
   token?: string,
   successSchema?: SuccessEnvelopeParser<T>
 ): Promise<T> {
-  const response = await backendFetch(backendApiUrl(path), {
+  return withBackendResponse(backendApiUrl(path), {
     ...options,
     headers: {
       ...(options.body ? { "content-type": "application/json" } : {}),
       ...(token ? { authorization: `Bearer ${token}` } : {}),
       ...options.headers
     }
+  }, async (response) => {
+    if (!response.ok) {
+      return throwHttpRequestError(response);
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    if (successSchema) {
+      const text = await response.text();
+      const payloadBytes = new TextEncoder().encode(text).byteLength;
+      let payload: unknown;
+      try {
+        payload = JSON.parse(text) as unknown;
+      } catch {
+        throw new ApiRequestError("The server returned an invalid response.", response.status, "invalid_response", undefined, {
+          phase: "json-decode",
+          ...responseDiagnosticBase(response, payloadBytes)
+        });
+      }
+      try {
+        return successSchema.parse(payload).data;
+      } catch (error) {
+        throw new ApiRequestError("The server returned an invalid response.", response.status, "invalid_response", undefined, {
+          phase: "envelope-schema",
+          ...responseDiagnosticBase(response, payloadBytes),
+          ...summarizeSchemaIssues(error, payload)
+        });
+      }
+    }
+
+    return (await response.json()).data as T;
   });
-
-  if (!response.ok) {
-    return throwHttpRequestError(response);
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  if (successSchema) {
-    const text = await response.text();
-    const payloadBytes = new TextEncoder().encode(text).byteLength;
-    let payload: unknown;
-    try {
-      payload = JSON.parse(text) as unknown;
-    } catch {
-      throw new ApiRequestError("The server returned an invalid response.", response.status, "invalid_response", undefined, {
-        phase: "json-decode",
-        ...responseDiagnosticBase(response, payloadBytes)
-      });
-    }
-    try {
-      return successSchema.parse(payload).data;
-    } catch (error) {
-      throw new ApiRequestError("The server returned an invalid response.", response.status, "invalid_response", undefined, {
-        phase: "envelope-schema",
-        ...responseDiagnosticBase(response, payloadBytes),
-        ...summarizeSchemaIssues(error, payload)
-      });
-    }
-  }
-
-  return (await response.json()).data as T;
 }
 
 export async function listFiles(path: string, token: string, signal?: AbortSignal) {
-  const requestInput = filesEndpoint.requestSchema.parse({ path });
+  const requestInput = filesEndpoint.requestSchema.parse({ path, listing: "complete-v1" });
   return request(
-    `${filesEndpoint.path}?path=${encodeURIComponent(requestInput.path)}`,
+    `${filesEndpoint.path}?path=${encodeURIComponent(requestInput.path)}&listing=${requestInput.listing}`,
     { method: filesEndpoint.method, signal },
     token,
     filesEndpoint.successSchema
@@ -239,9 +239,9 @@ export async function getFile(path: string, token: string, signal?: AbortSignal)
 }
 
 export async function searchFiles(path: string, query: string, token: string, signal?: AbortSignal) {
-  const input = searchEndpoint.requestSchema.parse({ path, query });
+  const input = searchEndpoint.requestSchema.parse({ path, query, coverage: "bounded-v1" });
   return request<SearchResponse>(
-    `${searchEndpoint.path}?path=${encodeURIComponent(input.path)}&q=${encodeURIComponent(input.query)}`,
+    `${searchEndpoint.path}?path=${encodeURIComponent(input.path)}&q=${encodeURIComponent(input.query)}&coverage=${input.coverage}`,
     { method: searchEndpoint.method, signal },
     token,
     searchEndpoint.successSchema
@@ -250,25 +250,25 @@ export async function searchFiles(path: string, query: string, token: string, si
 
 export async function fetchOriginalFile(path: string, token: string, signal?: AbortSignal): Promise<{ blob: Blob; mimeType: string; filename: string }> {
   const input = originalEndpoint.requestSchema.parse({ path });
-  const response = await backendFetch(backendApiUrl(`${originalEndpoint.path}?path=${encodeURIComponent(input.path)}`), {
+  return withBackendResponse(backendApiUrl(`${originalEndpoint.path}?path=${encodeURIComponent(input.path)}`), {
     method: originalEndpoint.method,
     headers: {
       authorization: `Bearer ${token}`
     },
     signal
+  }, async (response) => {
+    if (!response.ok) {
+      return throwHttpRequestError(response);
+    }
+
+    const blob = await response.blob();
+    const filename = response.headers.get("content-disposition")?.match(/filename\*=UTF-8''(.+)$/)?.[1];
+    return {
+      blob,
+      mimeType: response.headers.get("content-type") ?? blob.type,
+      filename: filename ? decodeURIComponent(filename) : path.split("/").pop() || "file"
+    };
   });
-
-  if (!response.ok) {
-    return throwHttpRequestError(response);
-  }
-
-  const blob = await response.blob();
-  const filename = response.headers.get("content-disposition")?.match(/filename\*=UTF-8''(.+)$/)?.[1];
-  return {
-    blob,
-    mimeType: response.headers.get("content-type") ?? blob.type,
-    filename: filename ? decodeURIComponent(filename) : path.split("/").pop() || "file"
-  };
 }
 
 export async function createStreamingFileUrl(path: string, token: string, signal?: AbortSignal): Promise<string> {
@@ -543,58 +543,72 @@ export async function fetchDownloadBlob(
   } = {}
 ): Promise<{ blob: Blob; filename?: string }> {
   const input = downloadEndpoint.requestSchema.parse({ path });
-  const response = await backendFetch(backendApiUrl(`${downloadEndpoint.path}?path=${encodeURIComponent(input.path)}`), {
+  return withBackendResponse(backendApiUrl(`${downloadEndpoint.path}?path=${encodeURIComponent(input.path)}`), {
     method: downloadEndpoint.method,
     headers: {
       authorization: `Bearer ${token}`
     },
     signal: options.signal
+  }, async (response, signal) => {
+    if (!response.ok) {
+      return throwHttpRequestError(response);
+    }
+
+    const contentType = response.headers.get("content-type") ?? "application/octet-stream";
+    const totalHeader = response.headers.get("content-length");
+    const total = totalHeader ? Number.parseInt(totalHeader, 10) : undefined;
+    let blob: Blob;
+
+    if (response.body && typeof response.body.getReader === "function") {
+      const chunks: Uint8Array[] = [];
+      let loaded = 0;
+      const reader = response.body.getReader();
+      let completed = false;
+      try {
+        while (true) {
+          const result = await reader.read();
+          signal.throwIfAborted();
+          if (result.done) {
+            completed = true;
+            break;
+          }
+          if (result.value) {
+            chunks.push(result.value);
+            loaded += result.value.byteLength;
+            options.onProgress?.(loaded, Number.isFinite(total ?? NaN) ? total : undefined);
+          }
+        }
+      } finally {
+        try {
+          if (!completed) await reader.cancel();
+        } catch {
+          // Cleanup must preserve the original read or progress failure.
+        } finally {
+          reader.releaseLock();
+        }
+      }
+      if (loaded === 0) {
+        options.onProgress?.(0, Number.isFinite(total ?? NaN) ? total : undefined);
+      }
+      blob = new Blob(
+        chunks.map((c) =>
+          c.buffer instanceof ArrayBuffer
+            ? c.buffer.slice(c.byteOffset, c.byteOffset + c.byteLength)
+            : new Uint8Array(c).buffer
+        ),
+        { type: contentType }
+      );
+    } else {
+      blob = await response.blob();
+    }
+
+    const contentDisposition = response.headers.get("content-disposition") ?? "";
+    const candidateFilename = contentDisposition.match(/filename\*=UTF-8''(.+)$/)?.[1];
+    return {
+      blob,
+      filename: candidateFilename ? decodeURIComponent(candidateFilename) : undefined
+    };
   });
-  if (!response.ok) {
-    return throwHttpRequestError(response);
-  }
-
-  const contentType = response.headers.get("content-type") ?? "application/octet-stream";
-  const totalHeader = response.headers.get("content-length");
-  const total = totalHeader ? Number.parseInt(totalHeader, 10) : undefined;
-  let blob: Blob;
-
-  if (response.body && typeof response.body.getReader === "function") {
-    const chunks: Uint8Array[] = [];
-    let loaded = 0;
-    const reader = response.body.getReader();
-    while (true) {
-      const result = await reader.read();
-      if (result.done) {
-        break;
-      }
-      if (result.value) {
-        chunks.push(result.value);
-        loaded += result.value.byteLength;
-        options.onProgress?.(loaded, Number.isFinite(total ?? NaN) ? total : undefined);
-      }
-    }
-    if (loaded === 0) {
-      options.onProgress?.(0, Number.isFinite(total ?? NaN) ? total : undefined);
-    }
-    blob = new Blob(
-      chunks.map((c) =>
-        c.buffer instanceof ArrayBuffer
-          ? c.buffer.slice(c.byteOffset, c.byteOffset + c.byteLength)
-          : new Uint8Array(c).buffer
-      ),
-      { type: contentType }
-    );
-  } else {
-    blob = await response.blob();
-  }
-
-  const contentDisposition = response.headers.get("content-disposition") ?? "";
-  const candidateFilename = contentDisposition.match(/filename\*=UTF-8''(.+)$/)?.[1];
-  return {
-    blob,
-    filename: candidateFilename ? decodeURIComponent(candidateFilename) : undefined
-  };
 }
 
 export function triggerBrowserDownload(blob: Blob, filename: string): void {

@@ -10,6 +10,7 @@ export interface BrowseStatusInput {
   readonly count: number;
   readonly path: string;
   readonly rawSearchQuery: string;
+  readonly completeness?: "complete" | "partial" | "unknown";
 }
 
 export function getSearchDisplayQuery(rawQuery: string): string {
@@ -49,7 +50,8 @@ export function formatBrowseCount(count: number, kind: "item" | "result"): strin
 export function buildBrowseStatusLabel(input: BrowseStatusInput): string {
   const location = getLocationLabel(input.path);
   if (!isSearchActive(input.rawSearchQuery)) {
-    return `${formatBrowseCount(input.count, "item")} in ${location}`;
+    const count = input.completeness === "partial" ? `${input.count}+ items` : formatBrowseCount(input.count, "item");
+    return `${count} in ${location}`;
   }
 
   return `${formatBrowseCount(input.count, "result")} for “${getSearchDisplayQuery(input.rawSearchQuery)}” in ${location}`;

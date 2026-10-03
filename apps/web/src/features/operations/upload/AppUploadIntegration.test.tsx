@@ -76,7 +76,7 @@ function createRetentionRepository(): RetentionRepository {
 
 function createUploadFixture() {
   const api: UploadApi = {
-    listFiles: vi.fn(async (path: string) => ({
+    listFiles: vi.fn(async (path: string) => ({ completeness: "complete" as const,
       path,
       items: path
         ? [buildFileEntry("Projects/roadmap.txt", { name: "roadmap.txt", size: 70, mimeType: "text/plain" })]
@@ -113,7 +113,7 @@ function createUploadFixture() {
     loadFolder: vi.fn(async ({ path, token, signal }) => {
       try {
         const response = await api.listFiles(path, token, signal);
-        return { kind: "success", items: response.path === path ? response.items as FileEntry[] : [] } as const;
+        return { completeness: "complete" as const, kind: "success", items: response.path === path ? response.items as FileEntry[] : [] } as const;
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return { kind: "cancelled" } as const;
         if (error instanceof ApiRequestError && error.status === 401) return { kind: "unauthorized", error } as const;
@@ -126,7 +126,7 @@ function createUploadFixture() {
   };
   const search: SearchPorts = {
     createAbortHandle: () => { const controller = new AbortController(); return { signal: controller.signal, abort: () => controller.abort() }; },
-    loadSearch: vi.fn(async () => ({ kind: "success" as const, items: [] })),
+    loadSearch: vi.fn(async () => ({ completeness: "complete" as const, kind: "success" as const, items: [] })),
     readCachedSearch: vi.fn(() => undefined),
     writeCachedSearch: vi.fn()
   };
@@ -145,7 +145,7 @@ function createUploadFixture() {
       listDestination: async (path, token) => {
         const response: unknown = await api.listFiles(path, token);
         if (!isListResponse(response)) throw new Error("Upload fixture returned an invalid list response.");
-        return { items: response.items };
+        return { completeness: "complete" as const, items: response.items };
       }
     },
     download: {
@@ -186,7 +186,7 @@ function createUploadFixture() {
     accountTransport,
     accountSession,
     browsingCache: cache,
-    favouriteResolveRuntime: { listFiles: async () => ({ items: [] }), cacheFolder: () => undefined },
+    favouriteResolveRuntime: { listFiles: async () => ({ completeness: "complete" as const, items: [] }), cacheFolder: () => undefined },
     connectivity,
     explicitOfflineRuntime,
     clock,
@@ -200,7 +200,7 @@ function createUploadFixture() {
     search,
     settings: { load: () => DEFAULT_UI_SETTINGS, save: (settings) => settings },
     operationRuntime,
-    offlineSyncRuntime: { createAbortHandle: () => { const controller = new AbortController(); return { signal: controller.signal, abort: () => controller.abort() }; }, createTransferId: () => "sync-transfer", listFiles: async (path: string) => ({ path, items: [] }), fetchDownloadBlob: vi.fn(), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback },
+    offlineSyncRuntime: { createAbortHandle: () => { const controller = new AbortController(); return { signal: controller.signal, abort: () => controller.abort() }; }, createTransferId: () => "sync-transfer", listFiles: async (path: string) => ({ completeness: "complete" as const, path, items: [] }), fetchDownloadBlob: vi.fn(), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback },
     retentionRepository,
     previewRuntime: createPreviewComposition({ retentionRepository }),
     accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
@@ -491,7 +491,7 @@ describe("upload App integration", () => {
         terminateRefresh = false;
         throw new ApiRequestError("Session expired", 401);
       }
-      return {
+      return { completeness: "complete" as const,
         path,
         items: path === "" ? [{ path: "Projects", name: "Projects", isFolder: true }] : []
       };

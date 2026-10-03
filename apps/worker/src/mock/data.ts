@@ -8,7 +8,6 @@ import {
   type FilePreview,
   type MoveCopyRequest,
   type MutationResult,
-  type SearchResult,
   type UploadFileRequest,
   type ViewerKind
 } from "@davora/shared";
@@ -359,9 +358,9 @@ export function resetMockEntries(accountId?: string): void {
   entriesByAccount.set(accountId, cloneInitialEntries());
 }
 
-export function listMockFolder(accountId: string, path: string): FileEntry[] {
+export function listMockFolder(accountId: string, path: string): { readonly items: FileEntry[]; readonly completeness: "complete" | "partial" } {
   const target = normalizePath(path);
-  return getEntries(accountId)
+  const items = getEntries(accountId)
     .filter((item) => {
       if (item.path === target) {
         return false;
@@ -371,6 +370,7 @@ export function listMockFolder(accountId: string, path: string): FileEntry[] {
     })
     .map((item) => stripPayload(item))
     .sort((left, right) => left.path.localeCompare(right.path));
+  return { completeness: items.length > 200 ? "partial" : "complete", items: items.slice(0, 200) };
 }
 
 export function getMockMetadata(accountId: string, path: string): FileMetadata | undefined {
@@ -422,32 +422,6 @@ export function getMockOriginalRange(accountId: string, path: string, rangeHeade
     status: 206,
     contentRange: `bytes ${start}-${end}/${total}`
   };
-}
-
-export function searchMockFiles(accountId: string, query: string, path: string): SearchResult[] {
-  const normalizedQuery = query.trim().toLowerCase();
-  const root = normalizePath(path);
-  if (!normalizedQuery) {
-    return [];
-  }
-
-  return getEntries(accountId)
-    .filter((item) => item.path.startsWith(root))
-    .map((item) => {
-      const lowerPath = item.path.toLowerCase();
-      const lowerName = item.name.toLowerCase();
-      let score = 0;
-      if (lowerName === normalizedQuery) {
-        score = 100;
-      } else if (lowerName.includes(normalizedQuery)) {
-        score = 75;
-      } else if (lowerPath.includes(normalizedQuery)) {
-        score = 50;
-      }
-      return score > 0 ? { ...stripPayload(item), score } : undefined;
-    })
-    .filter((item): item is SearchResult => Boolean(item))
-    .sort((left, right) => right.score - left.score || left.path.localeCompare(right.path));
 }
 
 export function downloadMockFile(accountId: string, path: string): { filename: string; body: Uint8Array; mimeType: string } | undefined {

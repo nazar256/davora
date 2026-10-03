@@ -28,10 +28,9 @@ const emitObservation = (observation: BackendRequestObservation): void => {
   }
 };
 
-const requestUrlShape = (input: RequestInfo | URL): string => {
+const requestUrlShape = (input: string | URL): string => {
   try {
-    const url = input instanceof Request ? input.url : String(input);
-    const parsed = new URL(url, "https://davora.invalid");
+    const parsed = new URL(String(input), "https://davora.invalid");
     const queryKeys = [...parsed.searchParams.keys()];
     return queryKeys.length > 0 ? `${parsed.pathname}?${queryKeys.join(",")}` : parsed.pathname;
   } catch {
@@ -69,9 +68,14 @@ export function registerBackendRequestAbort(abort: () => void): () => void {
   return () => activeAborters.delete(abort);
 }
 
-export async function backendFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+/** The consumer must finish body work in scope and return only application data. */
+export async function withBackendResponse<T>(
+  input: string | URL,
+  init: RequestInit,
+  consume: (response: Response, signal: AbortSignal) => Promise<T>
+): Promise<T> {
   const startedAt = Date.now();
-  const method = (init.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+  const method = (init.method ?? "GET").toUpperCase();
   const url = requestUrlShape(input);
   try {
     assertBackendNetworkAllowed();
@@ -87,8 +91,10 @@ export async function backendFetch(input: RequestInfo | URL, init: RequestInit =
     init.signal?.addEventListener("abort", onCallerAbort, { once: true });
   }
   const unregister = registerBackendRequestAbort(() => controller.abort());
+  let receivedHeaders = false;
   try {
     const response = await fetch(input, { ...init, signal: controller.signal });
+    receivedHeaders = true;
     emitObservation({
       method,
       url,
@@ -96,16 +102,24 @@ export async function backendFetch(input: RequestInfo | URL, init: RequestInit =
       result: "status",
       status: response.status
     });
-    return response;
+    const result = await consume(response, controller.signal);
+    controller.signal.throwIfAborted();
+    return result;
   } catch (error) {
-    emitObservation({
-      method,
-      url,
-      durationMs: Date.now() - startedAt,
-      result: controller.signal.aborted ? "aborted" : "network-error"
-    });
+    if (!receivedHeaders) {
+      emitObservation({
+        method,
+        url,
+        durationMs: Date.now() - startedAt,
+        result: controller.signal.aborted ? "aborted" : "network-error"
+      });
+    }
+    if (controller.signal.aborted) {
+      throw new DOMException("The operation was aborted.", "AbortError");
+    }
     throw error;
   } finally {
+    controller.abort();
     unregister();
     init.signal?.removeEventListener("abort", onCallerAbort);
   }

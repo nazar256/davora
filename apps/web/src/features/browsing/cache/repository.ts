@@ -18,7 +18,7 @@ import {
 export type BrowsingCacheWriteResult = { readonly kind: "written" } | { readonly kind: "skipped" };
 export type BrowsingCacheClearResult = { readonly kind: "cleared" } | { readonly kind: "failed" };
 export type FolderCacheReadResult =
-  | { readonly kind: "hit"; readonly cachedAt: string; readonly items: FileEntry[] }
+  | { readonly kind: "hit"; readonly cachedAt: string; readonly completeness: "complete" | "partial" | "unknown"; readonly items: FileEntry[] }
   | { readonly kind: "miss" };
 export type SearchCacheReadResult =
   | { readonly kind: "hit"; readonly items: SearchResult[] }
@@ -26,7 +26,7 @@ export type SearchCacheReadResult =
 
 export interface BrowsingCacheRepository {
   readFolder(cacheNamespace: string, path: string): FolderCacheReadResult;
-  writeFolder(cacheNamespace: string, path: string, items: readonly FileEntry[]): BrowsingCacheWriteResult;
+  writeFolder(cacheNamespace: string, path: string, items: readonly FileEntry[], completeness: "complete" | "partial"): BrowsingCacheWriteResult;
   readSearch(cacheNamespace: string, path: string, query: string): SearchCacheReadResult;
   writeSearch(cacheNamespace: string, path: string, query: string, items: readonly SearchResult[]): BrowsingCacheWriteResult;
   clearNamespace(cacheNamespace: string, options?: { readonly preserveFolderPaths?: readonly string[] }): BrowsingCacheClearResult;
@@ -42,7 +42,7 @@ export class BrowsingCacheClearError extends Error {
   }
 }
 
-const serialize = (cachedAt: string, value: unknown): string => JSON.stringify({ cachedAt, value });
+const serialize = (cachedAt: string, value: unknown, completeness?: "complete" | "partial"): string => JSON.stringify({ cachedAt, ...(completeness ? { completeness } : {}), value });
 
 const isLegacyKey = (key: string): boolean =>
   key.startsWith(V1_FOLDER_CACHE_PREFIX) || key.startsWith(V1_SEARCH_CACHE_PREFIX);
@@ -122,10 +122,10 @@ export const createBrowsingCacheRepository = (
       return parsed ? { kind: "hit", ...parsed } : { kind: "miss" };
     },
 
-    writeFolder(cacheNamespace, path, items) {
+    writeFolder(cacheNamespace, path, items, completeness) {
       if (!isValidCacheNamespace(cacheNamespace) || !isValidCachePath(path)) return { kind: "skipped" };
       try {
-        const write = storage.writeItem(folderCacheKey(cacheNamespace, path), serialize(clock.nowIso(), items));
+        const write = storage.writeItem(folderCacheKey(cacheNamespace, path), serialize(clock.nowIso(), items, completeness));
         return write.ok ? { kind: "written" } : { kind: "skipped" };
       } catch {
         return { kind: "skipped" };

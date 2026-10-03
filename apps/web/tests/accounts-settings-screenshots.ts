@@ -18,7 +18,7 @@ test("captures account-root connection defaults", async ({ page }, testInfo) => 
   await page.getByRole("button", { name: /Connect account/i }).click();
   await expect(page.getByRole("heading", { name: /Connect Nextcloud account/i })).toBeVisible();
   await expect(page.getByLabel("Root folder")).toHaveValue("");
-  await expect(page.getByLabel("Root folder")).toHaveAttribute("placeholder", "Account root (/)");
+  await expect(page.getByLabel("Root folder")).toHaveAttribute("placeholder", "Default folder");
   await saveScreenshot(page, "davora-account-root-default.png");
 });
 
@@ -76,12 +76,12 @@ test("captures PER-73 mobile forms, sheets, confirmations, and status panels in 
   await page.setViewportSize({ width: 360, height: 640 });
   const longFileName = "Документи-and-a-very-long-action-target-name-100%.txt";
   const longPath = `Projects/${longFileName}`;
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [
             { path: "Projects/Архів 100%", name: "Архів 100%", isFolder: true, lastModified: "2026-07-14T10:00:00.000Z" },
@@ -95,7 +95,7 @@ test("captures PER-73 mobile forms, sheets, confirmations, and status panels in 
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ data: { path: "Projects/Архів 100%", items: [] } })
+      body: JSON.stringify({ data: { completeness: "complete", path: "Projects/Архів 100%", items: [] } })
     });
   });
   await page.route(`**/api/download?path=${encodeURIComponent(longPath)}`, async (route) => {
@@ -235,7 +235,7 @@ test("captures unlock-required account state", async ({ page }, testInfo) => {
 
 test("captures error state", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chrome", "Desktop evidence only.");
-  await page.route("**/api/files?path=", async (route) => {
+  await page.route("**/api/files?path=&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 500,
       contentType: "application/json",

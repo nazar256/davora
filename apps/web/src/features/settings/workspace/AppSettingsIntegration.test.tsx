@@ -25,13 +25,13 @@ const defaultFolderItems = [
   { path: "Projects", name: "Projects", isFolder: true },
   { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }
 ];
-const defaultFolderResult = () => ({ path: "", items: defaultFolderItems });
+const defaultFolderResult = (): { completeness: "complete" | "partial"; path: string; items: typeof defaultFolderItems } => ({ completeness: "complete" as const, path: "", items: defaultFolderItems });
 let cachedFolderItems = defaultFolderItems;
-const listFilesMock = vi.fn(async (_path?: string) => ({ path: "", items: cachedFolderItems }));
+const listFilesMock = vi.fn(async (_path?: string): Promise<ReturnType<typeof defaultFolderResult>> => ({ completeness: "complete" as const, path: "", items: cachedFolderItems }));
 const originalMockResolvedValue = listFilesMock.mockResolvedValue.bind(listFilesMock);
 Object.defineProperty(listFilesMock, "mockResolvedValue", {
   configurable: true,
-  value: (value: { path: string; items: typeof defaultFolderItems }) => {
+  value: (value: { completeness: "complete" | "partial"; path: string; items: typeof defaultFolderItems }) => {
     cachedFolderItems = value.items;
     return originalMockResolvedValue(value);
   }
@@ -110,12 +110,12 @@ function createSettingsFixture(): AppServices {
   const folder: AppServices["folder"] = {
     createAbortHandle: abortHandle,
     loadFolder: ({ signal }) => new Promise((resolve) => { const cancelLoad = () => { signal.removeEventListener("abort", cancelLoad); resolve({ kind: "cancelled" }); }; signal.addEventListener("abort", cancelLoad, { once: true }); }),
-    readCachedFolder: () => ({ cachedAt: "2026-01-01T00:00:00.000Z", items: cachedFolderItems }),
+    readCachedFolder: () => ({ completeness: "complete" as const, cachedAt: "2026-01-01T00:00:00.000Z", items: cachedFolderItems }),
     writeCachedFolder: () => undefined
   };
   const search: AppServices["search"] = {
     createAbortHandle: abortHandle,
-    loadSearch: async () => ({ kind: "success", items: [] }),
+    loadSearch: async () => ({ completeness: "complete" as const, kind: "success", items: [] }),
     readCachedSearch: () => undefined,
     writeCachedSearch: () => undefined
   };
@@ -173,7 +173,7 @@ function createSettingsFixture(): AppServices {
     accountTransport,
     accountSession,
     browsingCache: { readFolder: () => ({ kind: "miss" }), writeFolder: () => ({ kind: "written" }), readSearch: () => ({ kind: "miss" }), writeSearch: () => ({ kind: "written" }), clearNamespace: () => ({ kind: "cleared" }), clearFolderPath: () => ({ kind: "cleared" }), clearNamespaceOrThrow: () => undefined, clearFolderPathOrThrow: () => undefined },
-    favouriteResolveRuntime: { listFiles: async () => ({ items: [] }), cacheFolder: () => undefined },
+    favouriteResolveRuntime: { listFiles: async () => ({ completeness: "complete" as const, items: [] }), cacheFolder: () => undefined },
     connectivity: { read: () => online, subscribe: () => () => undefined },
     explicitOfflineRuntime: { storage: { read: () => ({ kind: "ready", enabled: false }), commit: () => ({ kind: "committed" }), reset: () => ({ kind: "committed" }), repair: () => ({ kind: "repaired" }) }, network: { setBlocked: () => undefined } },
     clock: { nowIso: () => "2026-01-01T00:00:00.000Z" },
@@ -186,8 +186,8 @@ function createSettingsFixture(): AppServices {
     responsiveViewport: { getSnapshot: () => matchMediaMatches ? narrowViewport : wideViewport, subscribe: () => () => undefined },
     search,
     settings: { load: () => DEFAULT_UI_SETTINGS, save: (value) => { localStorage.setItem("davora-ui-settings", JSON.stringify(value)); return value; } },
-    operationRuntime: { request: { createAbortHandle: abortHandle, createTransferId: () => "status-transfer" }, mutation: { createFolder: async () => ({ action: "createFolder", parentPath: "", path: "" }), deleteFile: async () => ({ action: "delete", parentPath: "", path: "" }), uploadFile: async () => ({ action: "upload", parentPath: "", path: "" }), copyOrMove: async () => ({ action: "copy", parentPath: "", path: "" }), listDestination: async () => ({ items: [] }) }, download: { prepareDownloadFile: async () => ({ blob: new Blob(), filename: "" }), fetchDownloadBlob: async () => ({ blob: new Blob() }), listFiles: async () => ({ items: [] }), triggerBrowserDownload: () => undefined, saveDownload: () => undefined }, batch: { downloadSelectionAsZip: async () => { throw new Error("Batch download is not used by this fixture."); } }, preview: { createFileStreamUrl: async () => "" }, time: { wait: async () => {} }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) }, isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
-    offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "status-sync", listFiles: async () => ({ path: "", items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob() }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
+    operationRuntime: { request: { createAbortHandle: abortHandle, createTransferId: () => "status-transfer" }, mutation: { createFolder: async () => ({ action: "createFolder", parentPath: "", path: "" }), deleteFile: async () => ({ action: "delete", parentPath: "", path: "" }), uploadFile: async () => ({ action: "upload", parentPath: "", path: "" }), copyOrMove: async () => ({ action: "copy", parentPath: "", path: "" }), listDestination: async () => ({ completeness: "complete" as const, items: [] }) }, download: { prepareDownloadFile: async () => ({ blob: new Blob(), filename: "" }), fetchDownloadBlob: async () => ({ blob: new Blob() }), listFiles: async () => ({ completeness: "complete" as const, items: [] }), triggerBrowserDownload: () => undefined, saveDownload: () => undefined }, batch: { downloadSelectionAsZip: async () => { throw new Error("Batch download is not used by this fixture."); } }, preview: { createFileStreamUrl: async () => "" }, time: { wait: async () => {} }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) }, isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
+    offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "status-sync", listFiles: async () => ({ completeness: "complete" as const, path: "", items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob() }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
     retentionRepository,
     previewRuntime,
     accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
@@ -315,7 +315,7 @@ it("shows the active sort direction as an icon-only trigger in the mobile toolba
     matchMediaMatches = true;
     const account = buildAccount("alpha", { displayName: "Mobile sort workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "",
       items: [
         { path: "alpha.txt", name: "alpha.txt", isFolder: false, size: 1, mimeType: "text/plain" },

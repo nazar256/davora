@@ -36,9 +36,9 @@ const readCache = (ports: FolderPorts, cacheNamespace: string, path: string) => 
   }
 };
 
-const writeCache = (ports: FolderPorts, cacheNamespace: string, path: string, items: FileEntry[]): void => {
+const writeCache = (ports: FolderPorts, cacheNamespace: string, path: string, items: FileEntry[], completeness: "complete" | "partial"): void => {
   try {
-    ports.writeCachedFolder(cacheNamespace, path, items);
+    ports.writeCachedFolder(cacheNamespace, path, items, completeness);
   } catch {
     // Folder display remains usable when optional browser cache persistence fails.
   }
@@ -70,6 +70,7 @@ export const executeFolderLoad = async (
       type: "cached-snapshot-shown",
       request: input.request,
       items: cached.items,
+      completeness: cached.completeness,
       ...(cached.cachedAt ? { cachedAt: cached.cachedAt } : {}),
       mode: input.mode
     });
@@ -108,12 +109,13 @@ export const executeFolderLoad = async (
         type: "live-response-accepted",
         request: input.request,
         items: outcome.items,
+        completeness: outcome.completeness,
         message: input.announceStatus ? (cached ? "refreshed" : "viewing") : "silent"
       });
       if (!accepted) {
         return;
       }
-      writeCache(ports, input.request.key.cacheNamespace, input.request.key.path, outcome.items);
+      writeCache(ports, input.request.key.cacheNamespace, input.request.key.path, outcome.items, outcome.completeness);
       callbacks.onWorkerAvailable();
       return;
     }
@@ -129,7 +131,7 @@ export const executeFolderLoad = async (
       return "session-terminated";
     case "transient":
       if (cached) {
-        if (callbacks.emit({ type: "refresh-failed", request: input.request, items: cached.items })) {
+        if (callbacks.emit({ type: "refresh-failed", request: input.request, items: cached.items, completeness: cached.completeness })) {
           callbacks.onWorkerUnavailable();
         }
         return;
@@ -140,7 +142,7 @@ export const executeFolderLoad = async (
       return;
     case "failure":
       callbacks.emit(cached
-        ? { type: "refresh-failed", request: input.request, items: cached.items }
+        ? { type: "refresh-failed", request: input.request, items: cached.items, completeness: cached.completeness }
         : { type: "load-failed", request: input.request, error: outcome.error, reason: "live-failure" });
       return;
   }

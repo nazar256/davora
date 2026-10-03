@@ -11,7 +11,7 @@ interface SearchCache {
 }
 
 interface SearchApi {
-  searchFiles(path: string, query: string, token: string, signal: AbortSignal): Promise<{ path: string; query: string; items: unknown }>;
+  searchFiles(path: string, query: string, token: string, signal: AbortSignal): Promise<{ path: string; query: string; items: unknown; completeness?: unknown }>;
 }
 
 const isCanonical = (path: string): boolean => {
@@ -24,7 +24,7 @@ const parseItems = (value: unknown, path: string): SearchResult[] | undefined =>
   for (const candidate of value) {
     const parsed = searchResultSchema.safeParse(candidate);
     if (!parsed.success || basename(parsed.data.path) !== parsed.data.name) return undefined;
-    const inScope = path === "" ? parsed.data.path !== "" : parsed.data.path === path || parsed.data.path.startsWith(`${path}/`);
+    const inScope = path === "" ? parsed.data.path !== "" : parsed.data.path.startsWith(`${path}/`);
     if (!inScope) return undefined;
     items.push(parsed.data);
   }
@@ -40,7 +40,7 @@ export const createBrowserSearchPorts = (
     try {
       const response = await api.searchFiles(input.path, input.query, input.token, input.signal);
       const items = response.path === input.path && response.query === input.query ? parseItems(response.items, input.path) : undefined;
-      return items ? { kind: "success", items } as const : { kind: "failure", error: new Error("The server returned invalid search results.") } as const;
+      return items && (response.completeness === "complete" || response.completeness === "partial") ? { kind: "success", items, completeness: response.completeness } as const : { kind: "failure", error: new Error("The server returned invalid search results.") } as const;
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return { kind: "cancelled" } as const;
       const normalized = error instanceof Error ? error : new Error("Unable to search files.");

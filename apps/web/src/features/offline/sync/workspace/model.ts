@@ -117,6 +117,8 @@ export function projectOfflineSyncConfirmStage(
 }
 
 export interface OfflineSyncWorkspaceCommands {
+  cancel(taskId: string): void;
+  retryRetainedSelection(selection: import("../useOfflineSync").RetainedSelectionRetry): Promise<void>;
   open(entries: readonly FileEntry[], archive?: BatchArchiveInput, capture?: BatchSelectionCapture): Promise<void>;
   confirm(): Promise<void>;
   dismiss(): void;

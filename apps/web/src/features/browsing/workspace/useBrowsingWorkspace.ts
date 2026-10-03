@@ -5,7 +5,7 @@ import { buildFileListEmptyPresentation } from "../fileList/emptyPresentation";
 import { buildFolderInlineBanner, classifyListState } from "../folder/listBanner";
 import { hasKnownFolderContents, isFolderInitialLoading, isFolderRefreshing, isFolderStale, selectFolderError, selectFolderItems } from "../folder/selectors";
 import { useFolder, useFolderStatus } from "../folder";
-import { selectSearchResults } from "../search/selectors";
+import { selectSearchCoverage, selectSearchResults, type SearchCoverage } from "../search/selectors";
 import { useSearch } from "../search";
 import { buildBreadcrumbs, buildBrowseStatusLabel, getFolderLabel, getLocationLabel, isSearchActive } from "../presentation";
 import { selectVisibleItems } from "../selectors";
@@ -51,6 +51,8 @@ export interface BrowsingWorkspaceOutput {
     readonly folderLabel: string;
     readonly locationLabel: string;
     readonly browseStatusLabel: string;
+    readonly searchCoverage?: SearchCoverage;
+    readonly listingCompleteness?: "complete" | "partial" | "unknown";
     readonly inlineBanner: ReturnType<typeof buildFolderInlineBanner>["banner"];
     readonly showRoutineCachedRefresh: boolean;
     readonly empty: ReturnType<typeof buildFileListEmptyPresentation>;
@@ -144,6 +146,7 @@ export function useBrowsingWorkspace(input: BrowsingWorkspaceInput): BrowsingWor
   });
   const folderItems = selectFolderItems(folder.state);
   const searchResults = selectSearchResults(search.state);
+  const searchCoverage = active ? selectSearchCoverage(search.state) : undefined;
   const folderError = selectFolderError(folder.state);
   const folderLoading = isFolderInitialLoading(folder.state);
   const folderRefreshing = isFolderRefreshing(folder.state);
@@ -178,6 +181,7 @@ export function useBrowsingWorkspace(input: BrowsingWorkspaceInput): BrowsingWor
   const empty = buildFileListEmptyPresentation({
     visibleItemCount: visibleItems.length,
     searchActive: active,
+    searchCoverage,
     loadingFolder: folderLoading,
     hasEverCachedFolder: hasKnownFolderContents(folder.state),
     visibleListError: visibleError,
@@ -221,7 +225,9 @@ export function useBrowsingWorkspace(input: BrowsingWorkspaceInput): BrowsingWor
       showBreadcrumbs: input.context.path !== "",
       folderLabel: getFolderLabel(input.context.path),
       locationLabel,
-      browseStatusLabel: buildBrowseStatusLabel({ count: visibleItems.length, path: input.context.path, rawSearchQuery: rawQuery }),
+      searchCoverage,
+      listingCompleteness: !active && "completeness" in folder.state ? folder.state.completeness : undefined,
+      browseStatusLabel: buildBrowseStatusLabel({ count: visibleItems.length, path: input.context.path, rawSearchQuery: rawQuery, completeness: "completeness" in folder.state ? folder.state.completeness : undefined }),
       inlineBanner: banner.banner,
       showRoutineCachedRefresh: banner.showRoutineCachedRefresh,
       empty,

@@ -796,12 +796,12 @@ test("gallery overlay adds next/previous controls and photo-only quick advance b
   const isMobile = testInfo.project.name === "mobile-chrome";
   await connectAccount(page, "Gallery workspace");
   const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9pP3Un0AAAAASUVORK5CYII=", "base64");
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [
             { path: "Projects/photo.png", name: "photo.png", isFolder: false, size: 12, mimeType: "image/png" },
@@ -916,12 +916,12 @@ test("gallery overlay adds next/previous controls and photo-only quick advance b
 test("image preview navigation uses viewport-fixed edge zones", async ({ page }) => {
   await connectAccount(page, "Image edge workspace");
   const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9pP3Un0AAAAASUVORK5CYII=", "base64");
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: ["photo-a.png", "photo-b.png", "photo-c.png"].map((name) => ({
             path: `Projects/${name}`,
@@ -1025,12 +1025,12 @@ test("folder audio player reopens at the last remembered position for the same b
 
 test("folder audio player uses current folder tracks and restores per-folder progress", async ({ page }) => {
   await connectAccount(page, "Folder audio workspace");
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [
             { path: "Projects/chapter.m4a", name: "chapter.m4a", isFolder: false, size: 18, mimeType: "audio/mp4" },
@@ -1233,12 +1233,12 @@ test("PER-65 video navigation stays video-only with clear toolbar boundaries", a
   });
 
   await connectAccount(page, "PER-65 video navigation workspace");
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [
             { path: "Projects/clip.mp4", name: "clip.mp4", isFolder: false, size: 16, mimeType: "video/mp4" },
@@ -1361,12 +1361,12 @@ test("media preview attempts autoplay for audio and video and pauses when switch
     });
   });
   await connectAccount(page, "Media autoplay workspace");
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [
             { path: "Projects/a-photo.png", name: "a-photo.png", isFolder: false, size: 12, mimeType: "image/png" },
@@ -1519,12 +1519,12 @@ test("large video preview streams through the Worker without full-file download"
   let originalRequests = 0;
   let streamRequests = 0;
 
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [{ path: "Projects/clip.mp4", name: "clip.mp4", isFolder: false, size: largeVideoSize, mimeType: "video/mp4" }]
         }

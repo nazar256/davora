@@ -1,4 +1,5 @@
 import type { FileEntry, FilePreview, SearchResult } from "@davora/shared";
+import { basename, parseNormalizedPath } from "@davora/shared";
 
 export type RetainedRootKind = "file" | "folder" | "batch";
 export type RetainedRootStatus = "incomplete" | "complete";
@@ -212,6 +213,53 @@ export function selectRetainedRootSummaries(snapshot: RetainedSnapshot): readonl
 export function selectFolderOfflineAvailability(snapshot: RetainedSnapshot, folderPath: string): boolean {
   const normalizedFolderPath = normalizePath(folderPath);
   return snapshot.roots.some((root) => root.kind === "folder" && root.rootPath === normalizedFolderPath && rootAvailable(snapshot, root));
+}
+
+export type RetainedReadiness = "available" | "incomplete" | "missing" | "empty";
+export type RetainedRecovery =
+  | { readonly kind: "recoverable"; readonly account: RetentionAccount; readonly rootId: string; readonly entries: readonly FileEntry[] }
+  | { readonly kind: "unavailable"; readonly reason: "missing-root" | "invalid-selection" };
+
+export function selectRetainedReadiness(snapshot: RetainedSnapshot): readonly (RetainedRootSummary & { readonly readiness: RetainedReadiness })[] {
+  return selectRetainedRootSummaries(snapshot).map((root) => ({
+    ...root,
+    readiness: root.available ? "available" : root.status === "incomplete" ? "incomplete" : root.fileCount === 0 ? "empty" : "missing"
+  }));
+}
+
+export function selectRetainedStorageBytes(snapshot: RetainedSnapshot): number {
+  const memberPaths = new Set(snapshot.memberships.map((member) => member.filePath));
+  const files = new Map(snapshot.files.map((file) => [file.path, file]));
+  return [...memberPaths].reduce((total, path) => total + (files.get(path)?.blobSize ?? 0), 0);
+}
+
+export function selectRetainedRecovery(snapshot: RetainedSnapshot, rootId: string): RetainedRecovery {
+  const root = snapshot.roots.find((item) => item.id === rootId);
+  if (!root) return { kind: "unavailable", reason: "missing-root" };
+  try {
+    let paths: string[];
+    if (root.kind === "batch") {
+      const decoded: unknown = JSON.parse(root.rootPath);
+      if (!Array.isArray(decoded) || decoded.length < 2 || !decoded.every((path): path is string => typeof path === "string" && path.length > 0 && parseNormalizedPath(path) === path)) {
+        return { kind: "unavailable", reason: "invalid-selection" };
+      }
+      paths = decoded;
+      if (retainedBatchRootPath(paths) !== root.rootPath || root.folderRoots.some((path) => !paths.includes(path))) {
+        return { kind: "unavailable", reason: "invalid-selection" };
+      }
+    } else {
+      if (parseNormalizedPath(root.rootPath) !== root.rootPath || (!root.rootPath && root.kind === "file")) {
+        return { kind: "unavailable", reason: "invalid-selection" };
+      }
+      paths = [root.rootPath];
+    }
+    return {
+      kind: "recoverable", account: snapshot.account, rootId,
+      entries: paths.map((path) => ({ path, name: basename(path) || root.rootName, isFolder: root.kind === "folder" || (root.kind === "batch" && root.folderRoots.includes(path)) }))
+    };
+  } catch {
+    return { kind: "unavailable", reason: "invalid-selection" };
+  }
 }
 
 function toOfflineFileEntry(entry: RetainedFile): FileEntry {

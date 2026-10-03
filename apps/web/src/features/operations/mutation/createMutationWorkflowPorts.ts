@@ -154,7 +154,7 @@ export interface MutationApiSources {
     token: string,
     overwrite?: boolean
   ): Promise<MutationResult>;
-  listChildren(path: string, token: string): Promise<{ readonly items: readonly FileEntry[] }>;
+  listChildren(path: string, token: string): Promise<{ completeness: "complete" | "partial"; readonly items: readonly FileEntry[] }>;
 }
 
 export interface CreateMutationWorkflowPortsInput {
@@ -539,7 +539,7 @@ export function createMutationOrchestrationPorts(
             if (!input.context.isCurrentOperationContext(context)) {
               return { kind: "failed", message: "This action was superseded." };
             }
-            return { kind: "completed", entries: listing.items };
+            return { kind: "completed", entries: listing.items, completeness: listing.completeness };
           } catch (error) {
             if (!input.context.isCurrentOperationContext(context)) {
               return { kind: "failed", message: "This action was superseded." };

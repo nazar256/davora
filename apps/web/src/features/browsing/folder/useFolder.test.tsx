@@ -21,7 +21,7 @@ const createPorts = (loadFolder: FolderPorts["loadFolder"]): FolderPorts => ({
 
 describe("useFolder", () => {
   it("loads the current folder and exposes forced reload", async () => {
-    const ports = createPorts(vi.fn<FolderPorts["loadFolder"]>(async () => ({
+    const ports = createPorts(vi.fn<FolderPorts["loadFolder"]>(async () => ({ completeness: "complete" as const,
       kind: "success",
       items: liveItems
     })));
@@ -48,7 +48,7 @@ describe("useFolder", () => {
         oldSignal = signal;
         return oldLoad.promise;
       }
-      return Promise.resolve({ kind: "success", items: liveItems });
+      return Promise.resolve({ completeness: "complete" as const, kind: "success", items: liveItems });
     }));
     const { result, rerender } = renderHook(({ folderKey }) => useFolder({
       key: folderKey,
@@ -64,16 +64,16 @@ describe("useFolder", () => {
     );
     await waitFor(() => expect(result.current.state).toMatchObject({ kind: "ready", key: key("New") }));
     expect(oldSignal?.aborted).toBe(true);
-    oldLoad.resolve({ kind: "success", items: [{ path: "Old/late", name: "late", isFolder: false }] });
+    oldLoad.resolve({ completeness: "complete" as const, kind: "success", items: [{ path: "Old/late", name: "late", isFolder: false }] });
     await act(async () => { await oldLoad.promise; });
-    expect(result.current.state).toMatchObject({ kind: "ready", key: key("New"), items: liveItems });
+    expect(result.current.state).toMatchObject({ completeness: "complete" as const, kind: "ready", key: key("New"), items: liveItems });
   });
 
   it("suppresses previous folder items as soon as the complete key changes", async () => {
     const replacement = createDeferred<FolderLoadOutcome>();
     const oldItems: FileEntry[] = [{ path: "Old/item.txt", name: "item.txt", isFolder: false }];
     const ports = createPorts(vi.fn<FolderPorts["loadFolder"]>(({ path }) => path === "Old"
-      ? Promise.resolve({ kind: "success", items: oldItems })
+      ? Promise.resolve({ completeness: "complete" as const, kind: "success", items: oldItems })
       : replacement.promise));
     const { result, rerender } = renderHook(({ folderKey }) => useFolder({
       key: folderKey,
@@ -82,7 +82,7 @@ describe("useFolder", () => {
       explicitOfflineItems: noOfflineItems,
       ports
     }), { initialProps: { folderKey: key("Old") } });
-    await waitFor(() => expect(result.current.state).toMatchObject({ kind: "ready", items: oldItems }));
+    await waitFor(() => expect(result.current.state).toMatchObject({ completeness: "complete" as const, kind: "ready", items: oldItems }));
 
     rerender({ folderKey: { accountId: "beta", cacheNamespace: "ns-beta", path: "New" } });
 
@@ -119,7 +119,7 @@ describe("useFolder", () => {
         tokenASignal = signal;
         return tokenA.promise;
       }
-      return Promise.resolve({ kind: "success", items: tokenBItems });
+      return Promise.resolve({ completeness: "complete" as const, kind: "success", items: tokenBItems });
     }));
     const { result, rerender } = renderHook(({ token }) => useFolder({
       key: key("Docs"),
@@ -132,13 +132,13 @@ describe("useFolder", () => {
 
     rerender({ token: "token-b" });
     expect(result.current.state.kind).toBe("initialLoading");
-    await waitFor(() => expect(result.current.state).toMatchObject({ kind: "ready", items: tokenBItems }));
+    await waitFor(() => expect(result.current.state).toMatchObject({ completeness: "complete" as const, kind: "ready", items: tokenBItems }));
     expect(tokenASignal?.aborted).toBe(true);
 
     tokenA.resolve({ kind: "unauthorized", error: new Error("old token expired") });
     await act(async () => { await tokenA.promise; });
     expect(onSessionTerminated).not.toHaveBeenCalled();
-    expect(result.current.state).toMatchObject({ kind: "ready", items: tokenBItems });
+    expect(result.current.state).toMatchObject({ completeness: "complete" as const, kind: "ready", items: tokenBItems });
   });
 
   it("reports worker availability only for the current folder context", async () => {
@@ -146,7 +146,7 @@ describe("useFolder", () => {
     const availability = { unavailable: vi.fn(), available: vi.fn() };
     const ports = createPorts(vi.fn<FolderPorts["loadFolder"]>(({ path }) => path === "Old"
       ? oldLoad.promise
-      : Promise.resolve({ kind: "success", items: liveItems })));
+      : Promise.resolve({ completeness: "complete" as const, kind: "success", items: liveItems })));
     const { result, rerender } = renderHook(({ folderKey }) => useFolder({
       key: folderKey,
       token: "token",
@@ -207,10 +207,10 @@ describe("useFolder", () => {
       mode: "explicit-offline",
       explicitOfflineItems: items,
       ports
-    }), { initialProps: { items: firstItems } });
+    }), { initialProps: { completeness: "complete" as const, items: firstItems } });
     await waitFor(() => expect(result.current.state).toMatchObject({ kind: "offline", items: firstItems }));
 
-    rerender({ items: remainingItems });
+    rerender({ completeness: "complete" as const, items: remainingItems });
     expect(result.current.state).toMatchObject({ kind: "offline", items: remainingItems });
     await waitFor(() => expect(result.current.state).toMatchObject({ kind: "offline", items: remainingItems }));
   });

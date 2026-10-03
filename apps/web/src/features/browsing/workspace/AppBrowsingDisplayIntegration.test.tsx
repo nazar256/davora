@@ -14,8 +14,9 @@ import { buildAccount, buildSession } from "../../../test/accounts";
 import { buildHealthResponse } from "../../../test/api";
 import { createDeferred } from "../../../test/primitives";
 
-type FolderResponse = { readonly path: string; readonly items: FileEntry[] };
-type SearchResponse = { readonly query: string; readonly path: string; readonly items: SearchResult[] };
+type FolderResponse = { completeness: "complete" | "partial"; readonly path: string; readonly items: FileEntry[] };
+type SearchResponse = {
+  completeness: "complete" | "partial"; readonly query: string; readonly path: string; readonly items: SearchResult[] };
 
 const mockedApi = {
   listFiles: vi.fn<(path: string) => Promise<FolderResponse>>(),
@@ -116,17 +117,17 @@ function createBrowsingFixture(): AppServices {
     loadFolder: async ({ path }) => {
       try {
         const response = await mockedApi.listFiles(path);
-        return { kind: "success", items: response.items };
+        return { completeness: "complete" as const, kind: "success", items: response.items };
       } catch (error) {
         return { kind: "failure", error: error instanceof Error ? error : new Error("Folder listing failed") };
       }
     },
     readCachedFolder: (namespace, path) => {
       const cached = mockedCache.readFolder(namespace, path);
-      return cached.kind === "hit" ? { items: cached.items, cachedAt: cached.cachedAt } : undefined;
+      return cached.kind === "hit" ? { completeness: "complete" as const, items: cached.items, cachedAt: cached.cachedAt } : undefined;
     },
     writeCachedFolder: (namespace, path, items) => {
-      mockedCache.writeFolder(namespace, path, items);
+      mockedCache.writeFolder(namespace, path, items, "complete");
     }
   };
   const search: AppServices["search"] = {
@@ -134,7 +135,7 @@ function createBrowsingFixture(): AppServices {
     loadSearch: async ({ path, query, token, signal }) => {
       try {
         const response = await mockedApi.searchFiles(path, query, token, signal);
-        return { kind: "success", items: response.items };
+        return { completeness: "complete" as const, kind: "success", items: response.items };
       } catch (error) {
         return { kind: "failure", error: error instanceof Error ? error : new Error("Search failed") };
       }
@@ -210,7 +211,7 @@ function createBrowsingFixture(): AppServices {
   };
   return {
     accountRegistry, accountTransport, accountSession, browsingCache,
-    favouriteResolveRuntime: { listFiles: async () => ({ items: [] }), cacheFolder: () => undefined },
+    favouriteResolveRuntime: { listFiles: async () => ({ completeness: "complete" as const, items: [] }), cacheFolder: () => undefined },
     connectivity,
     explicitOfflineRuntime: { storage: { read: () => ({ kind: "ready", enabled: false }), commit: () => ({ kind: "committed" }), reset: () => ({ kind: "committed" }), repair: () => ({ kind: "repaired" }) }, network: { setBlocked: () => undefined } },
     clock: { nowIso: () => "2026-01-01T00:00:00.000Z" },
@@ -223,8 +224,8 @@ function createBrowsingFixture(): AppServices {
     responsiveViewport: { getSnapshot: () => wideViewportSnapshot, subscribe: () => () => undefined },
     search,
     settings: { load: () => settings, save: (next) => { settings = next; return next; } },
-    operationRuntime: { request: { createAbortHandle: abortHandle, createTransferId: () => "browsing-transfer" }, mutation: { createFolder: async () => ({ action: "createFolder", parentPath: "", path: "" }), deleteFile: async () => ({ action: "delete", parentPath: "", path: "" }), uploadFile: async () => ({ action: "upload", parentPath: "", path: "" }), copyOrMove: async () => ({ action: "copy", parentPath: "", path: "" }), listDestination: async () => ({ items: [] }) }, download: { prepareDownloadFile: async () => ({ blob: new Blob(), filename: "" }), fetchDownloadBlob: async () => ({ blob: new Blob() }), listFiles: async () => ({ items: [] }), triggerBrowserDownload: () => undefined, saveDownload: () => undefined }, batch: { downloadSelectionAsZip: async () => { throw new Error("Batch download is not used by the browsing integration fixture."); } }, preview: { createFileStreamUrl: async () => "" }, time: { wait: async () => {} }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) }, isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
-    offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "browsing-sync", listFiles: async () => ({ path: "", items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob() }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
+    operationRuntime: { request: { createAbortHandle: abortHandle, createTransferId: () => "browsing-transfer" }, mutation: { createFolder: async () => ({ action: "createFolder", parentPath: "", path: "" }), deleteFile: async () => ({ action: "delete", parentPath: "", path: "" }), uploadFile: async () => ({ action: "upload", parentPath: "", path: "" }), copyOrMove: async () => ({ action: "copy", parentPath: "", path: "" }), listDestination: async () => ({ completeness: "complete" as const, items: [] }) }, download: { prepareDownloadFile: async () => ({ blob: new Blob(), filename: "" }), fetchDownloadBlob: async () => ({ blob: new Blob() }), listFiles: async () => ({ completeness: "complete" as const, items: [] }), triggerBrowserDownload: () => undefined, saveDownload: () => undefined }, batch: { downloadSelectionAsZip: async () => { throw new Error("Batch download is not used by the browsing integration fixture."); } }, preview: { createFileStreamUrl: async () => "" }, time: { wait: async () => {} }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) }, isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
+    offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "browsing-sync", listFiles: async () => ({ completeness: "complete" as const, path: "", items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob() }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
     retentionRepository, previewRuntime,
     accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
   };
@@ -251,8 +252,8 @@ beforeEach(() => {
   mockedCache.clearFolderPath.mockReset();
   mockedCache.clearNamespaceOrThrow.mockReset();
   mockedCache.clearFolderPathOrThrow.mockReset();
-  mockedApi.listFiles.mockResolvedValue({ path: "", items: [{ path: "Projects", name: "Projects", isFolder: true }] });
-  mockedApi.searchFiles.mockResolvedValue({ query: "", path: "", items: [] });
+  mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const, path: "", items: [{ path: "Projects", name: "Projects", isFolder: true }] });
+  mockedApi.searchFiles.mockResolvedValue({ completeness: "complete", query: "", path: "", items: [] });
   mockedCache.readFolder.mockReturnValue({ kind: "miss" });
   mockedCache.writeFolder.mockReturnValue({ kind: "written" });
   mockedCache.readSearch.mockReturnValue({ kind: "miss" });
@@ -302,7 +303,7 @@ describe("browsing display integration", () => {
   it("preserves backend relevance order for active search results", async () => {
     const account = buildAccount("alpha", { displayName: "Search workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.searchFiles.mockResolvedValueOnce({
+    mockedApi.searchFiles.mockResolvedValueOnce({ completeness: "complete",
       query: "plan",
       path: "",
       items: [
@@ -329,7 +330,7 @@ describe("browsing display integration", () => {
   it("keeps the raw search query for transport while presenting its trimmed case-preserving value", async () => {
     const account = buildAccount("alpha", { displayName: "Search presentation workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.searchFiles.mockResolvedValueOnce({
+    mockedApi.searchFiles.mockResolvedValueOnce({ completeness: "complete",
       query: "  Plan  Q3  ",
       path: "",
       items: [{ path: "Projects/plan.txt", name: "plan.txt", isFolder: false, score: 1 }]
@@ -347,9 +348,9 @@ describe("browsing display integration", () => {
   it("masks prior-query results while a replacement search is pending", async () => {
     const account = buildAccount("alpha", { displayName: "Search isolation workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    const replacement = createDeferred<{ query: string; path: string; items: Array<{ path: string; name: string; isFolder: boolean; score: number }> }>();
+    const replacement = createDeferred<{ completeness: "complete" | "partial"; query: string; path: string; items: Array<{ path: string; name: string; isFolder: boolean; score: number }> }>();
     mockedApi.searchFiles
-      .mockResolvedValueOnce({ query: "old", path: "", items: [{ path: "old.txt", name: "old.txt", isFolder: false, score: 1 }] })
+      .mockResolvedValueOnce({ completeness: "complete", query: "old", path: "", items: [{ path: "old.txt", name: "old.txt", isFolder: false, score: 1 }] })
       .mockReturnValueOnce(replacement.promise);
 
     render(<App services={services} />);
@@ -361,14 +362,14 @@ describe("browsing display integration", () => {
     fireEvent.change(input, { target: { value: "new" } });
     expect(screen.queryByRole("button", { name: /Open file old.txt/i })).not.toBeInTheDocument();
 
-    replacement.resolve({ query: "new", path: "", items: [{ path: "new.txt", name: "new.txt", isFolder: false, score: 1 }] });
+    replacement.resolve({ completeness: "complete", query: "new", path: "", items: [{ path: "new.txt", name: "new.txt", isFolder: false, score: 1 }] });
     expect(await screen.findByRole("button", { name: /Open file new.txt/i })).toBeInTheDocument();
   });
 
   it("groups folders above files and sorts within each group by the active sort mode", async () => {
     const account = buildAccount("alpha", { displayName: "Folder first workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "",
       items: [
         { path: "z-file.txt", name: "z-file.txt", isFolder: false, size: 2, mimeType: "text/plain" },
@@ -411,7 +412,7 @@ describe("browsing display integration", () => {
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     mockedCache.readFolder.mockReturnValue({ kind: "miss" });
 
-    const deferred = createDeferred<{ path: string; items: Array<{ path: string; name: string; isFolder: boolean; size?: number; mimeType?: string }> }>();
+    const deferred = createDeferred<{ completeness: "complete" | "partial"; path: string; items: Array<{ path: string; name: string; isFolder: boolean; size?: number; mimeType?: string }> }>();
     mockedApi.listFiles.mockImplementation(() => deferred.promise);
 
     render(<App services={services} />);
@@ -420,7 +421,7 @@ describe("browsing display integration", () => {
     expect(document.querySelector(".empty-state")).toBeNull();
     expect(screen.queryByText(/This folder is empty/i)).not.toBeInTheDocument();
 
-    deferred.resolve({ path: "", items: [{ path: "Projects", name: "Projects", isFolder: true }] });
+    deferred.resolve({ completeness: "complete" as const, path: "", items: [{ path: "Projects", name: "Projects", isFolder: true }] });
     expect(await screen.findByRole("button", { name: /Open folder Projects/i })).toBeInTheDocument();
   });
 
@@ -441,7 +442,7 @@ describe("browsing display integration", () => {
   it("shows normal empty state for a confirmed empty folder after successful load", async () => {
     const account = buildAccount("alpha", { displayName: "Empty folder workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValueOnce({ path: "", items: [] });
+    mockedApi.listFiles.mockResolvedValueOnce({ completeness: "complete" as const, path: "", items: [] });
 
     render(<App services={services} />);
 
@@ -456,13 +457,13 @@ describe("browsing display integration", () => {
   it("shows cached empty folder as empty while refreshing in the background", async () => {
     const account = buildAccount("alpha", { displayName: "Cached empty workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedCache.readFolder.mockReturnValue({
+    mockedCache.readFolder.mockReturnValue({ completeness: "complete" as const,
       kind: "hit",
       cachedAt: "2026-06-07T10:00:00.000Z",
       items: []
     });
 
-    const deferred = createDeferred<{ path: string; items: Array<{ path: string; name: string; isFolder: boolean; size?: number; mimeType?: string }> }>();
+    const deferred = createDeferred<{ completeness: "complete" | "partial"; path: string; items: Array<{ path: string; name: string; isFolder: boolean; size?: number; mimeType?: string }> }>();
     mockedApi.listFiles.mockImplementation(() => deferred.promise);
 
     render(<App services={services} />);
@@ -480,14 +481,14 @@ describe("browsing display integration", () => {
     expect(screen.getByText("Refreshing")).toBeInTheDocument();
     expect(screen.queryByText(/Showing cached data while checking for changes in the background/i)).not.toBeInTheDocument();
 
-    deferred.resolve({ path: "", items: [] });
+    deferred.resolve({ completeness: "complete" as const, path: "", items: [] });
     await waitFor(() => expect(screen.queryByText(/Showing cached data while checking for changes in the background/i)).not.toBeInTheDocument());
   });
 
   it("hides dot-prefixed files and folders by default", async () => {
     const account = buildAccount("alpha", { displayName: "Hidden files workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "",
       items: [
         { path: "visible.txt", name: "visible.txt", isFolder: false, size: 10, mimeType: "text/plain" },
@@ -506,7 +507,7 @@ describe("browsing display integration", () => {
   it("reveals hidden files when the settings toggle is enabled", async () => {
     const account = buildAccount("alpha", { displayName: "Hidden files workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "",
       items: [
         { path: "visible.txt", name: "visible.txt", isFolder: false, size: 10, mimeType: "text/plain" },
@@ -530,7 +531,7 @@ describe("browsing display integration", () => {
   it("sorts files by name descending when the sort mode is changed", async () => {
     const account = buildAccount("alpha", { displayName: "Sort workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "",
       items: [
         { path: "alpha.txt", name: "alpha.txt", isFolder: false, size: 1, mimeType: "text/plain" },
@@ -557,7 +558,7 @@ describe("browsing display integration", () => {
   it("sorts files by size when the sort mode is changed", async () => {
     const account = buildAccount("alpha", { displayName: "Sort workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "",
       items: [
         { path: "small.txt", name: "small.txt", isFolder: false, size: 1, mimeType: "text/plain" },

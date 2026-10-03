@@ -1,3 +1,4 @@
+import type { SearchCoverage } from "../../search";
 import { useMemo } from "react";
 
 import { dirname, type ConnectedAccount } from "@davora/shared";
@@ -27,6 +28,8 @@ export interface AppBarWorkspaceOwners {
     readonly query: { readonly raw: string; readonly set: (value: string) => void };
     readonly presentation: {
       readonly locationLabel: string;
+      readonly searchCoverage?: SearchCoverage;
+      readonly listingCompleteness?: "complete" | "partial" | "unknown";
       readonly showRoutineCachedRefresh: boolean;
     };
     readonly sort: FolderSortController;
@@ -46,7 +49,12 @@ export interface AppBarWorkspaceOwners {
     readonly tasks: readonly TransferTask[];
     readonly clearAccountHistory: (accountId: string) => void;
   };
-  readonly offlineSync: { readonly commands: { readonly retry: (task: TransferTask) => void | Promise<void> } };
+  readonly offlineSync: {
+    readonly commands: {
+      readonly retry: (task: TransferTask) => void | Promise<void>;
+      readonly cancel: (taskId: string) => void;
+    };
+  };
   readonly operation: {
     readonly cancelTransferTask: (taskId: string) => void;
     readonly retryTransferTask: (taskId: string) => void;
@@ -76,12 +84,14 @@ export function useAppBarWorkspace({ owners }: AppBarWorkspaceInput): AppBarWork
       },
       accountId: owners.account.operationalActiveAccount?.id,
       onRetryFailedSync: owners.offlineSync.commands.retry,
-      onCancelTransfer: (task: TransferTask) => owners.operation.cancelTransferTask(task.id),
+      onCancelTransfer: (task: TransferTask) => task.kind === "sync"
+        ? owners.offlineSync.commands.cancel(task.id)
+        : owners.operation.cancelTransferTask(task.id),
       onRetryTransfer: (task: TransferTask) => owners.operation.retryTransferTask(task.id)
     }), [
       owners.account.operationalActiveAccount?.id,
       owners.navigation,
-      owners.offlineSync.commands.retry,
+      owners.offlineSync.commands,
       owners.operation,
       owners.transfers
     ])
@@ -94,6 +104,8 @@ export function useAppBarWorkspace({ owners }: AppBarWorkspaceInput): AppBarWork
       cacheOnlyMode: owners.bootstrap.cacheOnlyMode,
       compactMobileHeader,
       currentPath: owners.navigation.currentPath,
+      listingCompleteness: owners.browsing.presentation.listingCompleteness,
+      searchCoverage: owners.browsing.presentation.searchCoverage,
       explicitOfflineMode: owners.offline.explicitOfflineMode,
       hasAccounts,
       hasSession: Boolean(owners.session.token),

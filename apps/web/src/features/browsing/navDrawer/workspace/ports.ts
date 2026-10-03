@@ -15,8 +15,8 @@ interface OfflineFavouriteLike {
 }
 
 export interface FavouriteResolveRuntimePort {
-  listFiles(parentPath: string, token: string): Promise<{ readonly items: readonly FileEntry[] }>;
-  cacheFolder(namespace: string, parentPath: string, items: readonly FileEntry[]): void;
+  listFiles(parentPath: string, token: string): Promise<{ completeness: "complete" | "partial"; readonly items: readonly FileEntry[] }>;
+  cacheFolder(namespace: string, parentPath: string, items: readonly FileEntry[], completeness: "complete" | "partial"): void;
 }
 
 export interface NavigationDrawerWorkspaceInput {

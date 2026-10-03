@@ -1,7 +1,7 @@
 import type { SearchResult } from "@davora/shared";
 
 export type SearchLoadOutcome =
-  | { readonly kind: "success"; readonly items: SearchResult[] }
+  | { readonly kind: "success"; readonly items: SearchResult[]; readonly completeness: "complete" | "partial" }
   | { readonly kind: "unauthorized" | "reconnect-required" | "failure"; readonly error: Error }
   | { readonly kind: "cancelled" };
 

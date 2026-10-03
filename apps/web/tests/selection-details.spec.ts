@@ -10,12 +10,12 @@ test.beforeEach(async ({ request, baseURL }) => {
 test("mobile item actions and details sheet avoids fake handles and nested sheet scroll", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chrome", "Mobile-only UX check.");
   const longFileName = "quarterly-archive-export-with-long-location-name-and-metadata.txt";
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [
             {

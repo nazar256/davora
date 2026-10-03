@@ -210,12 +210,12 @@ test("PER-73 mobile forms, sheets, and dialogs keep primary actions reachable at
   await page.setViewportSize({ width: 360, height: 640 });
   const longFileName = `${"Документи-архів-".repeat(18)}100%.txt`;
   const longPath = `Projects/${longFileName}`;
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [
             { path: "Projects/Архів 100%", name: "Архів 100%", isFolder: true, lastModified: "2026-07-14T10:00:00.000Z" },
@@ -229,7 +229,7 @@ test("PER-73 mobile forms, sheets, and dialogs keep primary actions reachable at
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ data: { path: "Projects/Архів 100%", items: [] } })
+      body: JSON.stringify({ data: { completeness: "complete", path: "Projects/Архів 100%", items: [] } })
     });
   });
   await page.route(`**/api/download?path=${encodeURIComponent(longPath)}`, async (route) => {
@@ -251,7 +251,7 @@ test("PER-73 mobile forms, sheets, and dialogs keep primary actions reachable at
   await expect(page.getByText(/^Nextcloud$/i)).toBeVisible();
   await expect(page.getByText(/Google Drive|Dropbox|OneDrive/i)).toHaveCount(0);
   await expect(page.getByLabel("Root folder")).toHaveValue("");
-  await expect(page.getByLabel("Root folder")).toHaveAttribute("placeholder", "Account root (/)");
+  await expect(page.getByLabel("Root folder")).toHaveAttribute("placeholder", "Default folder");
   await expectInViewport(page.getByRole("button", { name: /^Connect account$/i }));
   await page.getByLabel("Base URL").fill("https://mock-account.example.com");
   await page.getByLabel("Username").fill("per-73-mobile");

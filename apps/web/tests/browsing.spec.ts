@@ -10,7 +10,7 @@ test.beforeEach(async ({ request, baseURL }) => {
 test("browsing sort and hidden search filtering preserve their distinct ordering", async ({ page }, testInfo) => {
   await page.route("**/api/files?**", async (route) => route.fulfill({
     json: {
-      data: {
+      data: { completeness: "complete",
         path: "",
         items: [
           { path: "Projects", name: "Projects", isFolder: true },
@@ -22,7 +22,7 @@ test("browsing sort and hidden search filtering preserve their distinct ordering
   }));
   await page.route("**/api/search?**", async (route) => route.fulfill({
     json: {
-      data: {
+      data: { completeness: "complete",
         query: "ordered",
         path: "",
         items: [

@@ -1,3 +1,4 @@
+import type { SearchCoverage } from "../search";
 import type { FileEntry, SearchResult } from "@davora/shared";
 import type { Ref } from "react";
 
@@ -14,6 +15,8 @@ interface BrowsingSurfaceOwners {
     readonly presentation: {
       readonly breadcrumbs: BrowseHeaderStageProps["breadcrumbs"];
       readonly browseStatusLabel: string;
+      readonly searchCoverage?: SearchCoverage;
+      readonly listingCompleteness?: "complete" | "partial" | "unknown";
       readonly folderLabel: string;
       readonly locationLabel: string;
       readonly folderCachedAt?: string;
@@ -64,6 +67,8 @@ export function projectBrowsingSurfaceBindings(input: BrowsingSurfaceInput): Bro
   return {
     browseHeader: {
       browseStatusLabel: browse.presentation.browseStatusLabel,
+      listingCompleteness: browse.presentation.listingCompleteness,
+      searchCoverage: browse.presentation.searchCoverage,
       breadcrumbs: browse.presentation.breadcrumbs,
       cacheOnlyMode: browse.mode.cacheOnly,
       canCreateFolder: capabilities.canCreateFolder,

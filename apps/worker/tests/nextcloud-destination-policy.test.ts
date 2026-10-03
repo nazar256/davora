@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { createNextcloudDestinationPolicy, normalizeNextcloudAllowedHosts } from "../src/security/nextcloudDestinationPolicy";
+import { NextcloudFileBackend } from "../src/files/nextcloudFileBackend";
 import { NextcloudClient } from "../src/nextcloud/client";
 
 const production = () => createNextcloudDestinationPolicy({
@@ -110,7 +111,7 @@ describe("Nextcloud destination policy", () => {
     const client = new NextcloudClient({ baseUrl: "https://127.0.0.1", username: "alice", appPassword: "password", rootPath: ".davora-agent-test", maxFileBytes: 1024, maxTextFileBytes: 1024 }, fetchMock, production());
     const operations: Array<() => Promise<unknown>> = [
       () => client.listFolder(""), () => client.getMetadata(""), () => client.readFile(""), () => client.readOriginal(""),
-      () => client.streamOriginal(""), () => client.searchFiles("needle"), () => client.createFolder({ path: "", name: "new" }),
+      () => client.streamOriginal(""), () => new NextcloudFileBackend(client).search("", "needle"), () => client.createFolder({ path: "", name: "new" }),
       () => client.uploadFile({ path: "", name: "new.txt", contentBase64: "", mimeType: "text/plain" }),
       () => client.moveResource({ path: "a", destinationPath: "b", overwrite: false }), () => client.copyResource({ path: "a", destinationPath: "b", overwrite: false }),
       () => client.deleteResource({ path: "a", confirmName: "a" })

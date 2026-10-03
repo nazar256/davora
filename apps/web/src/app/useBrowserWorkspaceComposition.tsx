@@ -421,7 +421,7 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
       showMobileActions: focusedSelection.showMobileActions,
       setStatus: workspaceStatus.commands.announce,
       reportListError: browsingCommands.reportExternalListError,
-      writeFolderCache: (namespace, path, items) => { browsingCache.writeFolder(namespace, path, items); },
+      writeFolderCache: (namespace, path, items, completeness) => { browsingCache.writeFolder(namespace, path, items, completeness); },
       formatStorageBytes: (value) => formatFileSize(value, fileSizeDisplayMode)
     },
     runtime: services.offlineSyncRuntime
@@ -520,6 +520,7 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
     navigation: {
       reportBugOpen,
       openReportBugSurface: () => {
+        chromeSurfaces.closeChrome("settings");
         navigation.pushSurface("report-bug");
         setReportBugOpen(true);
       },
@@ -601,7 +602,7 @@ export function useBrowserWorkspaceComposition(services: AppServices): AppShellP
     settings: settingsPreferencesWorkspace,
     diagnostics: diagnosticsWorkspace,
     runtime: { connectivity: browserConnectivity, pwa: pwaWorkspace, wakeLock, transfers, status: workspaceStatus },
-    services: { favourites: services.favourites, favouritesPointerEnvironment: services.favouritesPointerEnvironment, favouriteResolveRuntime: services.favouriteResolveRuntime },
+    services: { favourites: services.favourites, favouritesPointerEnvironment: services.favouritesPointerEnvironment, favouriteResolveRuntime: services.favouriteResolveRuntime, estimateStorage: services.estimateStorage },
     ports: { appBuildLabel: APP_BUILD_LABEL, directoryUploadInputRef: applyBrowserDirectoryUploadAttributes, folderAudioBrowsePanelClassName, toDisplayPath }
   });
 }

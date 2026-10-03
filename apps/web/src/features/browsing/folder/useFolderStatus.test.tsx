@@ -28,7 +28,7 @@ describe("useFolderStatus", () => {
     expect(clearListError).not.toHaveBeenCalled();
 
     rerender({
-      state: {
+      state: { completeness: "complete" as const,
         kind: "ready",
         key,
         contextToken,

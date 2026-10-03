@@ -1,3 +1,4 @@
+import { buildOfflineSyncPlanFromArchive } from "./planAdapters";
 import { describe, expect, it, vi } from "vitest";
 import { executeOfflineSync } from "./controller";
 import {
@@ -306,5 +307,24 @@ describe("executeOfflineSync", () => {
     expect(fixture.value.download).toHaveBeenCalledOnce();
     expect(fixture.value.persistOffline).not.toHaveBeenCalled();
     expect(fixture.value.readSummary).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("partial listing offline terminality", () => {
+  it("does not download, persist, or mark complete after recursive planning fails", async () => {
+    const archive = { roots: [{ entry: { path: "Projects", name: "Projects", isFolder: true }, archiveRoot: "Projects" }], archiveLabel: "Projects" };
+    const fixture = ports({ resolvePlan: async () => {
+      try {
+        return { kind: "success", value: await buildOfflineSyncPlanFromArchive(archive, { token: "fixture", listFiles: async () => ({ completeness: "partial", items: [] }) }) };
+      } catch (error) {
+        return { kind: "ordinaryFailure", message: error instanceof Error ? error.message : "Planning failed" };
+      }
+    } });
+    const result = await executeOfflineSync(job({ kind: "resolvePlan", archiveInput: archive }), fixture.value);
+    expect(result).toMatchObject({ kind: "failed", phase: "planning" });
+    expect(fixture.value.download).not.toHaveBeenCalled();
+    expect(fixture.value.persistOffline).not.toHaveBeenCalled();
+    expect(fixture.value.markRootComplete).not.toHaveBeenCalled();
   });
 });

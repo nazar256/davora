@@ -1,4 +1,5 @@
 import type { FormEvent } from "react";
+import { Info } from "lucide-react";
 
 import { StateBanner } from "../../../components/StateBanner";
 import { useModalFocusBoundary } from "../../../components/useModalFocusBoundary";
@@ -38,7 +39,15 @@ export function RemoveAccountStage(props: RemoveAccountStageProps) {
             <h2>Remove account</h2>
           </div>
         </div>
-        <p className="subtitle dialog-copy">Remove <strong>{props.accountLabel}</strong> from this browser and clear its account-scoped cache. Type the account label to confirm.</p>
+        <p className="subtitle dialog-copy">
+          Remove <strong>{props.accountLabel}</strong> from Davora and clear its saved data on this device. Your Nextcloud files stay unchanged.
+        </p>
+        <details className="account-removal-details">
+          <summary aria-label="Account removal details">
+            <Info aria-hidden="true" size={18} strokeWidth={2} />
+          </summary>
+          <p>This deletes Davora’s saved app password. Revoke the app password in Nextcloud Security to disable it there too.</p>
+        </details>
         {props.error ? <StateBanner kind="error" message={props.error} /> : null}
         <form className="dialog-form" onSubmit={props.onSubmit}>
           <label>

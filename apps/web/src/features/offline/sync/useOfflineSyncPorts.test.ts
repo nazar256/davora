@@ -26,7 +26,7 @@ function createInput(overrides: Partial<CreateOfflineSyncPortsInput> = {}): Crea
     createAbortHandle: () => new AbortController(),
     getToken: () => "token-alpha",
     getCacheNamespace: () => "ns-alpha",
-    listFiles: vi.fn(async () => ({
+    listFiles: vi.fn(async () => ({ completeness: "complete" as const,
       items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false }]
     })),
     fetchDownloadBlob: vi.fn<FetchDownloadBlob>(async () => ({
@@ -42,6 +42,7 @@ function createInput(overrides: Partial<CreateOfflineSyncPortsInput> = {}): Crea
     registry: {
       acquire: vi.fn(() => ({
         signal: new AbortController().signal,
+        abort: vi.fn(),
         isRegistered: () => true,
         isOwned: () => true,
         release: vi.fn()
@@ -57,7 +58,8 @@ function createInput(overrides: Partial<CreateOfflineSyncPortsInput> = {}): Crea
       reportFailure: vi.fn(),
       complete: vi.fn(),
       completePartial: vi.fn(),
-      fail: vi.fn()
+      fail: vi.fn(),
+      markCanceled: vi.fn()
     },
     transferTasks: [],
     openTransferTray: vi.fn(),

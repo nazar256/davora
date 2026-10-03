@@ -67,8 +67,9 @@ const mockedCache = {
   clearFolderPathOrThrow: vi.fn<BrowsingCacheRepository["clearFolderPathOrThrow"]>()
 } satisfies BrowsingCacheRepository;
 
-type ListResponse = { readonly path: string; readonly items: FileEntry[] };
-type SearchResponse = { readonly query: string; readonly path: string; readonly items: SearchResult[] };
+type ListResponse = { completeness: "complete" | "partial"; readonly path: string; readonly items: FileEntry[] };
+type SearchResponse = {
+  completeness: "complete" | "partial"; readonly query: string; readonly path: string; readonly items: SearchResult[] };
 type MutationResponse = { readonly result: MutationResult };
 
 const mockedApi = {
@@ -138,7 +139,7 @@ function createDownloadFixture(): AppServices {
   const folder: FolderPorts = {
     createAbortHandle: abortHandle,
     loadFolder: async ({ path, token, signal }) => {
-      try { return { kind: "success", items: (await listFiles(path, token, signal)).items as FileEntry[] } as const; }
+      try { return { completeness: "complete" as const, kind: "success", items: (await listFiles(path, token, signal)).items as FileEntry[] } as const; }
       catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return { kind: "cancelled" } as const;
         if (error instanceof ApiRequestError && error.status === 401) return { kind: "unauthorized", error } as const;
@@ -148,13 +149,13 @@ function createDownloadFixture(): AppServices {
     },
     readCachedFolder: (account, path) => {
       const cached = browsingCache.readFolder(account, path);
-      return cached.kind === "hit" ? { items: cached.items, cachedAt: cached.cachedAt } : undefined;
+      return cached.kind === "hit" ? { completeness: "complete" as const, items: cached.items, cachedAt: cached.cachedAt } : undefined;
     },
     writeCachedFolder: () => undefined
   };
   const search: SearchPorts = {
     createAbortHandle: abortHandle,
-    loadSearch: async ({ query, path, token, signal }) => ({ kind: "success", items: (await mockedApi.searchFiles(query, path, token, signal)).items }),
+    loadSearch: async ({ query, path, token, signal }) => ({ completeness: "complete" as const, kind: "success", items: (await mockedApi.searchFiles(query, path, token, signal)).items }),
     readCachedSearch: () => undefined,
     writeCachedSearch: () => undefined
   };
@@ -207,7 +208,7 @@ function createDownloadFixture(): AppServices {
   };
   return {
     accountRegistry, accountTransport, accountSession, browsingCache,
-    favouriteResolveRuntime: { listFiles: async () => ({ items: [] }), cacheFolder: () => undefined },
+    favouriteResolveRuntime: { listFiles: async () => ({ completeness: "complete" as const, items: [] }), cacheFolder: () => undefined },
     connectivity, explicitOfflineRuntime, clock: { nowIso: () => "2026-01-01T00:00:00.000Z" },
     favourites: { load: () => ({ kind: "loaded", entries: [] }), save: (_account: ConnectedAccount, entries: never[]) => ({ kind: "saved", entries: [...entries] }), clear: () => ({ kind: "cleared" }), create: (entry: FileEntry, account: ConnectedAccount) => ({ ...entry, accountId: account.id, accountBackend: account.backend, accountRootPath: account.rootPath, cacheNamespace: account.cacheNamespace, addedAt: "2026-01-01T00:00:00.000Z" }) },
     favouritesPointerEnvironment: { elementFromPoint: () => null, addWindowListener: () => () => undefined },
@@ -217,7 +218,7 @@ function createDownloadFixture(): AppServices {
     pullToRefreshEnvironment: { getWindowScrollY: () => window.scrollY }, responsiveViewport, search,
     settings: { load: () => DEFAULT_UI_SETTINGS, save: (settings: typeof DEFAULT_UI_SETTINGS) => settings },
     operationRuntime,
-    offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "download-sync", listFiles: async (path: string) => ({ path, items: [] }), fetchDownloadBlob: mockedApi.fetchDownloadBlob, readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback },
+    offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "download-sync", listFiles: async (path: string) => ({ completeness: "complete" as const, path, items: [] }), fetchDownloadBlob: mockedApi.fetchDownloadBlob, readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback },
     retentionRepository,
     previewRuntime: createPreviewComposition({ retentionRepository }),
     accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts(),
@@ -241,8 +242,8 @@ beforeEach(() => {
   mockedApi.connectAccount.mockResolvedValue({ kind: "invalid-http-success" });
   mockedApi.createSession.mockImplementation(async ({ accountId }: { accountId: string }) => buildSession(buildAccount(accountId)));
   mockedApi.deleteConnectedAccount.mockResolvedValue(undefined);
-  mockedApi.listFiles.mockImplementation(async (path: string) => path === "Projects" ? { path, items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] } : { path, items: [{ path: "Projects", name: "Projects", isFolder: true }, { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] });
-  mockedApi.searchFiles.mockResolvedValue({ query: "", path: "", items: [] });
+  mockedApi.listFiles.mockImplementation(async (path: string) => path === "Projects" ? { completeness: "complete" as const, path, items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] } : { completeness: "complete" as const, path, items: [{ path: "Projects", name: "Projects", isFolder: true }, { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] });
+  mockedApi.searchFiles.mockResolvedValue({ completeness: "complete", query: "", path: "", items: [] });
   mockedApi.fetchDownloadBlob.mockResolvedValue({ blob: new Blob(["download"], { type: "application/octet-stream" }), filename: undefined });
   mockedApi.prepareDownloadFile.mockResolvedValue({ blob: new Blob(["download"], { type: "application/octet-stream" }), filename: "download.bin" });
   mockedApi.fetchOriginalFile.mockResolvedValue({ blob: new Blob(["binary"], { type: "image/png" }), mimeType: "image/png", filename: "photo.png" });
@@ -276,7 +277,7 @@ it("shows exact failed child paths and partial success in the transfer tray", as
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     mockedApi.listFiles.mockImplementation(async (path: string) => {
       if (path === "Documents") {
-        return {
+        return { completeness: "complete" as const,
           path,
           items: [
             { path: "Documents/good.txt", name: "good.txt", isFolder: false, size: 12, mimeType: "text/plain" },
@@ -285,7 +286,7 @@ it("shows exact failed child paths and partial success in the transfer tray", as
         };
       }
 
-      return {
+      return { completeness: "complete" as const,
         path,
         items: [{ path: "Documents", name: "Documents", isFolder: true }]
       };

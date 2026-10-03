@@ -105,7 +105,7 @@ function createInput(overrides: Partial<CreateMutationWorkflowPortsInput> = {}):
         path: "a.txt",
         destinationPath: "b.txt"
       })),
-      listChildren: vi.fn(async () => ({ items: [] }))
+      listChildren: vi.fn(async () => ({ completeness: "complete" as const, items: [] }))
     },
     deleteWorkflow: {
       getActiveDeleteWorkflowId: vi.fn(() => createBatchDeleteWorkflow(1, [{ path: "notes.txt", confirmName: "notes.txt" }]).id),

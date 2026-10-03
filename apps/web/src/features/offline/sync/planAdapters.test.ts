@@ -18,7 +18,7 @@ function entry(path: string, isFolder = false): FileEntry {
 
 describe("buildOfflineSyncPlanFromArchive", () => {
   it("lists files with the session token and caches folder listings", async () => {
-    const listFiles = vi.fn(async (path: string) => ({
+    const listFiles = vi.fn(async (path: string) => ({ completeness: "complete" as const,
       items: path === "Projects"
         ? [entry("Projects/a.txt"), entry("Projects/b.txt")]
         : []
@@ -33,7 +33,7 @@ describe("buildOfflineSyncPlanFromArchive", () => {
     });
 
     expect(listFiles).toHaveBeenCalledWith("Projects", "token-alpha");
-    expect(cacheFolder).toHaveBeenCalledWith("ns-alpha", "Projects", expect.any(Array));
+    expect(cacheFolder).toHaveBeenCalledWith("ns-alpha", "Projects", expect.any(Array), "complete");
     expect(plan.files.map((file) => file.sourcePath)).toEqual(["Projects/a.txt", "Projects/b.txt"]);
     expect(plan.totalBytes).toBeUndefined();
   });
@@ -42,7 +42,7 @@ describe("buildOfflineSyncPlanFromArchive", () => {
     let owned = true;
     const listFiles = vi.fn(async () => {
       owned = false;
-      return { items: [entry("Projects/a.txt")] };
+      return { completeness: "complete" as const, items: [entry("Projects/a.txt")] };
     });
 
     await expect(buildOfflineSyncPlanFromArchive(archiveInput, {
@@ -57,7 +57,7 @@ describe("buildOfflineSyncPlanFromArchive", () => {
     const controller = new AbortController();
     const listFiles = vi.fn(async () => {
       controller.abort();
-      return { items: [entry("Projects/a.txt")] };
+      return { completeness: "complete" as const, items: [entry("Projects/a.txt")] };
     });
 
     await expect(buildOfflineSyncPlanFromArchive(archiveInput, {
@@ -74,7 +74,7 @@ describe("buildOfflineSyncPlanFromArchive", () => {
     const listFiles = vi.fn(async (path: string, _token: string, signal?: AbortSignal) => {
       expect(signal).toBe(controller.signal);
       controller.abort();
-      return { items: [entry(`${path}/child`, true)] };
+      return { completeness: "complete" as const, items: [entry(`${path}/child`, true)] };
     });
     const cacheFolder = vi.fn();
 

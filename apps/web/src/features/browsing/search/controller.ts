@@ -37,7 +37,7 @@ export const executeSearch = async (
     outcome = { kind: "failure", error: error instanceof Error ? error : new Error("Unable to search files.") };
   }
   if (outcome.kind === "success") {
-    if (callbacks.emit({ type: "live-response-accepted", request: input.request, items: outcome.items })) {
+    if (callbacks.emit({ type: "live-response-accepted", request: input.request, items: outcome.items, completeness: outcome.completeness })) {
       try { ports.writeCachedSearch(input.request.key.cacheNamespace, input.request.key.path, input.request.key.query, outcome.items); } catch { /* optional cache */ }
     }
     return;

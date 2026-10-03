@@ -9,6 +9,7 @@ import type { OfflineSyncActionResult, OfflineSyncExecutionFact, OfflineSyncReta
 
 export interface OfflineSyncRequestScope {
   readonly signal: AbortSignal;
+  abort(): void;
   isRegistered(): boolean;
   isOwned(): boolean;
   release(): void;
@@ -51,6 +52,7 @@ export interface OfflineSyncTransferPort {
     details?: { readonly loadedBytes?: number; readonly totalBytes?: number }
   ): void;
   fail(id: string, message: string): void;
+  markCanceled(id: string): void;
   openTray(): void;
   findActiveSyncByDedupeKey(accountId: string, dedupeKey: string): { readonly id: string } | undefined;
 }

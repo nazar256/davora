@@ -16,6 +16,10 @@ import type { BrowsingCacheRepository, FolderPorts, SearchPorts } from "../../..
 import type { OperationRuntimePort } from "../../../operations/workspace";
 import type { RetainedFile, RetainedSnapshot, RetentionAccount, RetentionRepository, RetentionResult } from "../../../offline/retention";
 import { setBackendNetworkBlocked } from "../../../../lib/networkPolicy";
+import { audioPreviewPositionStorageKey } from "../../../../lib/audioResume";
+import { folderAudioStorageKey } from "../../../preview/folderAudio";
+import { createBrowserStringStorage } from "../../../../platform/storage/browserStringStorage";
+import { createBrowserAccountPlaybackCleanup } from "../../../../platform/storage/browserAccountPlaybackCleanup";
 
 const appShellCapture = {
   latest: undefined as AppShellProps | undefined,
@@ -127,7 +131,7 @@ const folderPorts: FolderPorts = {
     const controller = new AbortController();
     return { signal: controller.signal, abort: () => controller.abort() };
   },
-  loadFolder: vi.fn<FolderPorts["loadFolder"]>(async ({ path }) => ({
+  loadFolder: vi.fn<FolderPorts["loadFolder"]>(async ({ path }) => ({ completeness: "complete" as const,
     kind: "success",
     items: path
       ? [{ ...buildFileEntry("Projects/roadmap.txt", { name: "roadmap.txt" }) }]
@@ -142,7 +146,7 @@ const searchPorts: SearchPorts = {
     const controller = new AbortController();
     return { signal: controller.signal, abort: () => controller.abort() };
   },
-  loadSearch: vi.fn<SearchPorts["loadSearch"]>(async () => ({ kind: "success", items: [] as SearchResult[] })),
+  loadSearch: vi.fn<SearchPorts["loadSearch"]>(async () => ({ completeness: "complete" as const, kind: "success", items: [] as SearchResult[] })),
   readCachedSearch: vi.fn(() => undefined),
   writeCachedSearch: vi.fn(() => undefined)
 };
@@ -163,6 +167,12 @@ function seedAccounts(records: Array<{ account: ConnectedAccount; session?: { to
 
 function createServices(): AppServices {
   const base = createBrowserAppServices();
+  const storage = createBrowserStringStorage();
+  const playbackCleanup = createBrowserAccountPlaybackCleanup({
+    storage,
+    folderAudioKeyPrefix: (accountId) => folderAudioStorageKey(accountId, ""),
+    audioResumeKeyPrefix: (accountId) => audioPreviewPositionStorageKey({ accountId, path: "" })
+  });
   mockedApi.getHealth.mockResolvedValue(healthResponse);
   mockedApi.createSession.mockImplementation(async ({ accountId }) => {
     const account = base.accountRegistry.getSnapshot().accounts.find((record) => record.account.id === accountId)?.account
@@ -193,7 +203,9 @@ function createServices(): AppServices {
       retentionRepository: mockedRetentionRepository,
       browsingCache: mockedCache,
       favourites: base.favourites,
-      folderSorts: base.folderSorts
+      folderSorts: base.folderSorts,
+      explicitOfflineMode: base.explicitOfflineRuntime.storage,
+      playbackCleanup
     })
   };
 }
@@ -307,6 +319,10 @@ describe("App account-removal integration", () => {
     localStorage.setItem("davora-favourites:beta", JSON.stringify([
       { accountId: "beta", accountBackend: "mock", accountRootPath: ".davora-agent-test", cacheNamespace: "ns-beta", path: "Beta-safe", name: "Beta-safe", isFolder: true, addedAt: "2026-07-10T00:00:00.000Z" }
     ]));
+    localStorage.setItem(folderAudioStorageKey("alpha", "Projects"), "malformed-target-payload");
+    localStorage.setItem(folderAudioStorageKey("beta", "Projects"), "beta-playback");
+    localStorage.setItem(audioPreviewPositionStorageKey({ accountId: "alpha", path: "Projects/track.m4a" }), "11");
+    localStorage.setItem(audioPreviewPositionStorageKey({ accountId: "beta", path: "Projects/track.m4a" }), "22");
     mockedApi.deleteConnectedAccount.mockResolvedValue(undefined);
 
     renderApp();
@@ -316,6 +332,7 @@ describe("App account-removal integration", () => {
     fireEvent.click(within(settingsDialog).getByRole("button", { name: /^Remove$/i }));
     const removeDialog = await screen.findByRole("dialog", { name: /Remove Purge Alpha/i });
     fireEvent.change(within(removeDialog).getByLabelText(/Account label to confirm/i), { target: { value: "Purge Alpha" } });
+    localStorage.setItem("davora-explicit-offline-accounts", JSON.stringify(["alpha", "beta"]));
     fireEvent.submit(within(removeDialog).getByRole("button", { name: /^Remove account$/i }).closest("form")!);
 
     await waitFor(() => expect(screen.getByText(/No connected accounts yet|Purge Beta/i)).toBeInTheDocument());
@@ -327,6 +344,11 @@ describe("App account-removal integration", () => {
     expect(mockedCache.clearNamespaceOrThrow).toHaveBeenCalledWith(alpha.cacheNamespace);
     expect(mockedCache.clearNamespaceOrThrow).not.toHaveBeenCalledWith(beta.cacheNamespace);
     expect(localStorage.getItem("davora-favourites:beta")).toContain("Beta-safe");
+    expect(localStorage.getItem("davora-explicit-offline-accounts")).toBe(JSON.stringify(["beta"]));
+    expect(localStorage.getItem(folderAudioStorageKey("alpha", "Projects"))).toBeNull();
+    expect(localStorage.getItem(audioPreviewPositionStorageKey({ accountId: "alpha", path: "Projects/track.m4a" }))).toBeNull();
+    expect(localStorage.getItem(folderAudioStorageKey("beta", "Projects"))).toBe("beta-playback");
+    expect(localStorage.getItem(audioPreviewPositionStorageKey({ accountId: "beta", path: "Projects/track.m4a" }))).toBe("22");
     expect(mockedApi.deleteConnectedAccount).toHaveBeenCalledExactlyOnceWith(alpha.id);
     expect(mockedApi.deleteFile).not.toHaveBeenCalled();
   });

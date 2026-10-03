@@ -77,12 +77,12 @@ test("retained HEIC look-ahead pre-renders the configured next three images for 
       }
     };
   });
-  await page.route("**/api/files?path=Archive", async (route) => {
+  await page.route("**/api/files?path=Archive&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Archive",
           items: filenames.map((name) => ({ path: `Archive/${name}`, name, isFolder: false, size: heic.length, mimeType: "image/heic" }))
         }
@@ -236,12 +236,12 @@ test("ordinary image cache reopens a >4MB working set with zero network and no d
     { name: "photo-f.jpg", mime: "image/jpeg", body: jpeg }
   ];
 
-  await page.route("**/api/files?path=Archive", async (route) => {
+  await page.route("**/api/files?path=Archive&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Archive",
           items: files.map((entry) => ({ path: `Archive/${entry.name}`, name: entry.name, isFolder: false, size: entry.body.length, mimeType: entry.mime }))
         }
@@ -422,12 +422,12 @@ test("cache reads stay bounded under IndexedDB volume and concurrent write press
     { name: "photo-c.jpg", mime: "image/jpeg", body: jpeg }
   ];
 
-  await page.route("**/api/files?path=Archive", async (route) => {
+  await page.route("**/api/files?path=Archive&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Archive",
           items: files.map((entry) => ({ path: `Archive/${entry.name}`, name: entry.name, isFolder: false, size: entry.body.length, mimeType: entry.mime }))
         }

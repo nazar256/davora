@@ -91,12 +91,12 @@ test("captures the PER-74 responsive browser and loading-empty state matrix in b
     const folderRequestGate = new Promise<void>((resolve) => {
       releaseFolderRequest = resolve;
     });
-    await page.route("**/api/files?path=Design", async (route) => {
+    await page.route("**/api/files?path=Design&listing=complete-v1", async (route) => {
       await folderRequestGate;
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ data: { path: "Design", items: [] } })
+        body: JSON.stringify({ data: { completeness: "complete", path: "Design", items: [] } })
       });
     });
     await page.evaluate((themeMode) => {
@@ -114,7 +114,7 @@ test("captures the PER-74 responsive browser and loading-empty state matrix in b
     releaseFolderRequest?.();
     await expect(page.getByText("This folder is empty.", { exact: true })).toBeVisible();
     await saveViewportScreenshot(page, `davora-qa-empty-${mode}.png`);
-    await page.unroute("**/api/files?path=Design");
+    await page.unroute("**/api/files?path=Design&listing=complete-v1");
     const homeButton = page.getByRole("button", { name: /Go to home folder/i });
     if (await homeButton.isVisible().catch(() => false)) {
       await homeButton.click();
@@ -165,24 +165,24 @@ test("captures the mobile browse-first workspace", async ({ page }, testInfo) =>
 test("captures the mobile sticky toolbar after list scroll", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chrome", "Mobile evidence only.");
   const longNames = Array.from({ length: 42 }, (_, index) => `Archive ${String(index + 1).padStart(2, "0")}`);
-  await page.route("**/api/files?path=", async (route) => {
+  await page.route("**/api/files?path=&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "",
           items: [{ path: "Long", name: "Long", isFolder: true, lastModified: "2026-05-29T08:18:00.000Z" }]
         }
       })
     });
   });
-  await page.route("**/api/files?path=Long", async (route) => {
+  await page.route("**/api/files?path=Long&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Long",
           items: longNames.map((name, index) => ({
             path: `Long/${name}.txt`,

@@ -16,6 +16,8 @@ import type { SortMode } from "../model";
 import { useTransferTray } from "../../transfers/tray/useTransferTray";
 import { TransferTrayStage } from "../../transfers/tray/TransferTrayStage";
 import type { TransferTask } from "../../transfers/model";
+import { createTransferLedger, reduceTransferLedger } from "../../transfers/model";
+import { buildAccount } from "../../../test/accounts";
 
 const presentationSource = readFileSync(resolve(process.cwd(), "src/app/useAppWorkspacePresentation.ts"), "utf8");
 const appBarPath = resolve(process.cwd(), "src/features/browsing/appBar");
@@ -80,13 +82,31 @@ function buildWorkspaceOwners(currentPath: string, navigateToPath: (path: string
     offline: { explicitOfflineMode: false },
     pwa: { install: { available: false, busy: false, onInstall: vi.fn() } },
     transfers: { tasks: [], clearAccountHistory: vi.fn() },
-    offlineSync: { commands: { retry: vi.fn() } },
+    offlineSync: { commands: { retry: vi.fn(), cancel: vi.fn() } },
     operation: { cancelTransferTask: vi.fn(), retryTransferTask: vi.fn() }
   };
 }
 
 describe("AppBar application boundary characterization", () => {
   afterEach(cleanup);
+
+  it("routes sync cancellation to its owner and preserves copy cancellation routing", () => {
+    const owners = buildWorkspaceOwners("", vi.fn());
+    const sync = reduceTransferLedger(createTransferLedger(), { type: "enqueued", at: "today", task: { id: "sync", accountId: "alpha", kind: "sync", label: "Docs", dedupeKey: "sync:Docs", syncRootEntries: [] } });
+    const ledger = reduceTransferLedger(sync, { type: "enqueued", at: "today", task: { id: "copy", accountId: "alpha", kind: "copy", label: "Copy", totalItems: 1 } });
+    const { result } = renderHook(() => useAppBarWorkspace({ owners: {
+      ...owners,
+      account: { totalAccountCount: 1, operationalActiveAccount: buildAccount("alpha") },
+      navigation: { ...owners.navigation, transferOpen: true },
+      transfers: { ...owners.transfers, tasks: ledger.tasks }
+    } }));
+    render(<>{result.current.binding.transferTray}</>);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel Docs" }));
+    expect(owners.offlineSync.commands.cancel).toHaveBeenCalledWith("sync");
+    expect(owners.operation.cancelTransferTask).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel Copy" }));
+    expect(owners.operation.cancelTransferTask).toHaveBeenCalledWith("copy");
+  });
 
   it("projects bootstrap, workspace, account, session, compact, and status facts", () => {
     const { rerender } = render(<AppBarStage {...buildProps({ hasAccounts: false, hasSession: false, supportText: "Connect an account", offline: true, workerUnavailable: true, cacheOnlyMode: true })} />);

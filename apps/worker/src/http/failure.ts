@@ -32,6 +32,7 @@ export type WorkerFailureKind =
   | "diagnostic_report_too_large"
   | "diagnostic_report_rate_limited"
   | "diagnostic_report_unavailable"
+  | "listing_update_required"
   | "invalid_file_query"
   | "invalid_stream_token_path"
   | "invalid_mutation_body"
@@ -80,6 +81,7 @@ const specs: Record<WorkerFailureKind, WorkerFailureSpec> = {
   diagnostic_report_too_large: { status: 413, code: "diagnostic_report_too_large", message: "Diagnostic report is too large." },
   diagnostic_report_rate_limited: { status: 429, code: "diagnostic_report_rate_limited", message: "Diagnostic report upload limit reached." },
   diagnostic_report_unavailable: { status: 503, code: "diagnostic_report_unavailable", message: "Diagnostic report upload is unavailable." },
+  listing_update_required: { status: 426, code: "invalid_request", message: "Reopen Davora and apply the app update to open this folder safely." },
   invalid_file_query: { status: 400, code: "invalid_request", message: "File path query was invalid." },
   invalid_stream_token_path: { status: 400, code: "invalid_request", message: "File path query was invalid." },
   invalid_mutation_body: { status: 400, code: "invalid_request", message: "Request body is invalid." },

@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 
 import type { ConnectedAccount, FileEntry, SearchResult } from "@davora/shared";
 
@@ -8,7 +8,11 @@ import {
   buildOfflineSearchResults,
   selectFolderOfflineAvailability,
   selectReadableRetainedFiles,
-  selectRetainedRootSummaries,
+  selectRetainedReadiness,
+  selectRetainedRecovery,
+  selectRetainedStorageBytes,
+  type RetainedReadiness,
+  type RetainedRecovery,
   type RetainedSnapshot,
   type RetentionRepository,
   type RetentionAccount,
@@ -39,6 +43,9 @@ export interface OfflineApplicationWorkspaceInput {
 export interface OfflineApplicationSettingsCache {
   readonly summary: RetainedSnapshot["normalCache"];
   readonly offlineItems: OfflineApplicationSettingsCacheItem[];
+  readonly retainedBytes: number;
+  readonly storageScope?: string;
+  readonly getRecovery: (rootId: string) => RetainedRecovery;
   readonly onClearCache: () => void;
   readonly onOpenedFileCacheLimitChange: (limitBytes: number) => void;
   readonly onRemoveOfflineItem: (rootId: string) => void;
@@ -50,6 +57,9 @@ export interface OfflineApplicationSettingsCacheItem {
   readonly name: string;
   readonly kind: "file" | "folder" | "batch";
   readonly fileCount: number;
+  readonly readableFileCount: number;
+  readonly readiness: RetainedReadiness;
+  readonly recoverable: boolean;
   readonly totalBytes: number;
   readonly addedAt?: string;
 }
@@ -137,9 +147,12 @@ export function useOfflineApplicationWorkspace(input: OfflineApplicationWorkspac
     [retention.retentionSnapshot]
   );
   const retainedRootSummaries = useMemo(
-    () => retention.retentionSnapshot ? selectRetainedRootSummaries(retention.retentionSnapshot) : [],
-    [retention.retentionSnapshot]
+    () => retention.retentionSnapshot && retention.retentionSnapshot.account.accountId === input.activeAccount?.id && retention.retentionSnapshot.account.cacheNamespace === input.cacheNamespace
+      ? selectRetainedReadiness(retention.retentionSnapshot) : [],
+    [retention.retentionSnapshot, input.activeAccount?.id, input.cacheNamespace]
   );
+  const snapshotRef = useRef(retention.retentionSnapshot);
+  snapshotRef.current = retention.retentionSnapshot;
   const browsingOfflineSource = useMemo(() => ({
     folderItems: buildOfflineFolderItems(readableRetainedFiles, input.currentPath),
     searchItemsFor: (query: string) => buildOfflineSearchResults(readableRetainedFiles, input.currentPath, query)
@@ -165,12 +178,24 @@ export function useOfflineApplicationWorkspace(input: OfflineApplicationWorkspac
       : favourites, [explicitOfflineMode, isItemAvailableOffline]);
   const settingsCache = useMemo<OfflineApplicationSettingsCache>(() => ({
     summary: retention.cacheSummary,
+    retainedBytes: retainedRootSummaries.length && retention.retentionSnapshot ? selectRetainedStorageBytes(retention.retentionSnapshot) : 0,
+    storageScope: input.cacheNamespace,
+    getRecovery: (rootId) => {
+      const snapshot = snapshotRef.current;
+      if (!snapshot || !retention.retentionStillCurrent(snapshot.account)) return { kind: "unavailable", reason: "missing-root" };
+      const row = selectRetainedReadiness(snapshot).find((item) => item.rootId === rootId);
+      return row?.readiness === "incomplete" || row?.readiness === "missing"
+        ? selectRetainedRecovery(snapshot, rootId) : { kind: "unavailable", reason: "missing-root" };
+    },
     offlineItems: retainedRootSummaries.map((root): OfflineApplicationSettingsCacheItem => ({
       rootId: root.rootId,
       rootPath: root.rootPath,
       name: root.rootName,
       kind: root.kind,
       fileCount: root.fileCount,
+      readableFileCount: root.readableFileCount,
+      readiness: root.readiness,
+      recoverable: retention.retentionSnapshot !== undefined && selectRetainedRecovery(retention.retentionSnapshot, root.rootId).kind === "recoverable",
       totalBytes: root.totalBytes,
       addedAt: root.addedAt
     })),
@@ -182,7 +207,7 @@ export function useOfflineApplicationWorkspace(input: OfflineApplicationWorkspac
         void retention.removeOfflineCopy(root);
       }
     }
-  }), [retainedRootSummaries, retention]);
+  }), [input.cacheNamespace, retainedRootSummaries, retention]);
   const shellToggle = useCallback((state: { readonly browserOffline: boolean; readonly workerUnavailable: boolean }) => {
     if (!explicitOfflineMode && !state.browserOffline && !state.workerUnavailable) {
       return undefined;

@@ -111,11 +111,11 @@ function createMutationCurrentnessFixture(): AppServices {
     createAbortHandle: abortHandle,
     loadFolder: async ({ path, token, signal }) => {
       const response = await mutationApi.listFiles(path, token, signal);
-      return { kind: "success", items: response.items };
+      return { completeness: "complete" as const, kind: "success", items: response.items };
     },
     readCachedFolder: () => undefined, writeCachedFolder: () => undefined
   };
-  const search: AppServices["search"] = { createAbortHandle: abortHandle, loadSearch: async () => ({ kind: "success", items: [] }), readCachedSearch: () => undefined, writeCachedSearch: () => undefined };
+  const search: AppServices["search"] = { createAbortHandle: abortHandle, loadSearch: async () => ({ completeness: "complete" as const, kind: "success", items: [] }), readCachedSearch: () => undefined, writeCachedSearch: () => undefined };
   const accountTransport: AppServices["accountTransport"] = {
     getHealth: async () => healthResponse, connectAccount: async () => ({ kind: "invalid-http-success" }),
     createSession: async () => { throw new Error("fixture"); }, deleteConnectedAccount: async () => undefined
@@ -159,7 +159,7 @@ function createMutationCurrentnessFixture(): AppServices {
   };
   const services = {
     accountRegistry, accountTransport, accountSession, browsingCache,
-    favouriteResolveRuntime: { listFiles: async () => ({ items: [] }), cacheFolder: () => undefined }, connectivity: { read: () => online, subscribe: () => () => undefined },
+    favouriteResolveRuntime: { listFiles: async () => ({ completeness: "complete" as const, items: [] }), cacheFolder: () => undefined }, connectivity: { read: () => online, subscribe: () => () => undefined },
     explicitOfflineRuntime: { storage: { read: () => ({ kind: "ready", enabled: false }), commit: () => ({ kind: "committed" }), reset: () => ({ kind: "committed" }), repair: () => ({ kind: "repaired" }) }, network: { setBlocked: () => undefined } }, clock: { nowIso: () => "2026-01-01T00:00:00.000Z" },
     favourites,
     favouritesPointerEnvironment: { elementFromPoint: () => null, addWindowListener: () => () => undefined }, folder,
@@ -167,7 +167,7 @@ function createMutationCurrentnessFixture(): AppServices {
     history: { pushState: (state: unknown, url: string) => window.history.pushState(state, "", url), replaceState: (state: unknown, url: string) => window.history.replaceState(state, "", url), getState: () => window.history.state as unknown, getLocation: () => ({ href: window.location.href, search: window.location.search }), subscribe: (listener: (state: unknown) => void) => { const handler = () => listener(window.history.state); window.addEventListener("popstate", handler); return () => window.removeEventListener("popstate", handler); } },
     pullToRefreshEnvironment: { getWindowScrollY: () => 0 }, responsiveViewport: { getSnapshot: () => wideViewport, subscribe: () => () => undefined }, search,
     settings: { load: () => ({ themeMode: "system", showHiddenFiles: false, sortMode: "name-asc", keepAwakeEnabled: true, previewFreshnessIntervalSeconds: 300, imagePreviewPrefetchCount: 1 as const, maxCacheableFileSizeBytes: 1, fileSizeDisplayMode: "human", imagePreviewFitMode: "fill", experimentalHeicPreviewEnabled: false, experimentalFolderAppShortcutsEnabled: false, diagnosticsEnabled: false, videoMuted: false }), save: (settings) => settings },
-    operationRuntime, offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "mutation-sync", listFiles: async () => ({ path: "", items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "fixture" }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (_error: unknown, fallback: string) => fallback },
+    operationRuntime, offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "mutation-sync", listFiles: async () => ({ completeness: "complete" as const, path: "", items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "fixture" }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (_error: unknown, fallback: string) => fallback },
     retentionRepository, previewRuntime, accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
   } satisfies AppServices;
   return services;
@@ -203,7 +203,7 @@ beforeEach(() => {
   consoleSpy.mockClear();
   Object.defineProperty(window.navigator, "onLine", { value: true, configurable: true });
   Object.defineProperty(window, "matchMedia", { configurable: true, value: (query: string) => ({ matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }) });
-  mutationApi.listFiles.mockImplementation(async (path: string) => path === "Projects" ? { path, items: [buildFileEntry("Projects/roadmap.txt", { name: "roadmap.txt", size: 70, mimeType: "text/plain" })] } : { path, items: [buildFileEntry("Projects", { name: "Projects", isFolder: true }), buildFileEntry("Projects/roadmap.txt", { name: "roadmap.txt", size: 70, mimeType: "text/plain" })] });
+  mutationApi.listFiles.mockImplementation(async (path: string) => path === "Projects" ? { completeness: "complete" as const, path, items: [buildFileEntry("Projects/roadmap.txt", { name: "roadmap.txt", size: 70, mimeType: "text/plain" })] } : { completeness: "complete" as const, path, items: [buildFileEntry("Projects", { name: "Projects", isFolder: true }), buildFileEntry("Projects/roadmap.txt", { name: "roadmap.txt", size: 70, mimeType: "text/plain" })] });
   mutationApi.createFolder.mockResolvedValue({ result: { action: "createFolder", parentPath: "", path: "New folder", item: { path: "New folder", name: "New folder", isFolder: true } } });
   mutationApi.copyFile.mockResolvedValue({ result: { action: "copy", parentPath: "", path: "Projects/roadmap.txt", destinationPath: "Projects/roadmap-copy.txt" } });
   mutationApi.moveFile.mockResolvedValue({ result: { action: "move", parentPath: "", path: "Projects/roadmap.txt", destinationPath: "Projects/renamed.txt" } });
@@ -360,7 +360,7 @@ describe("mutation currentness App integration", () => {
       if (path === "Projects") {
         return destinationListing.promise;
       }
-      return {
+      return { completeness: "complete" as const,
         path,
         items: [
           { path: "Projects", name: "Projects", isFolder: true },
@@ -381,7 +381,7 @@ describe("mutation currentness App integration", () => {
     fireEvent.change(accountSelect, { target: { value: beta.id } });
 
     await waitFor(() => expect(screen.queryByRole("dialog", { name: /Copy or move item/i })).not.toBeInTheDocument());
-    destinationListing.resolve({ path: "Projects", items: [] });
+    destinationListing.resolve({ completeness: "complete" as const, path: "Projects", items: [] });
     await act(async () => destinationListing.promise);
     expect(screen.queryByRole("dialog", { name: /Copy or move item/i })).not.toBeInTheDocument();
     expect(mutationApi.copyFile).not.toHaveBeenCalled();

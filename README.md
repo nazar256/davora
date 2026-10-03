@@ -2,6 +2,8 @@
 
 Davora is a Nextcloud-focused PWA for browsing and modifying files through a normalized Worker API. Accounts are connected inside the app, multiple accounts are supported, and the browser never talks to WebDAV directly.
 
+See [the current improvement outcomes and release status](docs/IMPROVEMENT_IMPLEMENTATION.md) for the October completeness, offline recovery, search and reliability work.
+
 ## Open-source and release posture
 - License: MIT (`LICENSE`).
 - OSS/operator release guidance: `docs/DEPLOYMENT.md`.

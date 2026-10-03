@@ -58,7 +58,7 @@ export function TransferTrayStage(props: TransferTrayStageProps) {
                 const itemProgress = formatTransferItemProgress(task);
                 const phaseLabel = transferPhaseLabel(task.phase, task.kind);
                 const cancellable = isActiveTransferTask(task)
-                  && (task.kind === "copy" || task.kind === "move")
+                  && (task.kind === "copy" || task.kind === "move" || task.kind === "sync")
                   && Boolean(props.onCancelTransfer);
                 return (
                   <li key={task.id} className={`transfer-tray-item transfer-tray-item-${task.phase}`}>

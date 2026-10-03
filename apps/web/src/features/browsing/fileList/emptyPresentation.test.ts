@@ -38,6 +38,7 @@ describe("buildFileListEmptyPresentation", () => {
     expect(buildFileListEmptyPresentation({
       visibleItemCount: 0,
       searchActive: true,
+      searchCoverage: "complete",
       loadingFolder: true,
       hasEverCachedFolder: false,
       locationLabel,
@@ -56,7 +57,7 @@ describe("buildFileListEmptyPresentation", () => {
       searchActive: true,
       visibleListError: undefined,
       hasEverCachedFolder: false,
-      expectedTitle: "No files match this search yet.",
+      expectedTitle: "No matches in this folder.",
       expectedStatus: `Search scope: ${locationLabel}`
     }, {
       searchActive: false,
@@ -141,4 +142,18 @@ describe("buildFileListEmptyPresentation", () => {
       locationLabel
     }).listRecoveryAvailable).toBe(false);
   });
+});
+
+it.each([
+  ["complete", "No matches in this folder."],
+  ["partial", "No matches in the searched portion."],
+  ["saved", "No matches in saved results."],
+  ["offline", "No matches in saved files."],
+  ["failed", "Unable to load search results."]
+] as const)("uses truthful %s empty wording", (searchCoverage, emptyTitle) => {
+  expect(buildFileListEmptyPresentation({ visibleItemCount: 0, searchActive: true, searchCoverage, loadingFolder: false, hasEverCachedFolder: true, locationLabel, cacheOnlyMode: false })).toMatchObject({ showEmptyState: true, emptyTitle });
+});
+
+it("does not present in-flight search as exhausted", () => {
+  expect(buildFileListEmptyPresentation({ visibleItemCount: 0, searchActive: true, searchCoverage: "searching", loadingFolder: false, hasEverCachedFolder: true, locationLabel, cacheOnlyMode: false }).showEmptyState).toBe(false);
 });

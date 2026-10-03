@@ -296,7 +296,9 @@ function createBrowserAppServices() {
       retentionRepository: retentionFixture.repository,
       browsingCache: browsingCacheFixture.repository,
       favourites: services.favourites,
-      folderSorts: services.folderSorts
+      folderSorts: services.folderSorts,
+      explicitOfflineMode: { commit: () => ({ kind: "committed" }) },
+      playbackCleanup: { purgeAccount: () => undefined }
     }),
     accountSession: { ...services.accountSession, getHealth: accountTransport.getHealth, createSession: accountTransport.createSession },
     browsingCache: browsingCacheFixture.repository,
@@ -438,12 +440,12 @@ beforeEach(() => {
   });
   mockedApi.listFiles.mockImplementation(async (path: string) => {
     if (path === "Projects") {
-      return {
+      return { completeness: "complete" as const,
         path,
         items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }]
       };
     }
-    return {
+    return { completeness: "complete" as const,
       path,
       items: [
         { path: "Projects", name: "Projects", isFolder: true },
@@ -452,7 +454,7 @@ beforeEach(() => {
     };
   });
   mockedApi.getFile.mockResolvedValue({ file: textPreview });
-  mockedApi.searchFiles.mockResolvedValue({
+  mockedApi.searchFiles.mockResolvedValue({ completeness: "complete",
     query: "roadmap",
     path: "",
     items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain", score: 75 }]
@@ -634,11 +636,11 @@ it("applies a popstate dismiss and path change once, revoking preview resources 
     const account = buildAccount("alpha", { displayName: "Popstate cleanup workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     mockedApi.listFiles.mockImplementation(async (path: string) => path === "Projects"
-      ? {
+      ? { completeness: "complete" as const,
         path,
         items: [{ path: "Projects/photo.png", name: "photo.png", isFolder: false, size: 12, mimeType: "image/png" }]
       }
-      : { path, items: [{ path: "Projects", name: "Projects", isFolder: true }] });
+      : { completeness: "complete" as const, path, items: [{ path: "Projects", name: "Projects", isFolder: true }] });
     mockedApi.getFile.mockResolvedValue({
       file: buildFilePreview("Projects/photo.png", {
         name: "photo.png",
@@ -729,7 +731,7 @@ it("restores nested folder path from URL query params on mount", async () => {
 it("reloads current folder on pull-to-refresh gesture", async () => {
     const account = buildAccount("alpha", { displayName: "Pull refresh workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    const refresh = createDeferred<{ path: string; items: Array<{ path: string; name: string; isFolder: boolean; size?: number; mimeType?: string }> }>();
+    const refresh = createDeferred<{ completeness: "complete" | "partial"; path: string; items: Array<{ path: string; name: string; isFolder: boolean; size?: number; mimeType?: string }> }>();
     let projectsLoadCount = 0;
     mockedApi.listFiles.mockImplementation(async (path: string) => {
       if (path === "Projects") {
@@ -739,8 +741,8 @@ it("reloads current folder on pull-to-refresh gesture", async () => {
         }
       }
       return path === "Projects"
-        ? { path: "Projects", items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] }
-        : { path: "", items: [{ path: "Projects", name: "Projects", isFolder: true }] };
+        ? { completeness: "complete" as const, path: "Projects", items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] }
+        : { completeness: "complete" as const, path: "", items: [{ path: "Projects", name: "Projects", isFolder: true }] };
     });
 
     render(<App />);
@@ -761,7 +763,7 @@ it("reloads current folder on pull-to-refresh gesture", async () => {
     await waitFor(() => expect(mockedApi.listFiles).toHaveBeenLastCalledWith("Projects", "token-alpha", expect.any(AbortSignal)));
     expect(window.location.href).toBe(locationBeforeRefresh);
     expect(screen.getByRole("status")).toHaveTextContent("Refreshing...");
-    refresh.resolve({ path: "Projects", items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] });
+    refresh.resolve({ completeness: "complete" as const, path: "Projects", items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] });
     await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
   })
 });

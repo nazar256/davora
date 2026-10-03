@@ -27,7 +27,7 @@ export interface OperationRuntimePort {
     deleteFile(path: string, confirmName: string, token: string): Promise<MutationResult>;
     uploadFile(input: { readonly path: string; readonly name: string; readonly mimeType: string; readonly contentBase64: string }, token: string, onProgress: (loadedBytes: number, totalBytes: number) => void, signal: AbortSignal): Promise<MutationResult>;
     copyOrMove(kind: "copy" | "move", source: string, destination: string, token: string, overwrite?: boolean): Promise<MutationResult>;
-    listDestination(path: string, token: string): Promise<{ readonly items: FileEntry[] }>;
+    listDestination(path: string, token: string): Promise<{ completeness: "complete" | "partial"; readonly items: FileEntry[] }>;
   };
   readonly download: {
     readonly prepareDownloadFile: typeof prepareDownloadFile;

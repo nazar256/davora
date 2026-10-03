@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type { OperationContextToken, OperationIntent } from "../../operations/policy";
 import type { BatchArchiveInput, BatchSelectionCapture } from "../../operations/selection";
 import type { TransferTask } from "../../transfers";
+import type { RetentionAccount } from "../retention";
 import type { OfflineSyncDialogSnapshot } from "./dialogModel";
 import { snapshotOfflineSyncEntry } from "./dialogModel";
 import type { OfflineSyncArchiveInput, OfflineSyncPlan } from "./model";
@@ -16,11 +17,13 @@ import type {
   OfflineSyncEstimateAbortHandle,
   OfflineSyncEstimateExecution,
   OfflineSyncPendingEstimate,
-  OfflineSyncPorts
+  OfflineSyncPorts,
+  OfflineSyncRequestScope
 } from "./orchestrationPorts";
 import { toOfflineSyncRetryTask } from "./orchestrationPorts";
 import {
   buildOfflineSyncBlockedMessage,
+  deriveOfflineSyncRootLabels,
   OFFLINE_SYNC_NO_SESSION_MESSAGE
 } from "./presentation";
 
@@ -49,11 +52,24 @@ export interface UseOfflineSyncInput {
   ports: OfflineSyncPorts;
 }
 
+export interface RetainedSelectionRetry {
+  readonly account: RetentionAccount;
+  readonly entries: readonly FileEntry[];
+}
+
 interface PendingEstimateCell {
   readonly attempt: number;
   readonly abort: OfflineSyncEstimateAbortHandle;
   adopted: boolean;
   promise?: Promise<OfflineSyncPlan>;
+}
+
+interface ActiveSyncExecution {
+  readonly accountId: string;
+  readonly cacheNamespace: string;
+  readonly context: OperationContextToken;
+  readonly scope: OfflineSyncRequestScope;
+  readonly cleanup: () => void;
 }
 
 function toEntrySnapshots(entries: readonly FileEntry[]) {
@@ -74,7 +90,8 @@ export function useOfflineSync(input: UseOfflineSyncInput) {
   const aliveRef = useRef(true);
   const attemptRef = useRef(0);
   const estimateRef = useRef<PendingEstimateCell | undefined>();
-  const confirmInFlightRef = useRef<number | undefined>();
+  const confirmInFlightRef = useRef<{ readonly attempt: number }>();
+  const executionsRef = useRef(new Map<string, ActiveSyncExecution>());
 
   const invalidate = useCallback(() => {
     const estimate = estimateRef.current;
@@ -102,6 +119,7 @@ export function useOfflineSync(input: UseOfflineSyncInput) {
 
   useEffect(() => {
     aliveRef.current = true;
+    const executions = executionsRef.current;
     return () => {
       aliveRef.current = false;
       const estimate = estimateRef.current;
@@ -111,6 +129,10 @@ export function useOfflineSync(input: UseOfflineSyncInput) {
       }
       attemptRef.current += 1;
       confirmInFlightRef.current = undefined;
+      for (const execution of executions.values()) {
+        execution.scope.abort();
+        execution.cleanup();
+      }
     };
   }, []);
 
@@ -220,9 +242,10 @@ export function useOfflineSync(input: UseOfflineSyncInput) {
 
   const startConfirmedSync = useCallback(async (dialog: OfflineSyncDialogSnapshot, resumeTaskId?: string) => {
     const current = inputRef.current;
-    if (!current.isCurrentOperationHandler()
+    if (!aliveRef.current || !current.isCurrentOperationHandler()
       || !current.isCurrentOperationContext(dialog.context)
       || !current.hasSession()
+      || current.isCacheOnlyBlocked()
       || !current.getCacheNamespace()
       || !current.isOperationAllowed({ kind: "keepOffline", count: dialog.entries.length })) {
       return;
@@ -233,10 +256,15 @@ export function useOfflineSync(input: UseOfflineSyncInput) {
     }
 
     const attempt = attemptRef.current;
-    if (confirmInFlightRef.current === attempt) {
+    if (confirmInFlightRef.current?.attempt === attempt) {
+      const { dedupeKey } = deriveOfflineSyncRootLabels(dialog.entries);
+      if (current.ports.confirm.transfers.findActiveSyncByDedupeKey(accountId, dedupeKey)) {
+        current.ports.confirm.transfers.openTray();
+      }
       return;
     }
-    confirmInFlightRef.current = attempt;
+    const confirmedAttempt = { attempt };
+    confirmInFlightRef.current = confirmedAttempt;
     const pendingCell = estimateRef.current;
     const pendingEstimate: OfflineSyncPendingEstimate | undefined = pendingCell?.attempt === attempt && pendingCell.promise
       ? {
@@ -271,11 +299,28 @@ export function useOfflineSync(input: UseOfflineSyncInput) {
         accountId,
         accountName: current.getAccountName(),
         cacheNamespace: current.getCacheNamespace()!,
+        registerExecution: (taskId, scope) => {
+          let released = false;
+          const cleanup = () => {
+            if (released) return;
+            released = true;
+            scope.signal.removeEventListener("abort", cleanup);
+            if (executionsRef.current.get(taskId) === execution) executionsRef.current.delete(taskId);
+            if (confirmInFlightRef.current === confirmedAttempt) confirmInFlightRef.current = undefined;
+            scope.release();
+          };
+          const execution: ActiveSyncExecution = {
+            accountId, cacheNamespace: current.getCacheNamespace()!, context: dialog.context, scope, cleanup
+          };
+          executionsRef.current.set(taskId, execution);
+          scope.signal.addEventListener("abort", cleanup, { once: true });
+          return cleanup;
+        },
         ...(pendingEstimate === undefined ? {} : { pendingEstimate }),
         ...(resumeTaskId === undefined ? {} : { resumeTaskId })
       }, orchestrationPorts);
     } finally {
-      if (confirmInFlightRef.current === attempt) {
+      if (confirmInFlightRef.current === confirmedAttempt) {
         confirmInFlightRef.current = undefined;
       }
     }
@@ -288,6 +333,17 @@ export function useOfflineSync(input: UseOfflineSyncInput) {
     }
     await startConfirmedSync(dialog);
   }, [startConfirmedSync]);
+
+  const cancel = useCallback((taskId: string) => {
+    const current = inputRef.current;
+    const execution = executionsRef.current.get(taskId);
+    if (!execution || execution.accountId !== current.getAccountId()
+      || execution.cacheNamespace !== current.getCacheNamespace()
+      || !current.isCurrentOperationContext(execution.context) || !execution.scope.isOwned()) return;
+    execution.scope.abort();
+    execution.cleanup();
+    current.ports.confirm.transfers.markCanceled(taskId);
+  }, []);
 
   const retryFailedOfflineSync = useCallback((task: TransferTask) => {
     const current = inputRef.current;
@@ -330,6 +386,21 @@ export function useOfflineSync(input: UseOfflineSyncInput) {
     void startConfirmedSync(resumeDialog, task.id);
   }, [startConfirmedSync]);
 
+  const retryRetainedSelection = useCallback(async (selection: RetainedSelectionRetry) => {
+    const current = inputRef.current;
+    if (!aliveRef.current || selection.entries.length === 0
+      || selection.account.accountId !== current.getAccountId()
+      || selection.account.cacheNamespace !== current.getCacheNamespace()
+      || !current.isCurrentOperationHandler() || !current.hasSession() || current.isCacheOnlyBlocked()
+      || !current.isOperationAllowed({ kind: "keepOffline", count: selection.entries.length })) return;
+    await startConfirmedSync({
+      context: current.getOperationContextToken(),
+      entries: toEntrySnapshots([...selection.entries]),
+      archiveInput: current.resolveArchiveInput(selection.entries),
+      phase: "unknown"
+    });
+  }, [startConfirmedSync]);
+
   const dismiss = useCallback(() => {
     invalidate();
     inputRef.current.ports.open.presentation.setDialog(undefined);
@@ -346,6 +417,8 @@ export function useOfflineSync(input: UseOfflineSyncInput) {
     open: openOfflineSyncDialog,
     confirm: confirmOfflineSync,
     retry: retryFailedOfflineSync,
+    retryRetainedSelection,
+    cancel,
     dismiss,
     openOfflineSyncDialog,
     confirmOfflineSync,

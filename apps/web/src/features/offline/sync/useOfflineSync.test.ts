@@ -56,6 +56,7 @@ function createPorts(): OfflineSyncPorts {
     registry: {
       acquire: vi.fn(() => ({
         signal: new AbortController().signal,
+        abort: vi.fn(),
         isRegistered: () => true,
         isOwned: () => true,
         release: vi.fn()
@@ -72,6 +73,7 @@ function createPorts(): OfflineSyncPorts {
       complete: vi.fn(),
       completePartial: vi.fn(),
       fail: vi.fn(),
+      markCanceled: vi.fn(),
       openTray: vi.fn(),
       findActiveSyncByDedupeKey: vi.fn(() => undefined)
     },
@@ -146,6 +148,143 @@ function createInput(ports: OfflineSyncPorts, context: ReturnType<typeof createO
 }
 
 describe("useOfflineSync", () => {
+  it("does not let a canceled attempt's late cleanup unlock its replacement", async () => {
+    const context = createOperationContextToken();
+    const ports = createPorts();
+    vi.mocked(ports.confirm.registry.acquire).mockImplementation(() => {
+      const abort = new AbortController();
+      return { signal: abort.signal, abort: () => abort.abort(), isOwned: () => !abort.signal.aborted, isRegistered: () => !abort.signal.aborted, release: vi.fn() };
+    });
+    const finish: Array<() => void> = [];
+    vi.mocked(ports.confirm.plan.resolvePlan).mockImplementation(() => new Promise((resolve) => {
+      finish.push(() => resolve({ kind: "success", value: { files: [], totalBytes: 0 } }));
+    }));
+    const { result, unmount } = renderHook(() => useOfflineSync(createInput(ports, context)));
+    const selection = { account: { accountId: "alpha", cacheNamespace: "ns-alpha" }, entries: [entry("Docs", true)] };
+    let first!: Promise<void>;
+    act(() => { first = result.current.retryRetainedSelection(selection); });
+    await waitFor(() => expect(finish).toHaveLength(1));
+    act(() => result.current.cancel("transfer-1"));
+    let replacement!: Promise<void>;
+    act(() => { replacement = result.current.retryRetainedSelection(selection); });
+    await waitFor(() => expect(finish).toHaveLength(2));
+    await act(async () => { finish[0](); await first; });
+    act(() => { void result.current.retryRetainedSelection(selection); });
+    expect(ports.confirm.transfers.enqueue).toHaveBeenCalledTimes(2);
+    await act(async () => { finish[1](); await replacement; });
+    unmount();
+  });
+  it("deduplicates rapid retained retries and releases the active handle after completion", async () => {
+    const context = createOperationContextToken();
+    const ports = createPorts();
+    let finish!: () => void;
+    vi.mocked(ports.confirm.plan.resolvePlan).mockImplementation(() => new Promise((resolve) => {
+      finish = () => resolve({ kind: "success", value: { files: [], totalBytes: 0 } });
+    }));
+    const { result } = renderHook(() => useOfflineSync(createInput(ports, context)));
+    const selection = { account: { accountId: "alpha", cacheNamespace: "ns-alpha" }, entries: [entry("Docs", true)] };
+    let running!: Promise<void>;
+    act(() => {
+      running = result.current.retryRetainedSelection(selection);
+      void result.current.retryRetainedSelection(selection);
+    });
+    await waitFor(() => expect(ports.confirm.plan.resolvePlan).toHaveBeenCalledTimes(1));
+    expect(ports.confirm.transfers.enqueue).toHaveBeenCalledTimes(1);
+    vi.mocked(ports.confirm.transfers.findActiveSyncByDedupeKey).mockReturnValue({ id: "transfer-1" });
+    await act(async () => { await result.current.retryRetainedSelection(selection); });
+    expect(ports.confirm.transfers.openTray).toHaveBeenCalledTimes(2);
+    await act(async () => { finish(); await running; });
+    act(() => result.current.cancel("transfer-1"));
+    expect(ports.confirm.transfers.markCanceled).not.toHaveBeenCalled();
+  });
+  it("unregisters and releases a scope when queue publication throws", async () => {
+    const context = createOperationContextToken();
+    const ports = createPorts();
+    const release = vi.fn();
+    const abort = new AbortController();
+    vi.mocked(ports.confirm.registry.acquire).mockReturnValue({ signal: abort.signal, abort: () => abort.abort(), isOwned: () => true, isRegistered: () => true, release });
+    vi.mocked(ports.confirm.transfers.enqueue).mockImplementation(() => { throw new Error("queue unavailable"); });
+    const { result } = renderHook(() => useOfflineSync(createInput(ports, context)));
+    await act(async () => {
+      await expect(result.current.retryRetainedSelection({ account: { accountId: "alpha", cacheNamespace: "ns-alpha" }, entries: [entry("Docs", true)] })).rejects.toThrow("queue unavailable");
+    });
+    expect(release).toHaveBeenCalledTimes(1);
+    act(() => result.current.cancel("transfer-1"));
+    expect(ports.confirm.transfers.markCanceled).not.toHaveBeenCalled();
+  });
+  it.each(["preparing", "downloading"])("cancels owned sync while %s, ignores stale/duplicate calls and suppresses late completion", async (phase) => {
+    const context = createOperationContextToken();
+    const ports = createPorts();
+    const abort = new AbortController();
+    const release = vi.fn();
+    const markCanceled = vi.fn();
+    Object.assign(ports.confirm.transfers, { markCanceled });
+    vi.mocked(ports.confirm.registry.acquire).mockReturnValue({ signal: abort.signal, abort: () => abort.abort(), isOwned: () => !abort.signal.aborted, isRegistered: () => !abort.signal.aborted, release });
+    let finish!: () => void;
+    const gate = new Promise<void>((resolve) => { finish = resolve; });
+    vi.mocked(ports.confirm.plan.resolvePlan).mockImplementation(async () => {
+      if (phase === "preparing") await gate;
+      return { kind: "success", value: { files: [{ sourcePath: "Docs/a.txt", size: 1 }], totalBytes: 1 } };
+    });
+    vi.mocked(ports.confirm.download.fetchDownloadBlob).mockImplementation(async () => {
+      if (phase === "downloading") await gate;
+      return { blob: new Blob(["a"]), filename: "a.txt" };
+    });
+    let accountId = "alpha";
+    const { result, unmount } = renderHook(() => useOfflineSync(createInput(ports, context, { getAccountId: () => accountId })));
+    let running!: Promise<void>;
+    act(() => { running = result.current.retryRetainedSelection({ account: { accountId: "alpha", cacheNamespace: "ns-alpha" }, entries: [entry("Docs", true)] }); });
+    await waitFor(() => expect(phase === "preparing" ? ports.confirm.plan.resolvePlan : ports.confirm.download.fetchDownloadBlob).toHaveBeenCalled());
+    accountId = "other";
+    act(() => result.current.cancel("transfer-1"));
+    expect(abort.signal.aborted).toBe(false);
+    accountId = "alpha";
+    act(() => { result.current.cancel("unknown"); result.current.cancel("transfer-1"); result.current.cancel("transfer-1"); });
+    expect(abort.signal.aborted).toBe(true);
+    expect(markCanceled).toHaveBeenCalledTimes(1);
+    expect(markCanceled).toHaveBeenCalledWith("transfer-1");
+    await act(async () => { finish(); await running; });
+    expect(ports.confirm.retention.completeRoot).not.toHaveBeenCalled();
+    expect(ports.confirm.transfers.complete).not.toHaveBeenCalled();
+    expect(ports.confirm.retention.persistRetainedFile).not.toHaveBeenCalled();
+    expect(release).toHaveBeenCalled();
+    unmount();
+  });
+  it("retries retained sources directly and rejects stale account, namespace, offline and session contexts", async () => {
+    const context = createOperationContextToken();
+    const ports = createPorts();
+    let accountId = "alpha";
+    let namespace = "ns-alpha";
+    let blocked = false;
+    let session = true;
+    const { result, unmount } = renderHook(() => useOfflineSync(createInput(ports, context, {
+      getAccountId: () => accountId, getCacheNamespace: () => namespace, isCacheOnlyBlocked: () => blocked, hasSession: () => session
+    })));
+    const descriptor = { account: { accountId: "alpha", cacheNamespace: "ns-alpha" }, entries: [entry("Docs", true)] };
+    const retry = result.current.retryRetainedSelection;
+    accountId = "beta";
+    await act(async () => { await retry(descriptor); });
+    accountId = "alpha";
+    namespace = "replacement";
+    await act(async () => { await retry(descriptor); });
+    namespace = "ns-alpha";
+    blocked = true;
+    await act(async () => { await retry(descriptor); });
+    blocked = false;
+    session = false;
+    await act(async () => { await retry(descriptor); });
+    expect(ports.confirm.transfers.enqueue).not.toHaveBeenCalled();
+    expect(ports.confirm.plan.resolvePlan).not.toHaveBeenCalled();
+    session = true;
+    await act(async () => { await retry(descriptor); });
+    expect(ports.confirm.transfers.enqueue).toHaveBeenCalledTimes(1);
+    expect(ports.confirm.transfers.openTray).toHaveBeenCalled();
+    expect(ports.open.plan.buildEstimatePlan).not.toHaveBeenCalled();
+    expect(ports.confirm.selection.removeCaptured).not.toHaveBeenCalled();
+    unmount();
+    await retry(descriptor);
+    expect(ports.confirm.transfers.enqueue).toHaveBeenCalledTimes(1);
+  });
   it("reports missing session when opening offline sync", async () => {
     const ports = createPorts();
     const context = createOperationContextToken();
@@ -501,6 +640,7 @@ describe("useOfflineSync", () => {
     const noOwnership = createPorts();
     noOwnership.confirm.registry.acquire = vi.fn(() => ({
       signal: new AbortController().signal,
+      abort: vi.fn(),
       isRegistered: () => true,
       isOwned: () => false,
       release: vi.fn()
@@ -583,6 +723,7 @@ describe("useOfflineSync", () => {
     const scopeController = new AbortController();
     ports.confirm.registry.acquire = vi.fn(() => ({
       signal: scopeController.signal,
+      abort: () => scopeController.abort(),
       isRegistered: () => true,
       isOwned: () => !scopeController.signal.aborted,
       release: vi.fn()

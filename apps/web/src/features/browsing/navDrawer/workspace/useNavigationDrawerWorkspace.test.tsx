@@ -35,7 +35,7 @@ function buildInput(overrides: Partial<NavigationDrawerWorkspaceInput["owners"]>
       offline: { explicitOfflineMode: false, setExplicitOfflineMode: vi.fn(), projectVisibleFavourites: <T extends { path: string; isFolder: boolean }>(entries: readonly T[]) => entries },
       operation: { capabilities: { canCreateFolder: true, canUploadFiles: true, canUploadFolders: true }, mutation: { state: { busy: false } }, commands: { openCreateFolder: vi.fn() }, upload: { uploadFiles: vi.fn(async () => undefined) } },
       status: { commands: { announce: vi.fn() } },
-      services: { favourites: service, favouritesPointerEnvironment: pointerEnvironment(), favouriteResolveRuntime: { listFiles: vi.fn(async () => ({ items: [buildFileEntry("Projects")] })), cacheFolder: vi.fn() } },
+      services: { favourites: service, favouritesPointerEnvironment: pointerEnvironment(), favouriteResolveRuntime: { listFiles: vi.fn(async () => ({ completeness: "complete" as const, items: [buildFileEntry("Projects")] })), cacheFolder: vi.fn() } },
       ...overrides
     },
     ports: { openPreview: vi.fn(async () => undefined), openSettings: vi.fn(), toDisplayPath: (path) => path ? `/${path}` : "/", directoryUploadInputRef: vi.fn() }

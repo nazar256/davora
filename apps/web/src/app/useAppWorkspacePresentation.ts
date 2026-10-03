@@ -66,7 +66,7 @@ export interface AppWorkspacePresentationInput {
   readonly settings: Settings;
   readonly diagnostics: DiagnosticsWorkspace;
   readonly runtime: { readonly connectivity: Connectivity; readonly pwa: Pwa; readonly wakeLock: WakeLock; readonly transfers: Transfers; readonly status: WorkspaceStatus };
-  readonly services: Pick<AppServices, "favourites" | "favouritesPointerEnvironment" | "favouriteResolveRuntime">;
+  readonly services: Pick<AppServices, "favourites" | "favouritesPointerEnvironment" | "favouriteResolveRuntime" | "estimateStorage">;
   readonly ports: {
     readonly appBuildLabel: string;
     readonly directoryUploadInputRef: Parameters<typeof projectBrowsingSurfaceBindings>[0]["ports"]["directoryUploadInputRef"];
@@ -284,7 +284,17 @@ export function useAppWorkspacePresentation(input: AppWorkspacePresentationInput
         connectedAccountCount: accountContext.totalAccountCount,
         commands: actions.commands
       },
-      cache: offlineApplication.settingsCache,
+      cache: {
+        ...offlineApplication.settingsCache,
+        estimateStorage: services.estimateStorage,
+        retryDisabled: !session.token || connectivity.offline || offlineApplication.explicitOfflineMode || bootstrap.workerUnavailable || activeAccount?.connectionState === "reconnect_required",
+        onRetryOfflineItem: (rootId) => {
+          const recovery = offlineApplication.settingsCache.getRecovery(rootId);
+          if (recovery.kind !== "recoverable" || !session?.token || connectivity.offline || offlineApplication.explicitOfflineMode || bootstrap.workerUnavailable) return;
+          workspaceNavigation.closeChrome("settings");
+          void offlineSyncWorkspace.commands.retryRetainedSelection(recovery);
+        }
+      },
       diagnostics: diagnostics.settingsSection,
       runtime: {
         appBuildLabel: ports.appBuildLabel,

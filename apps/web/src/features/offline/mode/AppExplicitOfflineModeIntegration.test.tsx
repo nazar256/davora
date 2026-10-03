@@ -1,3 +1,5 @@
+import { get, set } from "idb-keyval";
+import { createOpenedFileRepository, openedFileIndexKey } from "../../../platform/storage/openedFileRepository";
 import { act, cleanup, fireEvent, render as renderTestingLibrary, screen, waitFor, within } from "@testing-library/react";
 import { createFakeDiagnosticsRuntimePorts } from "../../diagnostics/testing/fakes";
 import { cloneElement, type ReactElement } from "react";
@@ -142,7 +144,7 @@ function createFixture(): ExplicitOfflineModeFixture {
   const accountStorage = storage();
   let registryService: AccountRegistryService | undefined;
   const getRegistry = () => registryService ??= createAccountRegistryService(accountStorage, { isExpired: (expiresAt) => Date.parse(expiresAt) <= Date.now() });
-  const cacheStore = new Map<string, { items: FileEntry[]; cachedAt: string }>();
+  const cacheStore = new Map<string, { completeness: "complete" | "partial"; items: FileEntry[]; cachedAt: string }>();
   const snapshots = new Map<string, RetainedSnapshot>();
   const blobs = new Map<string, Blob>();
   const deferred = new Map<string, ReturnType<typeof createDeferred<Awaited<ReturnType<RetentionRepository["readPreview"]>>>> >();
@@ -151,7 +153,7 @@ function createFixture(): ExplicitOfflineModeFixture {
   const abortHandle = () => { const controller = new AbortController(); return { signal: controller.signal, abort: () => controller.abort() }; };
   const listFiles = async (path: string, token = "", signal?: AbortSignal) => {
     const result = await calls.listFolder(path, token, signal);
-    return result as { path: string; items: FileEntry[] };
+    return { ...(result as { path: string; items: FileEntry[] }), completeness: "complete" as const };
   };
   const accountSession = {
     getHealth: accountTransport.getHealth,
@@ -175,17 +177,17 @@ function createFixture(): ExplicitOfflineModeFixture {
     createAbortHandle: abortHandle,
     loadFolder: async ({ path, token, signal }) => {
       if (signal.aborted) return { kind: "cancelled" };
-      try { return { kind: "success", items: (await listFiles(path, token, signal)).items }; }
+      try { return { completeness: "complete" as const, kind: "success", items: (await listFiles(path, token, signal)).items }; }
       catch (error) { return { kind: "failure", error: error instanceof Error ? error : new Error("Unable to load folder.") }; }
     },
     readCachedFolder: (namespace, path) => cacheStore.get(`${namespace}:${path}`),
-    writeCachedFolder: (namespace, path, items) => { cacheStore.set(`${namespace}:${path}`, { items: [...items], cachedAt: "2026-05-21T10:00:00.000Z" }); }
+    writeCachedFolder: (namespace, path, items) => { cacheStore.set(`${namespace}:${path}`, { completeness: "complete" as const, items: [...items], cachedAt: "2026-05-21T10:00:00.000Z" }); }
   };
   const search: SearchPorts = {
     createAbortHandle: abortHandle,
     loadSearch: async ({ path, query, token, signal }) => {
       if (signal.aborted) return { kind: "cancelled" };
-      try { return { kind: "success", items: await calls.search(path, query, token, signal) }; }
+      try { return { completeness: "complete" as const, kind: "success", items: await calls.search(path, query, token, signal) }; }
       catch (error) { return { kind: "failure", error: error instanceof Error ? error : new Error("Unable to search.") }; }
     },
     readCachedSearch: () => undefined,
@@ -243,7 +245,7 @@ function createFixture(): ExplicitOfflineModeFixture {
     connectAccount: (...args: Parameters<AccountRegistryService["connectAccount"]>) => getRegistry().connectAccount(...args), commitConnectedAccount: (...args: Parameters<AccountRegistryService["commitConnectedAccount"]>) => getRegistry().commitConnectedAccount(...args), commitSession: (...args: Parameters<AccountRegistryService["commitSession"]>) => getRegistry().commitSession(...args), clearAccountSession: (...args: Parameters<AccountRegistryService["clearAccountSession"]>) => getRegistry().clearAccountSession(...args), markAccountReconnectRequired: (...args: Parameters<AccountRegistryService["markAccountReconnectRequired"]>) => getRegistry().markAccountReconnectRequired(...args), switchAccount: (...args: Parameters<AccountRegistryService["switchAccount"]>) => getRegistry().switchAccount(...args), removeAccount: (...args: Parameters<AccountRegistryService["removeAccount"]>) => getRegistry().removeAccount(...args), retryRemovalCommit: (...args: Parameters<AccountRegistryService["retryRemovalCommit"]>) => getRegistry().retryRemovalCommit(...args)
   };
   const services = {
-    accountRegistry: registry, accountTransport, accountSession, browsingCache: cache, favouriteResolveRuntime: { listFiles: async () => ({ items: [] }), cacheFolder: () => undefined },
+    accountRegistry: registry, accountTransport, accountSession, browsingCache: cache, favouriteResolveRuntime: { listFiles: async () => ({ completeness: "complete" as const, items: [] }), cacheFolder: () => undefined },
     connectivity: { read: () => connectivity, subscribe: (listener: (snapshot: ConnectivitySnapshot) => void) => { connectivityListeners.add(listener); return () => connectivityListeners.delete(listener); } } satisfies ConnectivityPort,
     explicitOfflineRuntime, clock: { nowIso: () => "2026-01-01T00:00:00.000Z" }, favourites: { load: () => ({ kind: "loaded", entries: [] }), save: () => ({ kind: "saved", entries: [] }), clear: () => ({ kind: "cleared" }), create: (entry: FileEntry) => ({ ...entry, accountId: "alpha", accountBackend: "mock", accountRootPath: "", cacheNamespace: "ns-alpha", addedAt: "2026-01-01T00:00:00.000Z" }) },
     favouritesPointerEnvironment: { elementFromPoint: () => null, addWindowListener: () => () => undefined }, folder, folderSorts: createMemoryFolderSortService(), history: { pushState: (state: unknown, url?: string) => window.history.pushState(state, "", url), replaceState: (state: unknown, url?: string) => window.history.replaceState(state, "", url), getState: () => null, getLocation: () => ({ href: window.location.href, search: window.location.search }), subscribe: () => () => undefined }, pullToRefreshEnvironment: { getWindowScrollY: () => window.scrollY }, responsiveViewport: { getSnapshot: () => WIDE_RESPONSIVE_VIEWPORT_SNAPSHOT, subscribe: () => () => undefined } satisfies ResponsiveViewportPort, search, settings: { load: () => DEFAULT_UI_SETTINGS, save: (value) => value }, operationRuntime, offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "explicit-offline-sync", listFiles, fetchDownloadBlob: vi.fn(), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback }, retentionRepository, previewRuntime: createDeterministicPreviewRuntime(), accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
@@ -253,7 +255,7 @@ function createFixture(): ExplicitOfflineModeFixture {
     seedAccount: ({ account, session, pendingReconnect }) => localStorage.setItem("davora-account-state", JSON.stringify({ activeAccountId: account.id, accounts: [{ account, session, pendingReconnect }] })),
     setConnectivity: (kind) => { connectivity = kind === "online" ? ONLINE_CONNECTIVITY_SNAPSHOT : OFFLINE_CONNECTIVITY_SNAPSHOT; for (const listener of connectivityListeners) listener(connectivity); },
     setPersistedMode: (accountId, state) => { if (state === "corrupt") { localStorage.setItem(EXPLICIT_OFFLINE_ACCOUNTS_STORAGE_KEY, "not-json"); return; } if (state === "disabled") { localStorage.removeItem(EXPLICIT_OFFLINE_ACCOUNTS_STORAGE_KEY); return; } localStorage.setItem(EXPLICIT_OFFLINE_ACCOUNTS_STORAGE_KEY, JSON.stringify({ [accountId]: true })); },
-    seedFolderCache: (account, path, items) => cacheStore.set(`${account.cacheNamespace}:${path}`, { items: [...items], cachedAt: "2026-05-21T10:00:00.000Z" }),
+    seedFolderCache: (account, path, items) => cacheStore.set(`${account.cacheNamespace}:${path}`, { completeness: "complete" as const, items: [...items], cachedAt: "2026-05-21T10:00:00.000Z" }),
     seedRetainedPreview: (account, path, blob) => { blobs.set(`${account.cacheNamespace}:${path}`, blob); },
     deferRetainedPreview: (account, path) => { const pending = createDeferred<Awaited<ReturnType<RetentionRepository["readPreview"]>>>(); deferred.set(`${account.cacheNamespace}:${path}`, pending); return pending; },
     seedRetentionSnapshot: (account, input) => { snapshots.set(account.cacheNamespace, { ...input, account: retentionAccount(account) }); }
@@ -262,7 +264,7 @@ function createFixture(): ExplicitOfflineModeFixture {
   accountTransport.connectAccount.mockResolvedValue({ kind: "http-success", data: { account: buildAccount("connected") } });
   accountTransport.createSession.mockImplementation(async ({ accountId }) => buildSession(buildAccount(accountId)));
   accountTransport.deleteConnectedAccount.mockResolvedValue(undefined);
-  calls.listFolder.mockImplementation(async (path: string) => path === "Projects" ? { path, items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] } : { path, items: [{ path: "Projects", name: "Projects", isFolder: true }, { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] });
+  calls.listFolder.mockImplementation(async (path: string) => path === "Projects" ? { completeness: "complete" as const, path, items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] } : { completeness: "complete" as const, path, items: [{ path: "Projects", name: "Projects", isFolder: true }, { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] });
   calls.search.mockResolvedValue([]);
   return fixture;
 }
@@ -327,5 +329,36 @@ describe("explicit offline mode App integration", () => {
 
   it("uses account-scoped stale folder cache when offline", async () => {
     const account = buildAccount("alpha", { displayName: "Offline workspace" }); seedAccount(fixture, account, buildSession(account)); fixture.setConnectivity("offline"); fixture.seedFolderCache(account, "", [{ path: "Projects", name: "Projects", isFolder: true }]); fixture.calls.listFolder.mockRejectedValueOnce(new Error("offline")); render(<App />); expect(await screen.findByText(/Showing cached data while offline/i)).toBeInTheDocument(); expect(screen.getByRole("button", { name: /Open folder Projects/i })).toBeInTheDocument(); expect(screen.getByRole("button", { name: /Create folder/i })).toBeDisabled();
+  });
+});
+
+
+describe("legacy retention with explicit offline mode", () => {
+  it("downgrades an unproven folder while preserving readable files without backend requests", async () => {
+    const account = buildAccount("legacy-proof", { displayName: "Legacy offline" });
+    seedAccount(fixture, account, buildSession(account));
+    fixture.setPersistedMode(account.id, "enabled");
+    const retention = createOpenedFileRepository();
+    const retainedAccount = retentionAccount(account);
+    const started = await retention.beginRoot(retainedAccount, { rootPath: "Saved", rootName: "Saved", kind: "folder", folderRoots: ["Saved"] });
+    if (started.kind !== "success") throw new Error(started.message);
+    const rootId = started.value.roots[0].id;
+    const bytes = new Blob(["original bytes"]);
+    await retention.persistRetainedFile(retainedAccount, { rootId, file: retainedFile("Saved/original.txt", { mimeType: "text/plain", size: bytes.size, blobSize: bytes.size }), blob: bytes });
+    await retention.completeRoot(retainedAccount, rootId);
+    const stored = await get<{ roots: Record<string, { completionProofVersion?: 1 }> }>(openedFileIndexKey(account.cacheNamespace));
+    if (!stored?.roots[rootId]) throw new Error("Missing stored root");
+    delete stored.roots[rootId].completionProofVersion;
+    await set(openedFileIndexKey(account.cacheNamespace), stored);
+    renderTestingLibrary(<App services={{ ...fixture.services, retentionRepository: retention }} />);
+    expect(await screen.findByRole("button", { name: /Go online/i })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /Open folder Saved/i }));
+    expect(await screen.findByRole("button", { name: /Open file original.txt/i })).toBeInTheDocument();
+    const snapshot = await retention.readSnapshot(retainedAccount);
+    expect(snapshot).toMatchObject({ kind: "success", value: { roots: [expect.objectContaining({ status: "incomplete" })], memberships: [expect.objectContaining({ rootId, filePath: "Saved/original.txt" })] } });
+    expect(fixture.calls.health).not.toHaveBeenCalled();
+    expect(fixture.calls.listFolder).not.toHaveBeenCalled();
+    expect(fixture.calls.createSession).not.toHaveBeenCalled();
+    expect(fixture.calls.search).not.toHaveBeenCalled();
   });
 });

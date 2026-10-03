@@ -12,13 +12,13 @@ test("cache-first folder load shows cached data before background refresh comple
   await expect(page.getByRole("button", { name: /Open folder Projects/i })).toBeVisible();
 
   const folderRefresh = createGate();
-  await page.route("**/api/files?path=", async (route) => {
+  await page.route("**/api/files?path=&listing=complete-v1", async (route) => {
     await folderRefresh.promise;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "",
           items: [{ path: "Projects refreshed", name: "Projects refreshed", isFolder: true }]
         }
@@ -89,7 +89,7 @@ test("cache-first file open keeps cached preview until refreshed version is appl
 
   previewRefresh.release();
 
-  await expect(preview.getByText(/A fresher version is ready/i)).toBeVisible();
+  await expect(preview.getByRole("button", { name: /Apply refreshed version/i })).toBeVisible();
   await expect(preview.getByText(/normalized API/i)).toBeVisible();
   await expect(preview.getByText(/fresh preview from network/i)).toHaveCount(0);
 
@@ -146,7 +146,7 @@ test("cached folders stay scoped to the active account when switching accounts",
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "",
           items: [{ path: "Projects", name: "Projects", isFolder: true }]
         }

@@ -150,6 +150,29 @@ describe("useFolderAudioPlayer", () => {
     expect(ports.savedPreviewPositions.get("alpha:Projects/Привіт.m4a")).toBe(33);
   });
 
+  it("does not let a stale folder-audio callback resurrect removed account state", async () => {
+    const ports = createTestPorts();
+    let staleTimeUpdate: ((audio: HTMLAudioElement) => void) | undefined;
+    const { rerender } = render(<Harness ports={ports} expose={(interaction) => {
+      if (interaction.stage?.onTimeUpdate) {
+        staleTimeUpdate = interaction.stage.onTimeUpdate;
+      }
+    }} />);
+    fireEvent.click(screen.getByRole("button", { name: /Activate chapter/i }));
+    const player = await screen.findByRole("region", { name: /Audio playlist for Projects/i });
+    const audio = requireAudioElement(player.querySelector("audio"));
+    await waitFor(() => expect(staleTimeUpdate).toBeTypeOf("function"));
+
+    ports.storageMap.delete(folderAudioStorageKey("alpha", "Projects"));
+    ports.savedPreviewPositions.delete("alpha:Projects/chapter.m4a");
+    rerender(<Harness accountId="" ports={ports} />);
+    Object.defineProperty(audio, "currentTime", { configurable: true, writable: true, value: 48 });
+    act(() => staleTimeUpdate?.(audio));
+
+    expect(ports.storageMap.has(folderAudioStorageKey("alpha", "Projects"))).toBe(false);
+    expect(ports.savedPreviewPositions.has("alpha:Projects/chapter.m4a")).toBe(false);
+  });
+
   it("exposes playing state and pause for exclusive playback coordination", async () => {
     const onPlayingChange = vi.fn();
     const ports = createTestPorts();

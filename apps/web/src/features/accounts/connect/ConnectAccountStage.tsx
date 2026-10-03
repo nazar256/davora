@@ -24,21 +24,19 @@ function resolveFormPresentation(variant: ConnectAccountStageVariant, accountNam
     case "zero":
       return {
         title: "Connect Nextcloud account",
-        description:
-          "Enter your Nextcloud base URL, username, app password, and the root folder to browse. An optional label helps when you manage multiple accounts.",
+        description: "Connect to your Nextcloud files.",
         submitLabel: "Connect account"
       };
     case "connect":
       return {
         title: "Connect account",
-        description: "Connect a Nextcloud account to continue.",
+        description: "Connect to your Nextcloud files.",
         submitLabel: "Connect account"
       };
     case "reconnect":
       return {
         title: `Reconnect ${accountName ?? ""}`.trim(),
-        description:
-          "The Worker no longer has this account ready. Re-enter the app password to reconnect it without changing browser-side cache namespaces.",
+        description: "Enter an app password to restore access.",
         submitLabel: "Reconnect account"
       };
     default:
@@ -55,8 +53,7 @@ export function ConnectAccountStage(props: ConnectAccountStageProps) {
         <p className="eyebrow section-eyebrow">Accounts</p>
         <h2>No connected accounts yet</h2>
         <p className="subtitle">
-          Connect a Nextcloud account inside Davora to start browsing files. You can add more accounts later and switch between them without mixing
-          cache state.
+          Connect Nextcloud to browse your files. You can add more accounts later.
         </p>
         {!props.showForm ? (
           <button onClick={props.onRevealForm} type="button">

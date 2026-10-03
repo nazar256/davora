@@ -2,7 +2,7 @@ import type { FormEvent } from "react";
 import { Folder, House, RotateCw, X } from "lucide-react";
 import type { FileEntry } from "@davora/shared";
 
-import { buildBreadcrumbs, getLocationLabel, sortAndGroupEntries } from "../../browsing";
+import { buildBreadcrumbs, getLocationLabel, ListingCompletenessDisclosure, sortAndGroupEntries } from "../../browsing";
 import { useModalFocusBoundary } from "../../../components/useModalFocusBoundary";
 import type { DestinationActionKind, DestinationOperation } from "./model";
 
@@ -13,6 +13,7 @@ export interface DestinationPickerStageProps {
   readonly batch: boolean;
   readonly folderPath: string;
   readonly entries: readonly FileEntry[];
+  readonly completeness?: "complete" | "partial";
   readonly name: string;
   readonly manualPath: string;
   readonly manualMode: boolean;
@@ -85,6 +86,7 @@ export function DestinationPickerStage(props: DestinationPickerStageProps) {
       <section ref={dialogRef} aria-label={title} aria-modal="true" className="dialog-card panel destination-picker-dialog" role="dialog" tabIndex={-1}>
         <div className="dialog-header destination-picker-header">
           <h2>{title}</h2>
+          {!props.loading ? <ListingCompletenessDisclosure completeness={props.completeness} compact /> : null}
           <div className="dialog-header-actions">
             <button aria-label="Refresh destination folders" className="icon-button quiet-button" disabled={props.busy || props.loading} onClick={props.onReload} title="Refresh folders" type="button"><RotateCw aria-hidden="true" /></button>
             <button aria-label="Close destination picker" className="icon-button quiet-button" onClick={props.onClose} title="Close" type="button"><X aria-hidden="true" /></button>
@@ -130,7 +132,7 @@ export function DestinationPickerStage(props: DestinationPickerStageProps) {
           </nav>
           <div className="destination-folder-list" role="group" aria-label="Destination folders">
             {props.loading ? <p className="status">Loading folders...</p> : null}
-            {!props.loading && folders.length === 0 ? <p className="status">No folders in this destination.</p> : null}
+            {!props.loading && folders.length === 0 ? <p className="status">{props.completeness === "partial" ? "No folders in the listed portion." : "No folders in this destination."}</p> : null}
             {folders.map((folder) => (
               <button
                 aria-label={`Open destination folder ${folder.name}`}

@@ -42,7 +42,7 @@ const commands = (): DiagnosticsWorkspaceCommands & { calls: string[]; events: u
 
 const folderPorts = (overrides: Partial<FolderPorts> = {}): FolderPorts => ({
   createAbortHandle: () => ({ signal: new AbortController().signal, abort: () => undefined }),
-  loadFolder: async () => ({ kind: "success", items: [] }),
+  loadFolder: async () => ({ completeness: "complete" as const, kind: "success", items: [] }),
   readCachedFolder: () => undefined,
   writeCachedFolder: () => undefined,
   ...overrides
@@ -50,7 +50,7 @@ const folderPorts = (overrides: Partial<FolderPorts> = {}): FolderPorts => ({
 
 const searchPorts = (overrides: Partial<SearchPorts> = {}): SearchPorts => ({
   createAbortHandle: () => ({ signal: new AbortController().signal, abort: () => undefined }),
-  loadSearch: async () => ({ kind: "success", items: [] }),
+  loadSearch: async () => ({ completeness: "complete" as const, kind: "success", items: [] }),
   readCachedSearch: () => undefined,
   writeCachedSearch: () => undefined,
   ...overrides
@@ -282,7 +282,7 @@ describe("diagnostics instrumentation", () => {
     const spy = commands();
     const ref = { current: spy };
     const base = folderPorts({
-      loadFolder: async () => ({
+      loadFolder: async () => ({ completeness: "complete" as const,
         kind: "success" as const,
         items: [{ path: "Docs/a", name: "a", isFolder: false }]
       })
@@ -357,7 +357,7 @@ describe("diagnostics instrumentation", () => {
   it("records search outcomes through action results", async () => {
     const spy = commands();
     const wrapped = wrapDiagnosticsSearchPorts(searchPorts({
-      loadSearch: async () => ({ kind: "success", items: [] })
+      loadSearch: async () => ({ completeness: "complete" as const, kind: "success", items: [] })
     }), { current: spy }, createFakeDiagnosticsClock());
     await wrapped.loadSearch({ path: "", query: "a", token: "t", signal: new AbortController().signal });
     expect(spy.calls).toEqual(["result:search:success"]);
@@ -376,12 +376,12 @@ describe("diagnostics instrumentation", () => {
         deleteFile: vi.fn(async (): Promise<never> => { throw new Error("denied"); }),
         copyOrMove: vi.fn(async () => ({ ...mutationResult, action: "copy" as const })),
         uploadFile: vi.fn(async () => ({ ...mutationResult, action: "upload" as const })),
-        listDestination: vi.fn(async () => ({ items: [] }))
+        listDestination: vi.fn(async () => ({ completeness: "complete" as const, items: [] }))
       },
       download: {
         prepareDownloadFile: vi.fn(async () => ({ blob: new Blob(["x"]), filename: "f" })),
         fetchDownloadBlob: vi.fn(async () => ({ blob: new Blob(["x"]) })),
-        listFiles: vi.fn(async () => ({ items: [] })),
+        listFiles: vi.fn(async () => ({ completeness: "complete" as const, items: [] })),
         triggerBrowserDownload: vi.fn(),
         saveDownload: vi.fn()
       },

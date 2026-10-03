@@ -7,7 +7,10 @@ export {
   selectFolderOfflineAvailability,
   selectReadableRetainedFiles,
   selectRequiredOfflineAncestors,
-  selectRetainedRootSummaries
+  selectRetainedRootSummaries,
+  selectRetainedReadiness,
+  selectRetainedRecovery,
+  selectRetainedStorageBytes
 } from "./model";
 export type {
   NormalCacheOwnership,
@@ -20,7 +23,9 @@ export type {
   RetainedRootStatus,
   RetainedRootSummary,
   RetainedSnapshot,
-  RetentionAccount
+  RetentionAccount,
+  RetainedReadiness,
+  RetainedRecovery
 } from "./model";
 export { executeRetentionCommand } from "./controller";
 export type { RetentionCommand, RetentionCommandOutcome, RetentionControllerCallbacks } from "./controller";

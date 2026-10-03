@@ -94,7 +94,7 @@ describe("nextcloud client", () => {
       maxTextFileBytes: 64 * 1024
     }, undefined, testNextcloudPolicy);
 
-    await expect(client.listFolder("Photos")).resolves.toEqual([
+    await expect(client.listFolder("Photos").then((listing) => listing.items)).resolves.toEqual([
       expect.objectContaining({
         path: "Photos/100% complete.txt",
         name: "100% complete.txt",
@@ -135,7 +135,7 @@ describe("nextcloud folder listing trust boundary", () => {
       maxFileBytes: 1024 * 1024,
       maxTextFileBytes: 64 * 1024
     }, fetchMock, testNextcloudPolicy);
-    return client.listFolder("sub");
+    return (await client.listFolder("sub")).items;
   };
 
   const fileProps = (displayname: string, extra = "") =>
@@ -207,7 +207,7 @@ describe("nextcloud folder listing trust boundary", () => {
     ]);
     expect(items[0]).not.toHaveProperty("size");
     const roundTripped: unknown = JSON.parse(JSON.stringify(items));
-    expect(filesSuccessSchema.safeParse({ data: { path: "sub", items: roundTripped } }).success).toBe(true);
+    expect(filesSuccessSchema.safeParse({ data: { completeness: "complete" as const, path: "sub", items: roundTripped } }).success).toBe(true);
   });
 
   it("skips entries whose href cannot be represented while keeping valid siblings", async () => {
@@ -226,5 +226,22 @@ describe("nextcloud folder listing trust boundary", () => {
       { href: "/sub/", props: "<d:displayname>sub</d:displayname><d:resourcetype><d:collection/></d:resourcetype>" },
       { href: "/sub/doc.txt", props: fileProps("doc.txt") }
     ]).replaceAll("/dav/files/alice/", "/dav/files/bob/"))).rejects.toThrow(/username mismatch/i);
+  });
+});
+
+describe("bounded folder completeness", () => {
+  it.each([0, 199, 200, 201, 205].flatMap((count) => ["first", "last", "absent"].map((self) => ({ count, self }))))("counts eligible children with $count items and self $self", async ({ count, self }) => {
+    const response = (path: string) => `<d:response><d:href>/remote.php/dav/files/alice/.davora-agent-test/${path}</d:href><d:propstat><d:status>HTTP/1.1 200 OK</d:status><d:prop><d:resourcetype/></d:prop></d:propstat></d:response>`;
+    const children = Array.from({ length: count }, (_, index) => response(`sub/file-${index}.txt`));
+    if (self === "first") children.unshift(response("sub"));
+    if (self === "last") children.push(response("sub"));
+    children.unshift(response("unrelated/file.txt"), response("sub/nested/deeper.txt"));
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(`<d:multistatus xmlns:d="DAV:">${children.join("")}</d:multistatus>`, { status: 207 }));
+    const client = new NextcloudClient({ baseUrl: "https://nextcloud.example.invalid", username: "alice", appPassword: "fixture", rootPath: ".davora-agent-test", maxFileBytes: 1024, maxTextFileBytes: 1024 }, fetchMock, testNextcloudPolicy);
+    const listing = await client.listFolder("sub");
+    expect(listing.completeness).toBe(count > 200 ? "partial" : "complete");
+    expect(listing.items).toHaveLength(Math.min(count, 200));
+    expect(listing.items.every((entry) => entry.path.startsWith("sub/file-"))).toBe(true);
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 });

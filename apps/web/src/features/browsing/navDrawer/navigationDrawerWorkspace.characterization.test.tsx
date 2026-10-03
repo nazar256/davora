@@ -35,7 +35,7 @@ const browsingIndexSource = readFileSync(resolve(process.cwd(), "src/features/br
 const NOW = "2026-08-05T00:00:00.000Z";
 
 function createPorts() {
-  const listFiles = vi.fn(async (_path: string, _token: string) => ({ items: [] as readonly FileEntry[] }));
+  const listFiles = vi.fn(async (_path: string, _token: string): Promise<{ completeness: "complete" | "partial"; items: readonly FileEntry[] }> => ({ completeness: "complete" as const, items: [] as readonly FileEntry[] }));
   const cacheFolder = vi.fn();
   const closeNavigationChrome = vi.fn();
   const navigateToPath = vi.fn();
@@ -101,7 +101,7 @@ describe("Phase 4C navigation-drawer/favourites characterization", () => {
   });
 
   it.each(["success", "failure"] as const)("keeps stale Alpha %s completion inert after Alpha/Beta/Alpha replacement and StrictMode replay", async (outcome) => {
-    const pending = createDeferred<{ readonly items: readonly FileEntry[] }>();
+    const pending = createDeferred<{ completeness: "complete" | "partial"; readonly items: readonly FileEntry[] }>();
     const alpha = buildAccount("alpha");
     const beta = buildAccount("beta");
     const storage = createFakeFavouritesStorage({ "davora-favourites:alpha": JSON.stringify([favourite("alpha", "Projects", true)]) });
@@ -122,7 +122,7 @@ describe("Phase 4C navigation-drawer/favourites characterization", () => {
     rerender({ account: beta });
     rerender({ account: alpha });
     if (outcome === "success") {
-      pending.resolve({ items: [{ path: "Projects", name: "Projects", isFolder: true }] });
+      pending.resolve({ completeness: "complete" as const, items: [{ path: "Projects", name: "Projects", isFolder: true }] });
     } else {
       pending.reject(new Error("alpha-late-failure"));
     }
@@ -132,17 +132,17 @@ describe("Phase 4C navigation-drawer/favourites characterization", () => {
     expect(ports.cacheFolder).not.toHaveBeenCalled();
     expect(ports.reportListError).not.toHaveBeenCalled();
 
-    const second = createDeferred<{ readonly items: readonly FileEntry[] }>();
+    const second = createDeferred<{ completeness: "complete" | "partial"; readonly items: readonly FileEntry[] }>();
     ports.listFiles.mockImplementation(() => second.promise);
     const lateOpen = result.current.openFavourite(result.current.entries[0]);
     unmount();
-    second.resolve({ items: [{ path: "Projects", name: "Projects", isFolder: true }] });
+    second.resolve({ completeness: "complete" as const, items: [{ path: "Projects", name: "Projects", isFolder: true }] });
     await act(async () => { await lateOpen; });
     expect(ports.closeNavigationChrome).not.toHaveBeenCalled();
   });
 
   it("keeps stale work inert when the same account receives a replacement token/session", async () => {
-    const pending = createDeferred<{ readonly items: readonly FileEntry[] }>();
+    const pending = createDeferred<{ completeness: "complete" | "partial"; readonly items: readonly FileEntry[] }>();
     const account = buildAccount("alpha");
     const service = createFavouritesService(
       createFakeFavouritesStorage({ "davora-favourites:alpha": JSON.stringify([favourite("alpha", "Projects", true)]) }),
@@ -161,7 +161,7 @@ describe("Phase 4C navigation-drawer/favourites characterization", () => {
     await waitFor(() => expect(result.current.entries).toHaveLength(1));
     const openPromise = result.current.openFavourite(result.current.entries[0]);
     rerender({ token: "session-alpha-2" });
-    pending.resolve({ items: [{ path: "Projects", name: "Projects", isFolder: true }] });
+    pending.resolve({ completeness: "complete" as const, items: [{ path: "Projects", name: "Projects", isFolder: true }] });
     await act(async () => { await openPromise; });
     expect(ports.listFiles).toHaveBeenCalledWith("", "session-alpha-1");
     expect(ports.closeNavigationChrome).not.toHaveBeenCalled();
@@ -187,11 +187,11 @@ describe("Phase 4C navigation-drawer/favourites characterization", () => {
     const folder = result.current.entries.find((entry) => entry.isFolder)!;
     const file = result.current.entries.find((entry) => !entry.isFolder)!;
     ports.listFiles
-      .mockResolvedValueOnce({ items: [{ path: "Projects", name: "Projects", isFolder: true }] })
-      .mockResolvedValueOnce({ items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, mimeType: "text/plain" }] });
+      .mockResolvedValueOnce({ completeness: "complete" as const, items: [{ path: "Projects", name: "Projects", isFolder: true }] })
+      .mockResolvedValueOnce({ completeness: "complete" as const, items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, mimeType: "text/plain" }] });
     await act(async () => { await result.current.openFavourite(folder); });
     expect(ports.listFiles).toHaveBeenCalledWith("", "sentinel-token");
-    expect(ports.cacheFolder).toHaveBeenCalledWith("ns-alpha", "", expect.any(Array));
+    expect(ports.cacheFolder).toHaveBeenCalledWith("ns-alpha", "", expect.any(Array), "complete");
     expect(ports.closeNavigationChrome).toHaveBeenCalledTimes(1);
     expect(ports.navigateToPath).toHaveBeenCalledWith("Projects");
 
@@ -221,7 +221,7 @@ describe("Phase 4C navigation-drawer/favourites characterization", () => {
     expect(offlinePorts.openFile).toHaveBeenCalledTimes(1);
 
     const onlinePorts = createPorts();
-    onlinePorts.listFiles.mockResolvedValue({ items: [] });
+    onlinePorts.listFiles.mockResolvedValue({ completeness: "complete" as const, items: [] });
     const onlineService = createFavouritesService(
       createFakeFavouritesStorage({ "davora-favourites:alpha": JSON.stringify([favourite("alpha", "Missing.txt")]) }),
       { nowIso: () => NOW }
@@ -350,8 +350,8 @@ describe("Phase 4C navigation-drawer/favourites characterization", () => {
     });
     const services = createBrowserAppServices();
     const folder = buildFileEntry("Projects/readme.txt");
-    services.folder.writeCachedFolder("ns-alpha", "Projects", [folder]);
-    expect(services.browsingCache.readFolder("ns-alpha", "Projects")).toMatchObject({ kind: "hit", items: [folder] });
+    services.folder.writeCachedFolder("ns-alpha", "Projects", [folder], "complete");
+    expect(services.browsingCache.readFolder("ns-alpha", "Projects")).toMatchObject({ completeness: "complete" as const, kind: "hit", items: [folder] });
     expect(services.folder).not.toBe(services.search);
     expect(factorySource.match(/createBrowsingCacheRepository\(/g) ?? []).toHaveLength(1);
     expect(factorySource).toContain("browsingCache");
@@ -368,13 +368,13 @@ describe("Phase 4C navigation-drawer/favourites characterization", () => {
     expect(factorySource).toMatch(/favouriteResolveRuntime/);
     const runtime = services.favouriteResolveRuntime;
     const responseItems = [buildFileEntry("Projects/readme.txt")];
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ data: { path: "Projects", items: responseItems } }), { status: 200, headers: { "content-type": "application/json" } }));
-    await expect(runtime.listFiles("Projects", "runtime-token")).resolves.toEqual({ items: responseItems });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ data: { completeness: "complete" as const, path: "Projects", items: responseItems } }), { status: 200, headers: { "content-type": "application/json" } }));
+    await expect(runtime.listFiles("Projects", "runtime-token")).resolves.toEqual({ completeness: "complete" as const, items: responseItems });
     expect(fetchMock).toHaveBeenCalled();
     const writeFolder = vi.spyOn(services.browsingCache, "writeFolder");
-    runtime.cacheFolder("ns-alpha", "Projects", responseItems);
-    expect(writeFolder).toHaveBeenCalledWith("ns-alpha", "Projects", responseItems);
-    expect(services.browsingCache.readFolder("ns-alpha", "Projects")).toMatchObject({ kind: "hit", items: responseItems });
+    runtime.cacheFolder("ns-alpha", "Projects", responseItems, "complete");
+    expect(writeFolder).toHaveBeenCalledWith("ns-alpha", "Projects", responseItems, "complete");
+    expect(services.browsingCache.readFolder("ns-alpha", "Projects")).toMatchObject({ completeness: "complete" as const, kind: "hit", items: responseItems });
     fetchMock.mockRestore();
   });
 
@@ -411,7 +411,7 @@ describe("Phase 4C navigation-drawer/favourites characterization", () => {
         });
         next.listFiles.mockImplementation(runtime.listFiles);
         next.cacheFolder.mockImplementation((namespace, path, items) => {
-          ports.cacheFolder(namespace, path, items);
+          ports.cacheFolder(namespace, path, items, "complete");
         });
         return next;
       }, []);

@@ -56,6 +56,11 @@ export interface SettingsDialogStageProjectionInput {
   readonly cache: {
     readonly summary: SettingsDialogStageProps["cacheSummary"];
     readonly offlineItems: SettingsDialogStageProps["offlineItems"];
+    readonly retainedBytes?: number;
+    readonly storageScope?: string;
+    readonly estimateStorage?: SettingsDialogStageProps["estimateStorage"];
+    readonly retryDisabled?: boolean;
+    readonly onRetryOfflineItem?: (rootId: string) => void;
     readonly onClearCache: () => void;
     readonly onRemoveOfflineItem: (rootId: string) => void;
     readonly onOpenedFileCacheLimitChange: (limitBytes: number) => void;

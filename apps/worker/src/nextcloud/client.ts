@@ -15,7 +15,6 @@ import {
   type MoveCopyRequest,
   type MutationResult,
   type NormalizedPath,
-  type SearchResult,
   type UploadFileRequest,
   type ViewerKind
 } from "@davora/shared";
@@ -106,19 +105,6 @@ function metadataFromItem(
     ...(item.permissions ? { permissions: item.permissions } : {}),
     ...(item.ownerDisplayName ? { ownerDisplayName: item.ownerDisplayName } : {})
   };
-}
-
-function scoreMatch(query: string, path: string, name: string): number {
-  if (name.toLowerCase() === query) {
-    return 100;
-  }
-  if (name.toLowerCase().includes(query)) {
-    return 75;
-  }
-  if (path.toLowerCase().includes(query)) {
-    return 50;
-  }
-  return 0;
 }
 
 function metadataOnly(metadata: FileMetadata, reason: string, truncated: boolean, viewer: ViewerKind = "unsupported", requiresOriginalBlob = false): FilePreview {
@@ -252,17 +238,25 @@ export class NextcloudClient {
     return metadataFromItem(items[0]!.path, items[0]!.item);
   }
 
-  async listFolder(path = ""): Promise<FileEntry[]> {
+  async listFolder(path = ""): Promise<{ readonly items: FileEntry[]; readonly completeness: "complete" | "partial" }> {
     const requestedPath = parseNormalizedPath(path);
     const target = resolveWithinSandbox(this.rootPath, requestedPath);
     const folderPath = relativeToSandbox(this.rootPath, target);
-    const items = await this.propfind(target, 1, 201);
-
-    return items
-      .filter((entry) => entry.path !== folderPath)
-      .map(({ path: itemPath, item }) => metadataFromItem(itemPath, item))
-      .slice(0, 200)
-      .sort((left, right) => left.path.localeCompare(right.path));
+    const items = await this.propfind(target, 1);
+    const children: FileEntry[] = [];
+    let completeness: "complete" | "partial" = "complete";
+    for (const entry of items) {
+      if (entry.path === folderPath || dirname(entry.path) !== folderPath) continue;
+      if (children.length === 200) {
+        completeness = "partial";
+        break;
+      }
+      children.push(metadataFromItem(entry.path, entry.item));
+    }
+    return {
+      completeness,
+      items: children.sort((left, right) => left.path.localeCompare(right.path))
+    };
   }
 
   async getMetadata(path = ""): Promise<FileMetadata | undefined> {
@@ -367,41 +361,6 @@ export class NextcloudClient {
       [416]
     );
     return { response, metadata };
-  }
-
-  async searchFiles(query: string, path = ""): Promise<SearchResult[]> {
-    const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) {
-      return [];
-    }
-
-    const queue: Array<{ path: string; depth: number }> = [{ path, depth: 0 }];
-    const visited = new Set<string>();
-    const results: SearchResult[] = [];
-
-    while (queue.length > 0 && visited.size < 64 && results.length < 20) {
-      const current = queue.shift();
-      if (!current || visited.has(current.path)) {
-        continue;
-      }
-      visited.add(current.path);
-
-      const items = await this.listFolder(current.path);
-      for (const item of items) {
-        const score = scoreMatch(normalizedQuery, item.path, item.name);
-        if (score > 0) {
-          results.push({ ...item, score });
-        }
-        if (item.isFolder && current.depth < 3) {
-          queue.push({ path: item.path, depth: current.depth + 1 });
-        }
-        if (results.length >= 20) {
-          break;
-        }
-      }
-    }
-
-    return results.sort((left, right) => right.score - left.score || left.path.localeCompare(right.path));
   }
 
   async download(path: string): Promise<{ body: Uint8Array; metadata: FileMetadata }> {

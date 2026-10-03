@@ -12,14 +12,14 @@ describe("createBrowserFavouriteResolveRuntime", () => {
     const listFiles = vi.fn(async (path: string, token: string) => {
       expect(path).toBe("Projects");
       expect(token).toBe("runtime-token");
-      return { items };
+      return { completeness: "complete" as const, items };
     });
     const runtime = createBrowserFavouriteResolveRuntime(cache, { listFiles });
 
-    await expect(runtime.listFiles("Projects", "runtime-token")).resolves.toEqual({ items });
-    runtime.cacheFolder("ns-alpha", "Projects", items);
+    await expect(runtime.listFiles("Projects", "runtime-token")).resolves.toEqual({ completeness: "complete" as const, items });
+    runtime.cacheFolder("ns-alpha", "Projects", items, "complete");
 
-    expect(cache.readFolder("ns-alpha", "Projects")).toMatchObject({ kind: "hit", items });
+    expect(cache.readFolder("ns-alpha", "Projects")).toMatchObject({ completeness: "complete" as const, kind: "hit", items });
     expect(listFiles).toHaveBeenCalledWith("Projects", "runtime-token");
   });
 

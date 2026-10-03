@@ -31,7 +31,7 @@ export interface OperationRuntimePort {
       signal: AbortSignal
     ): Promise<MutationResult>;
     copyOrMove(kind: "copy" | "move", source: string, destination: string, token: string, overwrite?: boolean): Promise<MutationResult>;
-    listDestination(path: string, token: string): Promise<{ readonly items: FileEntry[] }>;
+    listDestination(path: string, token: string): Promise<{ readonly completeness: "complete" | "partial"; readonly items: FileEntry[] }>;
   };
   readonly download: DownloadFileSources & { saveDownload(blob: Blob, filename: string): void };
   readonly batch: DownloadBatchSource;
@@ -59,6 +59,7 @@ export interface OperationAuthority {
       readonly rejectUnlessImmediateOwner?: boolean;
     }): {
       readonly signal: AbortSignal;
+      readonly request: { readonly abort: { abort(): void } };
       isRegistered(): boolean;
       isOwned(): boolean;
       isCurrent(): boolean;

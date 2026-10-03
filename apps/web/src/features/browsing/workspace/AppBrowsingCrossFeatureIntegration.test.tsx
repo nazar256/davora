@@ -10,7 +10,7 @@ describe("App browsing integration", () => {
   it("keeps captured cross-folder search archive roots after the query is cleared", async () => {
     const account = buildAccount("alpha", { displayName: "Search selection workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.searchFiles.mockResolvedValueOnce({
+    mockedApi.searchFiles.mockResolvedValueOnce({ completeness: "complete",
       query: "report",
       path: "",
       items: [
@@ -146,7 +146,7 @@ describe("App browsing integration", () => {
       "folder:Projects"
     ]);
 
-    mockedApi.listFiles.mockResolvedValueOnce({ path: "Projects", items: [] });
+    mockedApi.listFiles.mockResolvedValueOnce({ completeness: "complete", path: "Projects", items: [] });
     fireEvent.click(within(reopenedFavourites).getByRole("button", { name: /Open favourite file roadmap.txt/i }));
 
     expect(await within(reopenedFavourites).findByText(/Unavailable/i)).toBeInTheDocument();

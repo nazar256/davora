@@ -1,5 +1,15 @@
 # Handover
 
+### 2026-10-03 — Selected improvements local integration
+
+Start with [Davora improvements implementation](IMPROVEMENT_IMPLEMENTATION.md) for every selected priority and catalogue disposition, [Testing](TESTING.md) for current gates, and [UX review](UX_REVIEW.md) for rendered evidence. The October work is uncommitted and unstaged; preserve the complete dirty tree and the original proposal documents. Root checks, focused browser corrections, screenshots and PWA pass. Independent combined source, integration and UI review approved the local release candidate on 3 October, including all 19 UI checks in their observed local scope. The unchanged aggregate run and its failure/replay history remain recorded. Do not infer a new production version from this local state.
+
+The new browser requires negotiated listing/search metadata, so deploy Worker before web. Old clients remain supported by explicit legacy responses; rollback must retain a compatible Worker or coordinate both sides. Do not remove compatibility based on elapsed time or an update prompt.
+
+Cloudflare release is blocked by unavailable configured noninteractive authentication. No deployment identity was obtained and no upload occurred. Optional live Nextcloud validation was skipped because `.davora-agent-test` already exists without verified disposable ownership; the script deletes that root, so do not run it until the safety condition is met.
+
+Remaining intentional limits include the 200-child listing bound, bounded search, no production upload/ZIP size envelope, no Worker/provider cancellation guarantee, no generic restartable transfers, and no PDF viewport rewrite. Mobile modal focus return after a drawer opener disconnects is a reviewed pre-existing follow-up; the report handoff fixes only the overlapping Settings surface.
+
 ### Current handover — 2026-09-01 — Refactor deployed, verified, and left uncommitted
 
 - Production Worker version `323073d2-740f-4145-8317-72d3d6657e72` is active at 100% in deployment `38bd1141-77e6-417b-b701-c414bc685d4e`. Pages immutable deployment is `https://fefb585e.davora.pages.dev`; canonical production is `https://davora.pages.dev`.

@@ -109,7 +109,7 @@ describe("destination picker model", () => {
       kind: "copy",
       sourceEntries: [source],
       folderPath: "Archive"
-    }), entries);
+    }), entries, "complete");
     expect(next.name).toBe("report (1).txt");
     expect(next.manualPath).toBe("Archive/report (1).txt");
   });
@@ -122,7 +122,7 @@ describe("destination picker model", () => {
       sourceEntries: [source],
       folderPath: "Archive",
       nameEdited: true
-    }), entries);
+    }), entries, "complete");
     expect(next.name).toBe("report.txt");
   });
 

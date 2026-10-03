@@ -94,14 +94,14 @@ test("active background sync holds one screen wake lock and releases it on deskt
   await expect(settings.getByText("Ready for media playback and transfers.")).toBeVisible();
 });
 
-test("offline sync partial failure retries to a new completed transfer", async ({ page }) => {
+test("offline sync partial failure retries the existing transfer to completion", async ({ page }) => {
   let badDownloadAttempts = 0;
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [
             { path: "Projects/bad.pdf", name: "bad.pdf", isFolder: false, size: 10, mimeType: "application/pdf" },
@@ -145,17 +145,18 @@ test("offline sync partial failure retries to a new completed transfer", async (
   await partialTransfer.getByRole("button", { name: /Retry failed sync/i }).click();
 
   const retryDialog = page.getByRole("dialog", { name: /Keep offline confirmation/i });
-  await expect(retryDialog.getByText("Projects", { exact: true })).toBeVisible();
-  await expect(retryDialog.getByText(/Synced recursively/i)).toBeVisible();
-  await retryDialog.getByRole("button", { name: /Start sync/i }).click();
+  await expect(retryDialog).toHaveCount(0);
 
   await expect.poll(() => badDownloadAttempts).toBe(2);
-  await expect(transferStatus.locator(".transfer-tray-item")).toHaveCount(2);
+  await expect(transferStatus.locator(".transfer-tray-item")).toHaveCount(1);
   const completedTransfer = transferStatus.locator(".transfer-tray-item-done");
   await expect(completedTransfer).toHaveCount(1);
   await expect(completedTransfer.getByText("Projects", { exact: true })).toBeVisible();
   await expect(completedTransfer.getByText(/^Done/)).toBeVisible();
-  await expect(partialTransfer.getByText("Projects/bad.pdf", { exact: true })).toBeVisible();
+  await expect(partialTransfer).toHaveCount(0);
+  await expect(transferStatus.getByRole("list", { name: /Failed files for Projects/i })).toHaveCount(0);
+  await expect(transferStatus.getByText("Failed to fetch", { exact: true })).toHaveCount(0);
+  await expect(transferStatus.getByRole("button", { name: /Retry failed sync/i })).toHaveCount(0);
   await expect(page.getByLabel("Projects is available offline")).toBeVisible();
 });
 
@@ -165,14 +166,14 @@ test("keep offline can start while the estimate is still calculating and reuses 
     releaseListing = resolve;
   });
   let projectsListingRequests = 0;
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     projectsListingRequests += 1;
     await listingGate;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 10, mimeType: "text/plain" }]
         }

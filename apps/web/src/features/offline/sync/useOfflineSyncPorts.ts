@@ -27,6 +27,7 @@ export interface OfflineSyncRegistrySource {
     readonly ownership?: { readonly checkAborted: boolean };
   }): {
     readonly signal: AbortSignal;
+    abort(): void;
     isRegistered(): boolean;
     isOwned(): boolean;
     release(): void;
@@ -59,6 +60,7 @@ export interface OfflineSyncTransferSource {
     details?: { readonly loadedBytes?: number; readonly totalBytes?: number }
   ): void;
   fail(id: string, message: string): void;
+  markCanceled(id: string): void;
 }
 
 export interface OfflineSyncPresentationSource {
@@ -84,8 +86,8 @@ export interface CreateOfflineSyncPortsInput {
   readonly createAbortHandle: () => OfflineSyncEstimateAbortHandle;
   readonly getToken: () => string | undefined;
   readonly getCacheNamespace: () => string | undefined;
-  readonly listFiles: (path: string, token: string, signal?: AbortSignal) => Promise<{ items: FileEntry[] }>;
-  readonly cacheFolder?: (namespace: string, path: string, items: FileEntry[]) => void;
+  readonly listFiles: (path: string, token: string, signal?: AbortSignal) => Promise<{ completeness: "complete" | "partial"; items: FileEntry[] }>;
+  readonly cacheFolder?: (namespace: string, path: string, items: FileEntry[], completeness: "complete" | "partial") => void;
   readonly fetchDownloadBlob: (
     sourcePath: string,
     token: string,
@@ -190,6 +192,7 @@ export function createOfflineSyncPorts(input: CreateOfflineSyncPortsInput): Offl
         }
         return {
           signal: scope.signal,
+          abort: () => scope.abort(),
           isRegistered: () => scope.isRegistered(),
           isOwned: () => scope.isOwned(),
           release: () => {
@@ -199,6 +202,7 @@ export function createOfflineSyncPorts(input: CreateOfflineSyncPortsInput): Offl
       }
     },
     transfers: {
+      markCanceled: input.transfers.markCanceled,
       createId: () => input.transfers.createId(),
       enqueue: (enqueueInput) => {
         input.transfers.enqueue({

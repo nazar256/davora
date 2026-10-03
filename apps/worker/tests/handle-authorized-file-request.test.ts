@@ -4,16 +4,16 @@ import type { CreateFolderRequestInput, DeleteRequestInput, MoveCopyRequestInput
 import type { FileBackend } from "../src/files/backend";
 import { executeFileRoute, type FileApplicationRoute } from "../src/files/service";
 import { workerFailure, workerFailureResponse } from "../src/http/failure";
-import { matchWorkerRoute, type WorkerRoute } from "../src/http/router";
+import { matchWorkerRoute, resolveWorkerRouteInput, type WorkerRoute } from "../src/http/router";
 
 function backend(overrides: Partial<FileBackend> = {}): FileBackend {
   return {
-    list: vi.fn(async () => []),
+    list: vi.fn(async () => ({ completeness: "complete" as const, items: [] })),
     metadata: vi.fn(async () => undefined),
     preview: vi.fn(async () => undefined),
     original: vi.fn(async () => undefined),
     stream: vi.fn(async () => undefined),
-    search: vi.fn(async () => []),
+    search: vi.fn(async () => ({ items: [], completeness: "complete" as const })),
     download: vi.fn(async () => undefined),
     createFolder: vi.fn(async (input: CreateFolderRequestInput): Promise<MutationResult> => ({ action: "createFolder", parentPath: input.path, path: `${input.path ? `${input.path}/` : ""}${input.name}`, item: { path: `${input.path ? `${input.path}/` : ""}${input.name}`, name: input.name, isFolder: true } })),
     upload: vi.fn(async (input: UploadRequestInput): Promise<MutationResult> => ({ action: "upload", parentPath: input.path, path: `${input.path ? `${input.path}/` : ""}${input.name}`, item: { path: `${input.path ? `${input.path}/` : ""}${input.name}`, name: input.name, isFolder: false } })),
@@ -34,7 +34,7 @@ function isFileRoute(route: WorkerRoute): route is FileApplicationRoute {
 
 async function handleFileRequest(input: Request, files: FileBackend): Promise<Response> {
   try {
-    const route = await matchWorkerRoute(input);
+    const route = await resolveWorkerRouteInput(input, await matchWorkerRoute(input));
     if (route.inputError !== undefined) throw route.inputError;
     if (!isFileRoute(route)) throw workerFailure("not_found", "non-file-route");
     return await executeFileRoute(route, input, files);
@@ -107,7 +107,7 @@ describe("file application service", () => {
 
   it("dispatches the read routes through one backend and keeps unknown routes inert", async () => {
     const file = { path: "Projects/a.txt", name: "a.txt", isFolder: false, mimeType: "text/plain" };
-    const files = backend({ list: vi.fn(async () => [file]), metadata: vi.fn(async () => file) });
+    const files = backend({ list: vi.fn(async () => ({ completeness: "complete" as const, items: [file] })), metadata: vi.fn(async () => file) });
 
     const listed = await handleFileRequest(request("/api/files?path=Projects"), files);
     expect(listed.status).toBe(200);
@@ -155,5 +155,30 @@ describe("file application service", () => {
     const downloaded = await handleFileRequest(request("/api/download?path=image.bin"), files);
     expect(downloaded.status).toBe(200);
     expect(downloaded.headers.get("content-disposition")).toMatch(/attachment; filename\*=UTF-8''image\.bin/);
+  });
+});
+
+describe("listing request format compatibility", () => {
+  it.each(["complete", "partial"] as const)("returns required completeness to current clients (%s)", async (completeness) => {
+    const files = backend({ list: vi.fn(async () => ({ completeness, items: [] })) });
+    const response = await handleFileRequest(request("/api/files?path=Docs&listing=complete-v1"), files);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ data: { path: "Docs", completeness, items: [] } });
+  });
+  it("keeps complete legacy listings in the exact old envelope", async () => {
+    const response = await handleFileRequest(request("/api/files?path=Docs"), backend());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ data: { path: "Docs", items: [] } });
+  });
+  it("blocks partial legacy enumeration with actionable update guidance", async () => {
+    const response = await handleFileRequest(request("/api/files?path=Docs"), backend({ list: vi.fn(async () => ({ completeness: "partial" as const, items: [] })) }));
+    expect(response.status).toBe(426);
+    expect(await response.json()).toEqual({ data: { code: "invalid_request", message: "Reopen Davora and apply the app update to open this folder safely." } });
+  });
+  it.each(["", "complete-v2"])("rejects unsupported listing selector %s", async (listing) => {
+    const files = backend();
+    const response = await handleFileRequest(request(`/api/files?path=Docs&listing=${listing}`), files);
+    expect(response.status).toBe(400);
+    expect(files.list).not.toHaveBeenCalled();
   });
 });

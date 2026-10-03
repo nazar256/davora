@@ -29,9 +29,7 @@ describe("ConnectAccountStage", () => {
 
     expect(screen.getByText(/^Accounts$/i)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /No connected accounts yet/i })).toBeInTheDocument();
-    expect(
-      screen.getByText(/Connect a Nextcloud account inside Davora to start browsing files/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText("Connect Nextcloud to browse your files. You can add more accounts later.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Connect account$/i })).toBeInTheDocument();
     expect(screen.queryByRole("form")).not.toBeInTheDocument();
     expect(document.querySelector(".zero-state-panel")).toBeInTheDocument();
@@ -51,7 +49,7 @@ describe("ConnectAccountStage", () => {
 
     expect(screen.getByRole("heading", { name: /Connect Nextcloud account/i })).toBeInTheDocument();
     expect(
-      screen.getByText(/Enter your Nextcloud base URL, username, app password, and the root folder to browse/i)
+      screen.getByText("Connect to your Nextcloud files.")
     ).toBeInTheDocument();
     expect(document.querySelector(".account-form")).toBeInTheDocument();
   });
@@ -61,7 +59,7 @@ describe("ConnectAccountStage", () => {
 
     expect(document.querySelector(".bootstrap-panel")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /^Connect account$/i })).toBeInTheDocument();
-    expect(screen.getByText(/Connect a Nextcloud account to continue/i)).toBeInTheDocument();
+    expect(screen.getByText("Connect to your Nextcloud files.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Connect account$/i })).toBeInTheDocument();
   });
 
@@ -78,7 +76,7 @@ describe("ConnectAccountStage", () => {
 
     expect(screen.getByRole("heading", { name: /Reconnect Alpha workspace/i })).toBeInTheDocument();
     expect(
-      screen.getByText(/The Worker no longer has this account ready\. Re-enter the app password to reconnect/i)
+      screen.getByText("Enter an app password to restore access.")
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Reconnect account/i })).toBeInTheDocument();
   });

@@ -83,7 +83,7 @@ const isFolderDescendant = (folderPath: string, path: string): boolean =>
 const isSameOrDescendant = (scope: string, path: string): boolean =>
   scope === "" || path === scope || path.startsWith(`${scope}/`);
 
-const parseEnvelope = (raw: string): { readonly cachedAt: string; readonly value: unknown } | undefined => {
+const parseEnvelope = (raw: string): { readonly cachedAt: string; readonly value: unknown; readonly completeness?: unknown } | undefined => {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -95,16 +95,20 @@ const parseEnvelope = (raw: string): { readonly cachedAt: string; readonly value
     || typeof parsed.cachedAt !== "string"
     || !Number.isFinite(Date.parse(parsed.cachedAt))
     || !("value" in parsed)) return undefined;
-  return { cachedAt: parsed.cachedAt, value: parsed.value };
+  return { cachedAt: parsed.cachedAt, value: parsed.value, ...("completeness" in parsed ? { completeness: parsed.completeness } : {}) };
 };
 
 export const parseFolderCacheEnvelope = (
   raw: string,
   requestedPath: string
-): { readonly cachedAt: string; readonly items: FileEntry[] } | undefined => {
+): { readonly cachedAt: string; readonly completeness: "complete" | "partial" | "unknown"; readonly items: FileEntry[] } | undefined => {
   if (!isCanonicalPath(requestedPath)) return undefined;
   const envelope = parseEnvelope(raw);
   if (!envelope || !Array.isArray(envelope.value)) return undefined;
+  const completeness = !("completeness" in envelope)
+    ? "unknown" as const
+    : envelope.completeness;
+  if (completeness !== "complete" && completeness !== "partial" && completeness !== "unknown") return undefined;
   const items: FileEntry[] = [];
   for (const value of envelope.value) {
     const parsed = fileEntrySchema.safeParse(value);
@@ -113,7 +117,7 @@ export const parseFolderCacheEnvelope = (
       || !isFolderDescendant(requestedPath, parsed.data.path)) return undefined;
     items.push(parsed.data);
   }
-  return { cachedAt: envelope.cachedAt, items };
+  return { cachedAt: envelope.cachedAt, completeness, items };
 };
 
 export const parseSearchCacheEnvelope = (

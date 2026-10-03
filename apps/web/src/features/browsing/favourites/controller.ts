@@ -12,6 +12,8 @@ export interface FavouriteResolveContext {
   readonly isCurrent?: () => boolean;
 }
 
+class UnverifiedFavouriteError extends Error {}
+
 class StaleFavouriteOperationError extends Error {
   constructor() {
     super("Favourite operation superseded.");
@@ -50,9 +52,12 @@ export async function resolveFavouriteTarget(
   assertFavouriteOperationCurrent(context);
   if (context.cacheNamespace) {
     assertFavouriteOperationCurrent(context);
-    ports.resolve.cacheFolder(context.cacheNamespace, parentPath, response.items);
+    ports.resolve.cacheFolder(context.cacheNamespace, parentPath, response.items, response.completeness);
   }
   const resolved = response.items.find((item) => item.path === entry.path && item.isFolder === entry.isFolder);
+  if (!resolved && response.completeness !== "complete") {
+    throw new UnverifiedFavouriteError(`${entry.name} could not be verified because only part of its folder is listed.`);
+  }
   if (!resolved) {
     throw new Error(`${entry.name} is no longer available at ${ports.resolve.toDisplayPath(entry.path)}.`);
   }
@@ -86,7 +91,9 @@ export async function openFavourite(
       return;
     }
     const message = error instanceof Error ? error.message : "This favourite is unavailable.";
-    reportFavouriteSaveFailure(store.patch(favouriteEntryKey(entry), { unavailableReason: message }), ports);
+    if (!(error instanceof UnverifiedFavouriteError)) {
+      reportFavouriteSaveFailure(store.patch(favouriteEntryKey(entry), { unavailableReason: message }), ports);
+    }
     ports.surface.reportListError(new Error(message));
     ports.surface.setStatus(`Favourite unavailable: ${message}`);
   }

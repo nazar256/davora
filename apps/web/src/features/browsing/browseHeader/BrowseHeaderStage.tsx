@@ -1,3 +1,4 @@
+import type { SearchCoverage } from "../search";
 import {
   Check,
   FolderPlus,
@@ -13,10 +14,14 @@ import { FILE_SIZE_DISPLAY_OPTIONS, type FileSizeDisplayMode } from "../../../li
 import { SORT_MODE_OPTIONS, isSortMode, type SortMode } from "../model";
 import { buildFolderSortResetQuestion, type FolderSortResetBinding } from "../folderSort";
 import type { BreadcrumbItem } from "../presentation";
+import { ListingCompletenessDisclosure } from "./ListingCompletenessDisclosure";
+import { SearchCoverageDisclosure } from "./SearchCoverageDisclosure";
 
 export interface BrowseHeaderStageProps {
   readonly currentFolderLabel: string;
   readonly browseStatusLabel: string;
+  readonly searchCoverage?: SearchCoverage;
+  readonly listingCompleteness?: "complete" | "partial" | "unknown";
   readonly currentPath: string;
   readonly breadcrumbs: readonly BreadcrumbItem[];
   readonly showBreadcrumbs: boolean;
@@ -88,10 +93,10 @@ export function BrowseHeaderStage(props: BrowseHeaderStageProps) {
             <h2>{props.currentFolderLabel}</h2>
             <span className="status browse-title-count">{props.browseStatusLabel}</span>
           </div>
-          <span className={`operation-pill browser-status ${props.cacheOnlyMode ? "disabled" : props.refreshingFolder || props.staleFolder || props.searchActive ? "secondary" : "enabled"}`}>
+          {props.searchCoverage === "partial" || props.searchCoverage === "saved" || props.searchCoverage === "offline" ? <SearchCoverageDisclosure coverage={props.searchCoverage} /> : props.listingCompleteness === "partial" || props.listingCompleteness === "unknown" ? <ListingCompletenessDisclosure completeness={props.listingCompleteness} /> : <span className={`operation-pill browser-status ${props.cacheOnlyMode ? "disabled" : props.refreshingFolder || props.staleFolder || props.searchActive ? "secondary" : "enabled"}`}>
             {props.cacheOnlyMode ? <WifiOff aria-hidden="true" /> : <Check aria-hidden="true" />}
             {props.cacheOnlyMode ? "Read-only" : props.refreshingFolder ? "Refreshing" : props.staleFolder ? "Cached" : props.searchActive ? "Search active" : "Ready"}
-          </span>
+          </span>}
         </div>
 
         {props.showBreadcrumbs ? (

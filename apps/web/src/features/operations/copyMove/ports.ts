@@ -25,7 +25,7 @@ export interface CopyMoveBatchTargetPort {
 }
 
 export type FolderListResult =
-  | { readonly kind: "completed"; readonly entries: readonly FileEntry[] }
+  | { readonly kind: "completed"; readonly entries: readonly FileEntry[]; readonly completeness: "complete" | "partial" }
   | { readonly kind: "failed"; readonly message: string }
   | { readonly kind: "sessionTerminated" }
   | { readonly kind: "interrupted" };

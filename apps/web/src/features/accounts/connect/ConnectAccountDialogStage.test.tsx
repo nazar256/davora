@@ -32,8 +32,8 @@ describe("ConnectAccountDialogStage", () => {
   });
 
   it.each([
-    ["add", "Add account", "Add Nextcloud account", "Connect another Nextcloud account without disturbing the current file-manager workspace design."],
-    ["reconnect", "Reconnect account", "Reconnect account", "Re-enter the app password so this account can create fresh sessions again."]
+    ["add", "Add account", "Add Nextcloud account", "Connect another Nextcloud account."],
+    ["reconnect", "Reconnect account", "Reconnect account", "Enter an app password to restore access."]
   ] as const)("projects %s modal copy and form bindings", (variant, ariaLabel, title, description) => {
     render(
       <ConnectAccountDialogStage

@@ -2,6 +2,7 @@
 
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import "fake-indexeddb/auto";
+import { get, set } from "idb-keyval";
 import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -12,6 +13,7 @@ import type { AppServices } from "../../../app/AppServices";
 import { createAccountRegistryService } from "../../accounts/registry";
 import { ONLINE_CONNECTIVITY_SNAPSHOT, type ConnectivityPort } from "../connectivity";
 import { createBrowserExplicitOfflineModeStorage } from "../../../platform/storage/browserExplicitOfflineModeStorage";
+import { openedFileIndexKey } from "../../../platform/storage/openedFileRepository";
 import { buildHealthResponse } from "../../../test/api";
 import { createOfflineSyncRetentionPort } from "../../offline/sync/retentionAdapters";
 import { createFavouriteEntry, isFavouriteAvailableOffline } from "../../browsing/favourites/model";
@@ -31,6 +33,7 @@ import {
   buildOfflineSearchResults,
   createRetainedSnapshot,
   retainedRootId,
+  retainedBatchRootPath,
   selectRequiredOfflineAncestors,
   selectRetainedRootSummaries,
   type RetainedFile,
@@ -38,6 +41,7 @@ import {
   type UseRetentionPorts
 } from "../retention";
 import { useRetention } from "../retention/useRetention";
+import { useOfflineApplicationWorkspace } from "./useOfflineApplicationWorkspace";
 import type { FolderAudioRuntimePorts } from "../../preview/folderAudio";
 
 afterEach(() => {
@@ -70,8 +74,8 @@ function appServicesFor(account?: ReturnType<typeof buildAccount>, options: {
   if (account && options.seedSession !== false) registry.commitSession(account.id, buildSession(account));
   const health = vi.fn(async () => buildHealthResponse());
   const session = vi.fn(async () => buildSession(account ?? buildAccount("alpha")));
-  const folder = vi.fn(async () => ({ kind: "success" as const, items: options.folderItems ?? [] }));
-  const search = vi.fn(async () => ({ kind: "success" as const, items: [] }));
+  const folder = vi.fn(async () => ({ completeness: "complete" as const, kind: "success" as const, items: options.folderItems ?? [] }));
+  const search = vi.fn(async () => ({ completeness: "complete" as const, kind: "success" as const, items: [] }));
   const accountTransport = { ...base.accountTransport, getHealth: health, createSession: session };
   const accountSession = {
     ...base.accountSession,
@@ -120,6 +124,110 @@ function modePorts(overrides: Partial<ExplicitOfflineModePorts> = {}): ExplicitO
     ...overrides
   };
 }
+
+it("recovers persisted incomplete selection after services reload without a transfer task or confirmation", async () => {
+  const account = buildAccount("readiness-reload");
+  const owner = { accountId: account.id, cacheNamespace: account.cacheNamespace };
+  const root = { rootPath: "Docs", rootName: "Docs", kind: "folder" as const, folderRoots: ["Docs"] };
+  const rootId = retainedRootId(root);
+  const initial = appServicesFor(account);
+  await initial.retentionRepository.beginRoot(owner, root);
+  await initial.retentionRepository.persistRetainedFile(owner, { rootId, file: file("Docs/a.txt", { size: 1, blobSize: 1 }), blob: new Blob(["a"]) });
+  const base = createBrowserAppServices();
+  const download = vi.fn(async (_path: string) => ({ blob: new Blob(["bb"], { type: "text/plain" }), filename: "b.txt" }));
+  const list = vi.fn(async () => ({ path: "Docs", completeness: "complete" as const, items: [
+    { path: "Docs/a.txt", name: "a.txt", isFolder: false, size: 1 },
+    { path: "Docs/b.txt", name: "b.txt", isFolder: false, size: 2 }
+  ] }));
+  const services = appServicesFor(account, { offlineSyncRuntime: { ...base.offlineSyncRuntime, listFiles: list, fetchDownloadBlob: download } });
+  render(<App services={services} />);
+  fireEvent.click(await screen.findByRole("button", { name: /Profile & settings/i }));
+  const settings = await screen.findByRole("dialog", { name: /Profile and settings/i });
+  expect(await within(settings).findByRole("button", { name: "Incomplete" })).toBeInTheDocument();
+  fireEvent.click(within(settings).getByRole("button", { name: "Retry offline copy for Docs" }));
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: /Profile and settings/i })).toBeNull());
+  expect(screen.queryByRole("dialog", { name: /Keep.*offline/i })).toBeNull();
+  await waitFor(() => expect(download).toHaveBeenCalledTimes(1));
+  expect(download.mock.calls[0]?.[0]).toBe("Docs/b.txt");
+  await waitFor(async () => {
+    const result = await services.retentionRepository.readSnapshot(owner);
+    expect(result.kind === "success" && result.value.roots.find((item) => item.id === rootId)?.status).toBe("complete");
+  });
+  fireEvent.click(screen.getByRole("button", { name: /Profile & settings/i }));
+  expect(await screen.findByLabelText("Saved offline")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /^Retry offline copy/ })).toBeNull();
+});
+
+it.each(["file", "batch", "legacy-partial"] as const)("recovers persisted %s intent without broadening sources or bypassing C01", async (kind) => {
+  const account = buildAccount(`readiness-${kind}`);
+  const owner = { accountId: account.id, cacheNamespace: account.cacheNamespace };
+  const initial = appServicesFor(account);
+  const root = kind === "file"
+    ? { rootPath: "Docs/a.txt", rootName: "a.txt", kind: "file" as const, folderRoots: [] }
+    : kind === "batch"
+      ? { rootPath: retainedBatchRootPath(["Docs", "extra.txt"]), rootName: "2 items offline batch", kind: "batch" as const, folderRoots: ["Docs"] }
+      : { rootPath: "Docs", rootName: "Docs", kind: "folder" as const, folderRoots: ["Docs"] };
+  const rootId = retainedRootId(root);
+  await initial.retentionRepository.beginRoot(owner, root);
+  await initial.retentionRepository.persistRetainedFile(owner, {
+    rootId, file: file("Docs/a.txt", { size: 1, blobSize: 1, readable: kind !== "file" }),
+    ...(kind === "file" ? {} : { blob: new Blob(["a"]) })
+  });
+  if (kind !== "batch") await initial.retentionRepository.completeRoot(owner, rootId);
+  if (kind === "legacy-partial") {
+    const key = openedFileIndexKey(account.cacheNamespace);
+    const index = await get<{ roots: Record<string, { completionProofVersion?: number }> }>(key);
+    expect(index).toBeDefined();
+    delete index!.roots[rootId].completionProofVersion;
+    await set(key, index);
+  }
+  const base = createBrowserAppServices();
+  const download = vi.fn(async (path: string) => ({ blob: new Blob(["bb"], { type: "text/plain" }), filename: path.split("/").at(-1) }));
+  const list = vi.fn(async () => ({ path: "Docs", completeness: kind === "legacy-partial" ? "partial" as const : "complete" as const, items: [
+    { path: "Docs/a.txt", name: "a.txt", isFolder: false, size: 2 }
+  ] }));
+  const services = appServicesFor(account, { offlineSyncRuntime: { ...base.offlineSyncRuntime, listFiles: list, fetchDownloadBlob: download } });
+  render(<App services={services} />);
+  fireEvent.click(await screen.findByRole("button", { name: /Profile & settings/i }));
+  const settings = await screen.findByRole("dialog", { name: /Profile and settings/i });
+  await within(settings).findByRole("button", { name: kind === "file" ? "Missing files" : "Incomplete" });
+  fireEvent.click(within(settings).getByRole("button", { name: `Retry offline copy for ${root.rootName}` }));
+  if (kind === "legacy-partial") {
+    await waitFor(() => expect(screen.getAllByText(/A complete folder listing is required for Docs/).length).toBeGreaterThan(0));
+    expect(download).not.toHaveBeenCalled();
+  } else {
+    await waitFor(() => expect(download).toHaveBeenCalledTimes(kind === "batch" ? 2 : 1));
+    expect(download.mock.calls.map(([path]) => path).sort()).toEqual(kind === "batch" ? ["Docs/a.txt", "extra.txt"] : ["Docs/a.txt"]);
+  }
+  await waitFor(async () => {
+    const result = await services.retentionRepository.readSnapshot(owner);
+    expect(result.kind === "success" && result.value.roots.map((item) => ({ id: item.id, status: item.status }))).toEqual([{ id: rootId, status: kind === "legacy-partial" ? "incomplete" : "complete" }]);
+  });
+});
+
+it("makes captured settings recovery callbacks inert after removal and account replacement", async () => {
+  const account = buildAccount("readiness-owner");
+  const services = appServicesFor(account);
+  const owner = { accountId: account.id, cacheNamespace: account.cacheNamespace };
+  const root = { rootPath: "Docs", rootName: "Docs", kind: "folder" as const, folderRoots: ["Docs"] };
+  const rootId = retainedRootId(root);
+  await services.retentionRepository.beginRoot(owner, root);
+  const mode = modePorts();
+  const cache = { clearFolderCacheForPath: vi.fn(), clearFolderAndSearchCache: vi.fn(), clearSelectionChrome: vi.fn() };
+  const { result, rerender } = renderHook(({ activeAccount }) => useOfflineApplicationWorkspace({
+    activeAccount, cacheNamespace: activeAccount.cacheNamespace, accountName: "Owner", currentPath: "", fileSizeDisplayMode: "human",
+    runtime: mode, entry: mode.entry, cache, retentionRepository: services.retentionRepository, announce: vi.fn()
+  }), { initialProps: { activeAccount: account } });
+  await waitFor(() => expect(result.current.settingsCache.getRecovery(rootId).kind).toBe("recoverable"));
+  const captured = result.current.settingsCache.getRecovery;
+  await act(async () => { await result.current.retention.executeSnapshotCommand({ kind: "removeRoot", account: owner, rootId }); });
+  expect(captured(rootId).kind).toBe("unavailable");
+  await act(async () => { await result.current.retention.executeSnapshotCommand({ kind: "beginRoot", account: owner, root }); });
+  expect(captured(rootId).kind).toBe("recoverable");
+  rerender({ activeAccount: buildAccount("readiness-replacement") });
+  expect(captured(rootId).kind).toBe("unavailable");
+  expect(cache.clearSelectionChrome).not.toHaveBeenCalled();
+});
 
 const file = (path: string, overrides: Partial<RetainedFile> = {}): RetainedFile => ({
   path,
@@ -298,7 +406,7 @@ describe("Phase 4E offline application-composition current behavior", () => {
       folderItems: [{ path: "Projects", name: "Projects", isFolder: true }],
       seedSession: false
     });
-    services.browsingCache.writeFolder(account.cacheNamespace, "", [{ path: "Projects", name: "Projects", isFolder: true }]);
+    services.browsingCache.writeFolder(account.cacheNamespace, "", [{ path: "Projects", name: "Projects", isFolder: true }], "complete");
     services.startup.health.mockRejectedValue(new TypeError("fetch failed"));
     services.startup.session.mockRejectedValue(new TypeError("fetch failed"));
 

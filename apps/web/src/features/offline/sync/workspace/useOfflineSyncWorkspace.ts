@@ -31,7 +31,12 @@ function createWorkspacePorts(input: OfflineSyncWorkspaceInput): OfflineSyncPort
       executeSnapshotCommand: input.retention.executeSnapshotCommand,
       readBlobText: runtime.readBlobText
     },
-    registry: authority.registry,
+    registry: {
+      acquire: (request) => {
+        const scope = authority.registry.acquire(request);
+        return scope ? { ...scope, abort: () => scope.request.abort.abort() } : undefined;
+      }
+    },
     transfers: {
       createId: runtime.createTransferId,
       enqueue: input.transfers.controller.enqueue,
@@ -42,7 +47,8 @@ function createWorkspacePorts(input: OfflineSyncWorkspaceInput): OfflineSyncPort
       reportFailure: input.transfers.controller.reportFailure,
       complete: input.transfers.controller.complete,
       completePartial: input.transfers.controller.completePartial,
-      fail: input.transfers.controller.fail
+      fail: input.transfers.controller.fail,
+      markCanceled: input.transfers.controller.markCanceled
     },
     transferTasks: input.transfers.tasks,
     openTransferTray: input.coordination.openTransferTray,
@@ -117,6 +123,8 @@ export function useOfflineSyncWorkspace(input: OfflineSyncWorkspaceInput): Offli
     commands: {
       open: async (entries, archive?: BatchArchiveInput, capture?) => { await offlineSync.open([...entries], archive, capture); },
       confirm: offlineSync.confirm,
+      retryRetainedSelection: offlineSync.retryRetainedSelection,
+      cancel: offlineSync.cancel,
       dismiss: offlineSync.dismiss,
       retry: async (task) => { offlineSync.retry(task); }
     },

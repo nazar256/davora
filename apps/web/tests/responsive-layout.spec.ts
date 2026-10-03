@@ -204,12 +204,12 @@ test("PER-97 portrait workspace fills the viewport and renders a single selectio
 
 test("mobile file list fills the available viewport height", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chrome", "Mobile-only layout regression.");
-  await page.route("**/api/files?path=", async (route) => {
+  await page.route("**/api/files?path=&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "",
           items: [
             { path: "Documents", name: "Documents", isFolder: true, lastModified: "2026-05-29T08:18:00.000Z" }
@@ -218,12 +218,12 @@ test("mobile file list fills the available viewport height", async ({ page }, te
       })
     });
   });
-  await page.route("**/api/files?path=Documents", async (route) => {
+  await page.route("**/api/files?path=Documents&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Documents",
           items: ["Оля", "ФОП", "Юра", "agents", "AppManager", "bills", "Finances", "jobs", "keys"].map((name, index) => ({
             path: `Documents/${name}`,
@@ -265,24 +265,24 @@ test("mobile file list fills the available viewport height", async ({ page }, te
 test("mobile file list scroll keeps the compact toolbar visible", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chrome", "Mobile-only sticky toolbar regression.");
   const longNames = Array.from({ length: 42 }, (_, index) => `Archive ${String(index + 1).padStart(2, "0")}`);
-  await page.route("**/api/files?path=", async (route) => {
+  await page.route("**/api/files?path=&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "",
           items: [{ path: "Long", name: "Long", isFolder: true, lastModified: "2026-05-29T08:18:00.000Z" }]
         }
       })
     });
   });
-  await page.route("**/api/files?path=Long", async (route) => {
+  await page.route("**/api/files?path=Long&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Long",
           items: longNames.map((name, index) => ({
             path: `Long/${name}.txt`,
@@ -342,12 +342,12 @@ test("mobile file list scroll keeps the compact toolbar visible", async ({ page 
 test("PER-5 cached offline notice stays readable above the file list", async ({ page, context }, testInfo) => {
   const reportNames = Array.from({ length: 40 }, (_, index) => `Report ${String(index + 1).padStart(2, "0")}.txt`);
   const rootFolders = ["Documents", ...Array.from({ length: 14 }, (_, index) => `Folder ${String(index + 1).padStart(2, "0")}`)];
-  await page.route("**/api/files?path=", async (route) => {
+  await page.route("**/api/files?path=&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "",
           items: rootFolders.map((name, index) => ({
             path: name,
@@ -359,12 +359,12 @@ test("PER-5 cached offline notice stays readable above the file list", async ({ 
       })
     });
   });
-  await page.route("**/api/files?path=Documents", async (route) => {
+  await page.route("**/api/files?path=Documents&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Documents",
           items: reportNames.map((name, index) => ({
             path: `Documents/${name}`,
@@ -419,7 +419,7 @@ test("PER-5 cached offline notice stays readable above the file list", async ({ 
 test("PER-5 routine cached refresh uses header status and never moves file rows", async ({ page }, testInfo) => {
   let holdRefresh = false;
   const gate = createGate();
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     if (holdRefresh) {
       await gate.promise;
     }

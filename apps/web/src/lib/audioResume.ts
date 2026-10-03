@@ -5,13 +5,13 @@ export interface AudioPreviewResumeTarget {
 
 const STORAGE_KEY_PREFIX = "davora-audio-preview-position:";
 
-function storageKey(target: AudioPreviewResumeTarget): string {
+export function audioPreviewPositionStorageKey(target: AudioPreviewResumeTarget): string {
   return `${STORAGE_KEY_PREFIX}${target.accountId}:${target.path}`;
 }
 
 export function loadAudioPreviewPosition(target: AudioPreviewResumeTarget): number | undefined {
   try {
-    const raw = localStorage.getItem(storageKey(target));
+    const raw = localStorage.getItem(audioPreviewPositionStorageKey(target));
     if (!raw) {
       return undefined;
     }
@@ -30,7 +30,7 @@ export function saveAudioPreviewPosition(target: AudioPreviewResumeTarget, posit
   }
 
   try {
-    localStorage.setItem(storageKey(target), String(positionSeconds));
+    localStorage.setItem(audioPreviewPositionStorageKey(target), String(positionSeconds));
   } catch {
     // Best-effort only: if storage is unavailable or full, audio still opens at 0:00.
   }
@@ -38,7 +38,7 @@ export function saveAudioPreviewPosition(target: AudioPreviewResumeTarget, posit
 
 export function clearAudioPreviewPosition(target: AudioPreviewResumeTarget): void {
   try {
-    localStorage.removeItem(storageKey(target));
+    localStorage.removeItem(audioPreviewPositionStorageKey(target));
   } catch {
     // Best-effort only.
   }

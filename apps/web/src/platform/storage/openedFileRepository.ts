@@ -101,6 +101,7 @@ interface StoredRoot {
   kind: RootKind;
   folderRoots: string[];
   status: RootStatus;
+  completionProofVersion?: 1;
   addedAt: string;
 }
 
@@ -417,7 +418,8 @@ function parseRoot(value: unknown): StoredRoot | undefined {
   const status = validRootStatus(value.status);
   const addedAt = iso(value.addedAt);
   if (!id || !rootPath || !rootName || !kind || !folderRoots || !status || !addedAt || id !== retainedRootId(kind, rootPath)) return undefined;
-  return { id, rootPath, rootName, kind, folderRoots, status, addedAt };
+  const completionProofVersion = value.completionProofVersion === 1 ? 1 : undefined;
+  return { id, rootPath, rootName, kind, folderRoots, status: kind !== "file" && completionProofVersion !== 1 ? "incomplete" : status, addedAt, ...(completionProofVersion ? { completionProofVersion } : {}) };
 }
 
 function parseV2(value: unknown): StoredIndex | undefined {
@@ -542,7 +544,7 @@ function migrateLegacy(value: unknown): StoredIndex | undefined {
     index.files[entry.path] = { path: entry.path, name: entry.filename, mimeType: entry.mimeType, size: entry.blobSize, preview: entry.preview, blobSize: entry.blobSize, normalCacheOwnership: entry.keepOffline ? "none" : "owned", cachedAt: entry.cachedAt, lastAccessedAt: entry.lastAccessedAt };
     if (!entry.keepOffline || !entry.keepOfflineRoot || !entry.keepOfflineRootName || !entry.keepOfflineRootKind || !entry.keepOfflineFolderRoots) continue;
     const id = retainedRootId(entry.keepOfflineRootKind, entry.keepOfflineRoot);
-    index.roots[id] ??= { id, rootPath: entry.keepOfflineRoot, rootName: entry.keepOfflineRootName, kind: entry.keepOfflineRootKind, folderRoots: entry.keepOfflineFolderRoots, status: entry.keepOfflineRootComplete ? "complete" : "incomplete", addedAt: entry.keepOfflineAddedAt ?? entry.cachedAt };
+    index.roots[id] ??= { id, rootPath: entry.keepOfflineRoot, rootName: entry.keepOfflineRootName, kind: entry.keepOfflineRootKind, folderRoots: entry.keepOfflineFolderRoots, status: entry.keepOfflineRootKind === "file" && entry.keepOfflineRootComplete ? "complete" : "incomplete", addedAt: entry.keepOfflineAddedAt ?? entry.cachedAt };
     index.memberships[entry.path] = [id];
   }
   return index;
@@ -829,6 +831,7 @@ export function createOpenedFileRepository(): OpenedFileRepository {
         const root = index.roots[rootId];
         if (!root) throw new Error("Unknown retained root.");
         root.status = "complete";
+        root.completionProofVersion = 1;
         return { kind: "success", value: await save(account, index) };
       } catch (error) { return failure(error); }
     },

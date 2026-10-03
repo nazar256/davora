@@ -7,6 +7,13 @@ import { TransferTrayStage } from "./TransferTrayStage";
 afterEach(cleanup);
 
 describe("TransferTrayStage", () => {
+  it("exposes the existing cancel action for active sync only", () => {
+    const state = reduceTransferLedger(createTransferLedger(), { type: "enqueued", at: "today", task: { id: "sync", accountId: "alpha", kind: "sync", label: "Docs", dedupeKey: "sync:Docs", syncRootEntries: [{ path: "Docs", name: "Docs", isFolder: true }] } });
+    const cancel = vi.fn();
+    render(<TransferTrayStage tasks={state.tasks} open onToggleOpen={vi.fn()} onClearFinished={vi.fn()} onCancelTransfer={cancel} />);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel Docs" }));
+    expect(cancel).toHaveBeenCalledWith(state.tasks[0]);
+  });
   it("summarizes active work from account-filtered tasks while rendering only the eight newest records", () => {
     const events: TransferEvent[] = [{
       type: "enqueued",

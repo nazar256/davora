@@ -34,7 +34,7 @@ describe("browser operation runtime", () => {
     mocks.uploadFileWithProgress.mockResolvedValueOnce({ result: uploadResult });
     mocks.copyFile.mockResolvedValueOnce({ result: copyResult });
     mocks.moveFile.mockResolvedValueOnce({ result: moveResult });
-    mocks.listFiles.mockResolvedValueOnce({ path: "Docs", items: [item] });
+    mocks.listFiles.mockResolvedValueOnce({ completeness: "complete", path: "Docs", items: [item] });
     const runtime = createRuntime();
     const progress = vi.fn();
     const controller = new AbortController();
@@ -44,7 +44,7 @@ describe("browser operation runtime", () => {
     await expect(runtime.mutation.uploadFile({ path: "/Docs", name: "new.txt", mimeType: "text/plain", contentBase64: "YQ==" }, "token", progress, controller.signal)).resolves.toEqual(uploadResult);
     await expect(runtime.mutation.copyOrMove("copy", "/Docs/a", "/Docs/b", "token")).resolves.toEqual(copyResult);
     await expect(runtime.mutation.copyOrMove("move", "/Docs/a", "/Docs/c", "token")).resolves.toEqual(moveResult);
-    await expect(runtime.mutation.listDestination("/Docs", "token")).resolves.toEqual({ path: "Docs", items: [item] });
+    await expect(runtime.mutation.listDestination("/Docs", "token")).resolves.toEqual({ completeness: "complete" as const, path: "Docs", items: [item] });
 
     expect(mocks.createFolder).toHaveBeenCalledWith({ path: "/Docs", name: "new" }, "token");
     expect(mocks.deleteFile).toHaveBeenCalledWith({ path: "/Docs/old", confirmName: "old" }, "token");
@@ -60,7 +60,7 @@ describe("browser operation runtime", () => {
     const progress = vi.fn();
     mocks.prepareDownloadFile.mockResolvedValueOnce({ blob, filename: "a.txt" });
     mocks.fetchDownloadBlob.mockResolvedValueOnce({ blob, filename: "a.txt" });
-    mocks.listFiles.mockResolvedValueOnce({ path: "Docs", items: [] });
+    mocks.listFiles.mockResolvedValueOnce({ completeness: "complete", path: "Docs", items: [] });
     mocks.downloadSelectionAsZip.mockResolvedValueOnce({
       blob,
       plan: { archiveName: "a.zip", selectedCount: 0, selectedFileCount: 0, selectedDirectoryCount: 0, directories: [], files: [], failedFiles: [] }
@@ -71,7 +71,7 @@ describe("browser operation runtime", () => {
     await runtime.download.fetchDownloadBlob("/Docs/a.txt", "token", { onProgress: progress, signal });
     await runtime.download.listFiles("/Docs", "token", signal);
     runtime.download.triggerBrowserDownload(blob, "a.txt");
-    await runtime.batch.downloadSelectionAsZip({ roots: [], archiveLabel: "docs", listFiles: async () => ({ items: [] }), fetchFile: async () => ({ blob }) });
+    await runtime.batch.downloadSelectionAsZip({ roots: [], archiveLabel: "docs", listFiles: async () => ({ completeness: "complete" as const, items: [] }), fetchFile: async () => ({ blob }) });
     runtime.download.saveDownload(blob, "saved.txt");
 
     expect(mocks.prepareDownloadFile).toHaveBeenCalledWith("/Docs/a.txt", "token", { onProgress: progress, signal });

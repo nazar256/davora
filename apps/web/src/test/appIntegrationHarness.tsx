@@ -296,7 +296,9 @@ function createBrowserAppServices() {
       retentionRepository: retentionFixture.repository,
       browsingCache: browsingCacheFixture.repository,
       favourites: services.favourites,
-      folderSorts: services.folderSorts
+      folderSorts: services.folderSorts,
+      explicitOfflineMode: { commit: () => ({ kind: "committed" }) },
+      playbackCleanup: { purgeAccount: () => undefined }
     }),
     accountSession: {
       ...services.accountSession,
@@ -611,12 +613,12 @@ beforeEach(() => {
   });
   mockedApi.listFiles.mockImplementation(async (path: string) => {
     if (path === "Projects") {
-      return {
+      return { completeness: "complete" as const,
         path,
         items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }]
       };
     }
-    return {
+    return { completeness: "complete" as const,
       path,
       items: [
         { path: "Projects", name: "Projects", isFolder: true },
@@ -625,7 +627,7 @@ beforeEach(() => {
     };
   });
   mockedApi.getFile.mockResolvedValue({ file: textPreview });
-  mockedApi.searchFiles.mockResolvedValue({
+  mockedApi.searchFiles.mockResolvedValue({ completeness: "complete",
     query: "roadmap",
     path: "",
     items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain", score: 75 }]

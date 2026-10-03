@@ -46,7 +46,7 @@ const matchMediaMock = vi.fn((query?: string) => ({ matches: false, media: query
 type GetFile = (path: string, token: string, signal?: AbortSignal) => Promise<{ file: FilePreview }>;
 type FetchOriginalFile = (path: string, token: string, signal?: AbortSignal) => Promise<{ blob: Blob; mimeType: string; filename: string }>;
 type CreateStreamingFileUrl = (path: string, token: string, signal?: AbortSignal) => Promise<string>;
-type ListFiles = (path: string, token: string, signal?: AbortSignal) => Promise<{ path: string; items: FileEntry[] }>;
+type ListFiles = (path: string, token: string, signal?: AbortSignal) => Promise<{ completeness: "complete" | "partial"; path: string; items: FileEntry[] }>;
 type CreateSession = (request: SessionRequest) => Promise<AppSession>;
 type PreviewApiSpies = { getFile: ReturnType<typeof vi.fn<GetFile>>; fetchOriginalFile: ReturnType<typeof vi.fn<FetchOriginalFile>>; createStreamingFileUrl: ReturnType<typeof vi.fn<CreateStreamingFileUrl>>; listFiles: ReturnType<typeof vi.fn<ListFiles>>; createSession: ReturnType<typeof vi.fn<CreateSession>>; };
 const mockedApi: PreviewApiSpies = {
@@ -96,13 +96,13 @@ const previewTransport = {
 };
 const folderPorts = {
   createAbortHandle: () => { const controller = new AbortController(); return { signal: controller.signal, abort: () => controller.abort() }; },
-  loadFolder: async ({ path, token, signal }: { path: string; token: string; signal: AbortSignal }): Promise<FolderLoadOutcome> => { try { const result = await mockedApi.listFiles(path, token, signal); return { kind: "success", items: result.items }; } catch (error) { return { kind: "failure", error: error instanceof Error ? error : new Error(String(error)) }; } },
+  loadFolder: async ({ path, token, signal }: { path: string; token: string; signal: AbortSignal }): Promise<FolderLoadOutcome> => { try { const result = await mockedApi.listFiles(path, token, signal); return { completeness: "complete" as const, kind: "success", items: result.items }; } catch (error) { return { kind: "failure", error: error instanceof Error ? error : new Error(String(error)) }; } },
   readCachedFolder: () => undefined,
   writeCachedFolder: () => undefined
 };
 const searchPorts = {
   createAbortHandle: () => { const controller = new AbortController(); return { signal: controller.signal, abort: () => controller.abort() }; },
-  loadSearch: async ({ path, token, signal }: { path: string; query: string; token: string; signal: AbortSignal }): Promise<SearchLoadOutcome> => { try { const result = await mockedApi.listFiles(path, token, signal); return { kind: "success", items: result.items.map((item) => ({ ...item, score: 0, matches: [] })) }; } catch (error) { return { kind: "failure", error: error instanceof Error ? error : new Error(String(error)) }; } },
+  loadSearch: async ({ path, token, signal }: { path: string; query: string; token: string; signal: AbortSignal }): Promise<SearchLoadOutcome> => { try { const result = await mockedApi.listFiles(path, token, signal); return { completeness: "complete" as const, kind: "success", items: result.items.map((item) => ({ ...item, score: 0, matches: [] })) }; } catch (error) { return { kind: "failure", error: error instanceof Error ? error : new Error(String(error)) }; } },
   readCachedSearch: () => undefined,
   writeCachedSearch: () => undefined
 };
@@ -124,8 +124,8 @@ const explicitOfflineRuntime: ExplicitOfflineModeRuntimePort = { storage: { read
 const clock: TransferClock = { nowIso: () => new Date().toISOString() };
 const operationRuntime: OperationRuntimePort = {
   request: { createAbortHandle: () => { const controller = new AbortController(); return { signal: controller.signal, abort: () => controller.abort() }; }, createTransferId: () => "preview-transfer" },
-  mutation: { createFolder: async () => ({ action: "createFolder", parentPath: "", path: "" } satisfies MutationResult), deleteFile: async () => ({ action: "delete", parentPath: "", path: "" } satisfies MutationResult), uploadFile: async () => ({ action: "upload", parentPath: "", path: "" } satisfies MutationResult), copyOrMove: async () => ({ action: "copy", parentPath: "", path: "" } satisfies MutationResult), listDestination: async () => ({ items: [] }) },
-  download: { prepareDownloadFile: async () => ({ blob: new Blob(), filename: "file" }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "file" }), listFiles: async (path, token, signal) => { const result = await mockedApi.listFiles(path, token, signal); return { items: result.items }; }, triggerBrowserDownload: () => undefined, saveDownload: () => undefined },
+  mutation: { createFolder: async () => ({ action: "createFolder", parentPath: "", path: "" } satisfies MutationResult), deleteFile: async () => ({ action: "delete", parentPath: "", path: "" } satisfies MutationResult), uploadFile: async () => ({ action: "upload", parentPath: "", path: "" } satisfies MutationResult), copyOrMove: async () => ({ action: "copy", parentPath: "", path: "" } satisfies MutationResult), listDestination: async () => ({ completeness: "complete" as const, items: [] }) },
+  download: { prepareDownloadFile: async () => ({ blob: new Blob(), filename: "file" }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "file" }), listFiles: async (path, token, signal) => { const result = await mockedApi.listFiles(path, token, signal); return { completeness: "complete" as const, items: result.items }; }, triggerBrowserDownload: () => undefined, saveDownload: () => undefined },
   batch: { downloadSelectionAsZip: async () => { throw new Error("batch download not used by preview contracts"); } },
   preview: { createFileStreamUrl: async () => "" }, time: { wait: async () => {} }, uploadFiles: { prepare: async () => ({ kind: "failed", message: "upload not used by preview contracts" }) },
   isUnauthorized: (error) => error instanceof ApiRequestError && error.status === 401,
@@ -151,7 +151,7 @@ beforeEach(() => {
   mockedApi.getFile.mockResolvedValue({ file: buildFilePreview("Projects/roadmap.txt", { size: 70, content: "normalized API preview", bytesRead: 22 }) });
   mockedApi.fetchOriginalFile.mockResolvedValue({ blob: new Blob(["original"], { type: "image/png" }), mimeType: "image/png", filename: "file" });
   mockedApi.createStreamingFileUrl.mockImplementation(async (path) => `/api/file/stream?path=${encodeURIComponent(path)}&streamToken=stream-token-alpha`);
-  mockedApi.listFiles.mockResolvedValue({ path: "", items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] });
+  mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const, path: "", items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] });
   mockedApi.createSession.mockImplementation(async (request) => buildSession(buildAccount(request.accountId)));
   appShellCapture.latest = undefined;
   appShellCapture.history.length = 0;
@@ -397,7 +397,7 @@ it("keeps the cached video element mounted when the background refresh verifies 
 
     const previewRefresh = createDeferred<{ file: FilePreview }>();
     mockedApi.getFile.mockImplementationOnce(async () => previewRefresh.promise);
-    mockedApi.listFiles.mockResolvedValue({ path: "", items: [buildFileEntry("Projects/clip.mp4", { mimeType: "video/mp4", size: 24 })] });
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete" as const, path: "", items: [buildFileEntry("Projects/clip.mp4", { mimeType: "video/mp4", size: 24 })] });
 
     render(<App services={createPreviewSessionFixture()} />);
 
@@ -529,11 +529,11 @@ it("keeps beta preview streaming cache publication scoped to the beta compositio
     seedAccounts([{ account: alpha, session: buildSession(alpha) }, { account: beta, session: buildSession(beta) }], alpha.id);
     const betaOriginal = createDeferred<{ blob: Blob; mimeType: string; filename: string }>();
     mockedApi.listFiles.mockImplementation(async (_path: string, token: string) => token === "token-beta"
-      ? { path: "", items: [
+      ? { completeness: "complete" as const, path: "", items: [
           { path: "Projects/photo.png", name: "photo.png", isFolder: false, size: 12, mimeType: "image/png" },
           { path: "Projects/song.mp3", name: "song.mp3", isFolder: false, size: 18, mimeType: "audio/mpeg" }
         ] }
-      : { path: "", items: [{ path: "Alpha/only.txt", name: "only.txt", isFolder: false, size: 1, mimeType: "text/plain" }] });
+      : { completeness: "complete" as const, path: "", items: [{ path: "Alpha/only.txt", name: "only.txt", isFolder: false, size: 1, mimeType: "text/plain" }] });
     mockedApi.getFile.mockImplementation(async (path: string) => ({
       file: buildFilePreview(path, {
         name: path.split("/").at(-1) ?? path,
@@ -598,8 +598,8 @@ it("resets only beta after a beta preview session expiry when the controller was
     seedAccounts([{ account: alpha, session: buildSession(alpha) }, { account: beta, session: buildSession(beta) }], alpha.id);
     const betaPreview = createDeferred<{ file: FilePreview }>();
     mockedApi.listFiles.mockImplementation(async (_path: string, token: string) => token === "token-beta"
-      ? { path: "", items: [{ path: "Beta/photo.png", name: "photo.png", isFolder: false, size: 12, mimeType: "image/png" }] }
-      : { path: "", items: [{ path: "Alpha/only.txt", name: "only.txt", isFolder: false, size: 1, mimeType: "text/plain" }] });
+      ? { completeness: "complete" as const, path: "", items: [{ path: "Beta/photo.png", name: "photo.png", isFolder: false, size: 12, mimeType: "image/png" }] }
+      : { completeness: "complete" as const, path: "", items: [{ path: "Alpha/only.txt", name: "only.txt", isFolder: false, size: 1, mimeType: "text/plain" }] });
     mockedApi.getFile.mockImplementation(async (path: string, token: string) => {
       if (path === "Beta/photo.png" && token === "token-beta") {
         return betaPreview.promise;
@@ -636,8 +636,8 @@ it("marks only beta reconnect-required after a beta preview reconnect failure fr
     seedAccounts([{ account: alpha, session: buildSession(alpha) }, { account: beta, session: buildSession(beta) }], alpha.id);
     const betaPreview = createDeferred<{ file: FilePreview }>();
     mockedApi.listFiles.mockImplementation(async (_path: string, token: string) => token === "token-beta"
-      ? { path: "", items: [{ path: "Beta/photo.png", name: "photo.png", isFolder: false, size: 12, mimeType: "image/png" }] }
-      : { path: "", items: [{ path: "Alpha/only.txt", name: "only.txt", isFolder: false, size: 1, mimeType: "text/plain" }] });
+      ? { completeness: "complete" as const, path: "", items: [{ path: "Beta/photo.png", name: "photo.png", isFolder: false, size: 12, mimeType: "image/png" }] }
+      : { completeness: "complete" as const, path: "", items: [{ path: "Alpha/only.txt", name: "only.txt", isFolder: false, size: 1, mimeType: "text/plain" }] });
     mockedApi.getFile.mockImplementation(async (path: string, token: string) => {
       if (path === "Beta/photo.png" && token === "token-beta") {
         return betaPreview.promise;
@@ -671,7 +671,7 @@ it("marks only beta reconnect-required after a beta preview reconnect failure fr
 it("releases an applied preview Blob exactly once when App unmounts", async () => {
     const account = buildAccount("alpha", { displayName: "Preview ownership workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValueOnce({
+    mockedApi.listFiles.mockResolvedValueOnce({ completeness: "complete" as const,
       path: "",
       items: [{ path: "Archive/photo.png", name: "photo.png", isFolder: false, mimeType: "image/png", size: 3 }]
     });

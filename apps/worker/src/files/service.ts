@@ -7,6 +7,8 @@ import {
   createFolderEndpoint,
   deleteEndpoint,
   filesEndpoint,
+  legacyFilesSuccessSchema,
+  legacySearchSuccessSchema,
   metadataEndpoint,
   moveEndpoint,
   previewEndpoint,
@@ -15,8 +17,7 @@ import {
   type ApiEnvelope,
   type FileResponse,
   type FilesResponse,
-  type MetadataResponse,
-  type SearchResponse
+  type MetadataResponse
 } from "@davora/shared";
 import { Buffer } from "node:buffer";
 
@@ -43,7 +44,12 @@ export async function executeFileRoute(
   try {
     switch (route.id) {
       case "files": {
-        const payload: ApiEnvelope<FilesResponse> = { data: { path: route.input.path, items: [...await backend.list(route.input.path)] } };
+        const listing = await backend.list(route.input.path);
+        if (route.input.listing === undefined) {
+          if (listing.completeness !== "complete") throw workerFailure("listing_update_required");
+          return json(legacyFilesSuccessSchema.parse({ data: { path: route.input.path, items: [...listing.items] } }));
+        }
+        const payload: ApiEnvelope<FilesResponse> = { data: { path: route.input.path, completeness: listing.completeness, items: [...listing.items] } };
         return json(filesEndpoint.successSchema.parse(payload));
       }
       case "metadata": {
@@ -74,8 +80,11 @@ export async function executeFileRoute(
         return new Response(body, { status: stream.status, headers });
       }
       case "search": {
-        const payload: ApiEnvelope<SearchResponse> = { data: { query: route.input.query, path: route.input.path, items: [...await backend.search(route.input.path, route.input.query)] } };
-        return json(searchEndpoint.successSchema.parse(payload));
+        const result = await backend.search(route.input.path, route.input.query);
+        const data = { query: route.input.query, path: route.input.path, items: result.items };
+        return route.input.coverage === "bounded-v1"
+          ? json(searchEndpoint.successSchema.parse({ data: { ...data, completeness: result.completeness } }))
+          : json(legacySearchSuccessSchema.parse({ data }));
       }
       case "download": {
         const file = await backend.download(route.input.path);

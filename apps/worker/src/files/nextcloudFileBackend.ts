@@ -2,6 +2,7 @@ import type { CreateFolderRequestInput, DeleteRequestInput, FileMetadata, MoveCo
 
 import { NextcloudClient } from "../nextcloud/client";
 import type { FileBackend, DownloadContent, OriginalFileContent, RangedFileContent } from "./backend";
+import { boundedSearch } from "./boundedSearch";
 import { normalizeFileBackendCall } from "./fileBackendError";
 
 function contentMetadata(metadata: FileMetadata, contentType: string | null): FileMetadata {
@@ -42,7 +43,7 @@ export class NextcloudFileBackend implements FileBackend {
   }
 
   search(path: string, query: string) {
-    return normalizeFileBackendCall(() => this.client.searchFiles(query, path));
+    return normalizeFileBackendCall(() => boundedSearch(path, query, (folderPath) => this.list(folderPath)));
   }
 
   async download(path: string): Promise<DownloadContent> {

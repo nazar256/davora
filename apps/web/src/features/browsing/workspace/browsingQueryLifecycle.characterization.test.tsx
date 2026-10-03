@@ -68,13 +68,13 @@ type PortOverrides = {
 function createPorts(overrides: PortOverrides = {}) {
   const folder: FolderPorts = {
     createAbortHandle: () => new AbortController(),
-    loadFolder: overrides.folderLoad ?? vi.fn<FolderPorts["loadFolder"]>(async () => ({ kind: "success", items: folderItems })),
+    loadFolder: overrides.folderLoad ?? vi.fn<FolderPorts["loadFolder"]>(async () => ({ completeness: "complete" as const, kind: "success", items: folderItems })),
     readCachedFolder: vi.fn(() => undefined),
     writeCachedFolder: vi.fn()
   };
   const search: SearchPorts = {
     createAbortHandle: () => new AbortController(),
-    loadSearch: overrides.searchLoad ?? vi.fn<SearchPorts["loadSearch"]>(async () => ({ kind: "success", items: searchItems })),
+    loadSearch: overrides.searchLoad ?? vi.fn<SearchPorts["loadSearch"]>(async () => ({ completeness: "complete" as const, kind: "success", items: searchItems })),
     readCachedSearch: vi.fn(() => undefined),
     writeCachedSearch: vi.fn()
   };
@@ -319,7 +319,7 @@ describe("Browsing query lifecycle characterization", () => {
     const ports = createPorts({
       searchLoad: vi.fn<SearchPorts["loadSearch"]>(({ path, token }) => path === "Docs" && token === "token-alpha"
         ? old.promise
-        : Promise.resolve({ kind: "success", items: [{ path: "Other/new.txt", name: "new.txt", isFolder: false, score: 3 }] }))
+        : Promise.resolve({ completeness: "complete" as const, kind: "success", items: [{ path: "Other/new.txt", name: "new.txt", isFolder: false, score: 3 }] }))
     });
     const initial = createInput(ports, {
       ports: { ...createInput(ports).ports, session: { terminate: sessionTerminate } }

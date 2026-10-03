@@ -36,8 +36,24 @@ describe("RemoveAccountStage", () => {
     expect(dialog).toHaveAttribute("tabindex", "-1");
     expect(within(dialog).getByRole("heading", { name: /Remove account/i })).toBeInTheDocument();
     expect(within(dialog).getByText("Personal cloud", { selector: "strong" })).toBeInTheDocument();
+    expect(dialog.querySelector(".dialog-copy")).toHaveTextContent(
+      "Remove Personal cloud from Davora and clear its saved data on this device. Your Nextcloud files stay unchanged."
+    );
+    const details = dialog.querySelector("details.account-removal-details");
+    expect(details).toBeInTheDocument();
+    expect(details).not.toHaveAttribute("open");
+    expect(details?.querySelector("summary")).toHaveAttribute("aria-label", "Account removal details");
     expect(within(dialog).getByLabelText(/Account label to confirm/i)).toHaveValue("");
     expect(within(dialog).getByRole("button", { name: /^Remove account$/i })).toHaveClass("button-danger");
+  });
+
+  it("explains saved-password removal separately from provider revocation", () => {
+    render(<RemoveAccountStage {...buildProps()} />);
+
+    const dialog = screen.getByRole("dialog", { name: /Remove Personal cloud/i });
+    fireEvent.click(dialog.querySelector("details.account-removal-details summary")!);
+
+    expect(within(dialog).getByText("This deletes Davora’s saved app password. Revoke the app password in Nextcloud Security to disable it there too.")).toBeInTheDocument();
   });
 
   it("emits confirmation changes and submit without removal side effects", () => {

@@ -26,13 +26,13 @@ const createPorts = (overrides: {
 } = {}) => {
   const folder: FolderPorts = {
     createAbortHandle: () => new AbortController(),
-    loadFolder: overrides.folderLoad ?? vi.fn<FolderPorts["loadFolder"]>(async () => ({ kind: "success", items: folderItems })),
+    loadFolder: overrides.folderLoad ?? vi.fn<FolderPorts["loadFolder"]>(async () => ({ completeness: "complete" as const, kind: "success", items: folderItems })),
     readCachedFolder: vi.fn(() => undefined),
     writeCachedFolder: vi.fn()
   };
   const search: SearchPorts = {
     createAbortHandle: () => new AbortController(),
-    loadSearch: overrides.searchLoad ?? vi.fn<SearchPorts["loadSearch"]>(async () => ({ kind: "success", items: searchItems })),
+    loadSearch: overrides.searchLoad ?? vi.fn<SearchPorts["loadSearch"]>(async () => ({ completeness: "complete" as const, kind: "success", items: searchItems })),
     readCachedSearch: vi.fn(() => undefined),
     writeCachedSearch: vi.fn()
   };
@@ -101,10 +101,10 @@ describe("useBrowsingWorkspace contract", () => {
     const setWorkerUnavailable = vi.fn();
     const setStatus = vi.fn();
     const ports = createPorts({
-      folderLoad: vi.fn<FolderPorts["loadFolder"]>(({ path }) => path === "Docs" ? oldFolder : Promise.resolve({ kind: "success", items: [folderItems[2]] })),
+      folderLoad: vi.fn<FolderPorts["loadFolder"]>(({ path }) => path === "Docs" ? oldFolder : Promise.resolve({ completeness: "complete" as const, kind: "success", items: [folderItems[2]] })),
       searchLoad: vi.fn<SearchPorts["loadSearch"]>(({ path, query }) => path === "Docs" && query === "old"
         ? oldSearch
-        : Promise.resolve({ kind: "success", items: [searchItems[0]] }))
+        : Promise.resolve({ completeness: "complete" as const, kind: "success", items: [searchItems[0]] }))
     });
     const initialInput = input(ports, {
       ports: {
@@ -144,7 +144,7 @@ describe("useBrowsingWorkspace contract", () => {
             firstFolderLoad = false;
             return oldFolder.promise;
           }
-          return Promise.resolve({ kind: "success", items: [folderItems[2]] });
+          return Promise.resolve({ completeness: "complete" as const, kind: "success", items: [folderItems[2]] });
         })
       });
       const base = input(ports);
@@ -167,14 +167,14 @@ describe("useBrowsingWorkspace contract", () => {
       };
       rerender({ workspaceInput: replacement });
       await waitFor(() => expect(result.current.list.items).toEqual([folderItems[2]]));
-      oldFolder.resolve({ kind: "success", items: [folderItems[0]] });
+      oldFolder.resolve({ completeness: "complete" as const, kind: "success", items: [folderItems[0]] });
       await act(async () => { await oldFolder.promise; });
       expect(result.current.list.items).not.toContainEqual(folderItems[0]);
     }
   );
 
   it("preserves cache-first folder semantics and forwards reload options", async () => {
-    const cached = { items: [folderItems[2]], cachedAt: "2026-07-01T00:00:00.000Z" };
+    const cached = { completeness: "complete" as const, items: [folderItems[2]], cachedAt: "2026-07-01T00:00:00.000Z" };
     const ports = createPorts({
       folderLoad: vi.fn<FolderPorts["loadFolder"]>(async () => ({ kind: "failure", error: new Error("refresh failed") }))
     });
@@ -343,7 +343,7 @@ describe("useBrowsingWorkspace contract", () => {
   it("retains an external error through path and account replacement until an explicit clear", async () => {
     const externalError = new Error("operation failed");
     const ports = createPorts({
-      folderLoad: vi.fn<FolderPorts["loadFolder"]>(async ({ path }) => ({
+      folderLoad: vi.fn<FolderPorts["loadFolder"]>(async ({ path }) => ({ completeness: "complete" as const,
         kind: "success",
         items: [{ path: `${path}/replacement.txt`, name: "replacement.txt", isFolder: false }]
       }))
@@ -381,7 +381,7 @@ describe("useBrowsingWorkspace contract", () => {
     const replacement = { ...workspaceInput, context: { ...workspaceInput.context, path: "Other" } };
     rerender({ value: replacement });
     expect(result.current.commands.reload).toBe(reload);
-    deferred.resolve({ kind: "success", items: folderItems });
+    deferred.resolve({ completeness: "complete" as const, kind: "success", items: folderItems });
     await act(async () => { await deferred.promise; });
     expect(setStatus.mock.calls.length).toBe(statusCallsAfterReport);
     unmount();
@@ -444,7 +444,7 @@ describe("useBrowsingWorkspace contract", () => {
       mode: { ...base.mode, folder: "online", search: "online" },
     }});
     await waitFor(() => expect(result.current.presentation.inlineBanner.kind).toBe("loading"));
-    deferred.resolve({ kind: "success", items: folderItems });
+    deferred.resolve({ completeness: "complete" as const, kind: "success", items: folderItems });
     await act(async () => { await deferred.promise; });
     expect(setStatus.mock.calls.length).toBe(statusCallsAfterReport);
   });

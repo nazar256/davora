@@ -51,7 +51,7 @@ const appIntegrationPaths = [...new Set(Object.values(appIntegrationOwners))];
 const contractIds = [
   "ACC-01", "ACC-02", "ACC-03", "ACC-04", "ACC-05", "ACC-06",
   "WS-01", "SORT-01", "SORT-02", "ACC-07", "ACC-08",
-  "NAV-01", "NAV-02", "NAV-03", "NAV-04", "NAV-05", "NAV-06",
+  "NAV-01", "NAV-02", "NAV-03", "NAV-04", "NAV-05", "NAV-06", "NAV-07",
   "BRW-01", "BRW-02", "BRW-03", "BRW-04", "BRW-05", "BRW-06", "BRW-07", "BRW-08", "BRW-09", "BRW-10", "BRW-11", "BRW-12",
   "MUT-01", "MUT-02", "MUT-03", "MUT-04", "MUT-05", "MUT-06", "MUT-07", "MUT-08", "MUT-09", "MUT-10", "MUT-11", "MUT-12",
   "MUT-13", "MUT-14",
@@ -85,6 +85,7 @@ const coverage: Record<ContractId, OwnerCitation> = {
   "NAV-04": owner("unit", "src/features/navigation/pullToRefresh/usePullToRefresh.test.tsx", "refreshes and clears after a full pull release"),
   "NAV-05": owner("unit", "src/features/navigation/useWorkspaceSurfaceCoordinator.test.ts", "combines all surfaces for pull-to-refresh reads"),
   "NAV-06": owner("integration", "src/features/folderShortcut/AppFolderShortcutIntegration.test.tsx", "suppresses the folder path and warns when the linked account is unavailable"),
+  "NAV-07": owner("unit", "src/features/navigation/workspace/useFolderScrollMemory.test.tsx", "restores each level when navigating back up through multiple folders"),
 
   "BRW-01": owner("unit", "src/features/browsing/workspace/AppBrowsingDisplayIntegration.test.tsx", "groups folders above files and sorts within each group by the active sort mode"),
   "BRW-02": owner("integration", "src/features/browsing/workspace/AppBrowsingDisplayIntegration.test.tsx", "uses breadcrumb home navigation without redundant all-files or up-level buttons"),

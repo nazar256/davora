@@ -105,6 +105,7 @@ export interface DestinationPickerState {
   manualPath: string;
   manualMode: boolean;
   entries: FileEntry[];
+  completeness?: "complete" | "partial";
   loading: boolean;
   reloadKey: number;
   error?: string;

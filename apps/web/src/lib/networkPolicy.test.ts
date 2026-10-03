@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  backendFetch,
+  withBackendResponse,
   BackendNetworkBlockedError,
   setBackendNetworkBlocked,
   setBackendRequestObserver,
@@ -25,7 +25,7 @@ describe("backend request observation", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("ok", { status: 200 })));
     const observations = collect();
 
-    await backendFetch("https://worker.example.com/api/files/list?path=/secret&token=zzz#frag");
+    await withBackendResponse("https://worker.example.com/api/files/list?path=/secret&token=zzz#frag", {}, async (response) => response.text());
 
     expect(observations).toHaveLength(1);
     expect(observations[0]).toMatchObject({
@@ -42,7 +42,7 @@ describe("backend request observation", () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("offline"); }));
     const observations = collect();
 
-    await expect(backendFetch("/api/health")).rejects.toThrow("offline");
+    await expect(withBackendResponse("/api/health", {}, async (response) => response.text())).rejects.toThrow("offline");
     expect(observations[0]?.result).toBe("network-error");
   });
 
@@ -54,7 +54,7 @@ describe("backend request observation", () => {
     const observations = collect();
 
     const controller = new AbortController();
-    const pending = backendFetch("/api/files", { signal: controller.signal });
+    const pending = withBackendResponse("/api/files", { signal: controller.signal }, async (response) => response.text());
     controller.abort();
     await expect(pending).rejects.toThrow();
 
@@ -67,7 +67,7 @@ describe("backend request observation", () => {
     const observations = collect();
     setBackendNetworkBlocked(true);
 
-    await expect(backendFetch("/api/files")).rejects.toBeInstanceOf(BackendNetworkBlockedError);
+    await expect(withBackendResponse("/api/files", {}, async (response) => response.text())).rejects.toBeInstanceOf(BackendNetworkBlockedError);
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(observations[0]?.result).toBe("blocked");
   });
@@ -76,7 +76,7 @@ describe("backend request observation", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("ok")));
     setBackendRequestObserver(() => { throw new Error("observer blew up"); });
 
-    await expect(backendFetch("/api/health")).resolves.toBeInstanceOf(Response);
+    await expect(withBackendResponse("/api/health", {}, async (response) => response.text())).resolves.toBe("ok");
   });
 
   it("emits nothing once the observer is removed", async () => {
@@ -84,7 +84,7 @@ describe("backend request observation", () => {
     const observations = collect();
     setBackendRequestObserver(null);
 
-    await backendFetch("/api/health");
+    await withBackendResponse("/api/health", {}, async (response) => response.text());
     expect(observations).toHaveLength(0);
   });
 });

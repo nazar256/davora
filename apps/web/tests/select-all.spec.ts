@@ -55,7 +55,7 @@ test("PER-91 desktop select-all stays flat, reports a partial state, and preserv
 
   await page.route("**/api/search?**", async (route) => route.fulfill({
     json: {
-      data: {
+      data: { completeness: "complete",
         query: "roadmap",
         path: "",
         items: [
@@ -103,7 +103,7 @@ test("PER-91 desktop select-all disables during search and in empty folders", as
 
   await page.route("**/api/search?**", async (route) => route.fulfill({
     json: {
-      data: {
+      data: { completeness: "complete",
         query: "roadmap",
         path: "",
         items: [
@@ -112,8 +112,8 @@ test("PER-91 desktop select-all disables during search and in empty folders", as
       }
     }
   }));
-  await page.route("**/api/files?path=Projects", async (route) => route.fulfill({
-    json: { data: { path: "Projects", items: [] } }
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => route.fulfill({
+    json: { data: { completeness: "complete", path: "Projects", items: [] } }
   }));
 
   await connectAccount(page, "Select all search workspace");

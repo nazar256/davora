@@ -19,7 +19,7 @@ export interface DestinationListingRequest {
 
 export type DestinationListingOutcome =
   | { readonly kind: "invalid-path-short-circuit" }
-  | { readonly kind: "success"; readonly entries: readonly FileEntry[] }
+  | { readonly kind: "success"; readonly entries: readonly FileEntry[]; readonly completeness: "complete" | "partial" }
   | { readonly kind: "error"; readonly message: string }
   | { readonly kind: "session-expired" }
   | { readonly kind: "reconnect-required" }
@@ -75,7 +75,7 @@ export async function executeDestinationListing(
       return { kind: "superseded" };
     }
     const nextEntries = Array.isArray(response.items) ? response.items : [];
-    return { kind: "success", entries: nextEntries };
+    return { kind: "success", entries: nextEntries, completeness: response.completeness };
   } catch (error) {
     if (!isStillCurrent()) {
       return { kind: "superseded" };

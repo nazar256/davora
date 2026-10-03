@@ -627,12 +627,12 @@ test("mobile delete confirmation does not require typing long non-Latin target n
   const longFileName = "Документи-and-a-very-long-delete-target-name-100%.txt";
   const longPath = `Projects/${longFileName}`;
   let deleteRequest: unknown;
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [
             {
@@ -679,12 +679,12 @@ test("PER-68 keeps compact copy and move controls reachable with long Unicode pa
   await page.setViewportSize({ width: 360, height: 640 });
   const longFileName = "Документи-and-a-very-long-copy-move-target-name-100%.txt";
   const longPath = `Projects/${longFileName}`;
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [
             { path: "Projects/Архів 100% довга назва", name: "Архів 100% довга назва", isFolder: true },
@@ -698,7 +698,7 @@ test("PER-68 keeps compact copy and move controls reachable with long Unicode pa
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ data: { path: "Projects/Архів 100% довга назва", items: [] } })
+      body: JSON.stringify({ data: { completeness: "complete", path: "Projects/Архів 100% довга назва", items: [] } })
     });
   });
 

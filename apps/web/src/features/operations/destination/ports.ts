@@ -1,7 +1,7 @@
 import type { FileEntry } from "@davora/shared";
 
 export interface DestinationListingPorts {
-  listFiles(path: string, token: string): Promise<{ items: FileEntry[] }>;
+  listFiles(path: string, token: string): Promise<{ completeness: "complete" | "partial"; items: FileEntry[] }>;
   isUnauthorized(error: unknown): boolean;
   isReconnectRequired(error: unknown): boolean;
 }

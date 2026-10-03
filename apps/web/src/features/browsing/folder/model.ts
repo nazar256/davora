@@ -1,6 +1,8 @@
 import type { FileEntry } from "@davora/shared";
 import { assertNever } from "@davora/shared";
 
+export type FolderCompleteness = "complete" | "partial" | "unknown";
+
 export interface FolderKey {
   readonly accountId: string;
   readonly cacheNamespace: string;
@@ -16,19 +18,19 @@ export interface FolderRequest {
 export type FolderState =
   | { readonly kind: "idle" }
   | { readonly kind: "initialLoading"; readonly request: FolderRequest }
-  | { readonly kind: "refreshing"; readonly request: FolderRequest; readonly items: FileEntry[]; readonly source: "cache"; readonly cachedAt?: string }
-  | { readonly kind: "ready"; readonly key: FolderKey; readonly contextToken: object; readonly items: FileEntry[]; readonly source: "live"; readonly message: "viewing" | "refreshed" | "silent" }
-  | { readonly kind: "stale"; readonly key: FolderKey; readonly contextToken: object; readonly items: FileEntry[]; readonly source: "cache"; readonly reason: "offline" | "server-unavailable" | "refresh-failed"; readonly cachedAt?: string }
+  | { readonly kind: "refreshing"; readonly request: FolderRequest; readonly items: FileEntry[]; readonly completeness: FolderCompleteness; readonly source: "cache"; readonly cachedAt?: string }
+  | { readonly kind: "ready"; readonly key: FolderKey; readonly contextToken: object; readonly items: FileEntry[]; readonly completeness: Exclude<FolderCompleteness, "unknown">; readonly source: "live"; readonly message: "viewing" | "refreshed" | "silent" }
+  | { readonly kind: "stale"; readonly key: FolderKey; readonly contextToken: object; readonly items: FileEntry[]; readonly completeness: FolderCompleteness; readonly source: "cache"; readonly reason: "offline" | "server-unavailable" | "refresh-failed"; readonly cachedAt?: string }
   | { readonly kind: "offline"; readonly key: FolderKey; readonly contextToken: object; readonly items: FileEntry[]; readonly source: "explicit-offline" }
   | { readonly kind: "failed"; readonly key: FolderKey; readonly contextToken: object; readonly error: Error; readonly reason: "live-failure" | "offline-cache-miss" | "server-cache-miss" };
 
 export type FolderEvent =
   | { readonly type: "reset" }
   | { readonly type: "request-started"; readonly request: FolderRequest }
-  | { readonly type: "cached-snapshot-shown"; readonly request: FolderRequest; readonly items: FileEntry[]; readonly cachedAt?: string; readonly mode: "online" | "offline" | "server-unavailable" }
+  | { readonly type: "cached-snapshot-shown"; readonly request: FolderRequest; readonly items: FileEntry[]; readonly completeness: FolderCompleteness; readonly cachedAt?: string; readonly mode: "online" | "offline" | "server-unavailable" }
   | { readonly type: "explicit-offline-snapshot-shown"; readonly request: FolderRequest; readonly items: FileEntry[] }
-  | { readonly type: "live-response-accepted"; readonly request: FolderRequest; readonly items: FileEntry[]; readonly message: "viewing" | "refreshed" | "silent" }
-  | { readonly type: "refresh-failed"; readonly request: FolderRequest; readonly items: FileEntry[] }
+  | { readonly type: "live-response-accepted"; readonly request: FolderRequest; readonly items: FileEntry[]; readonly completeness: Exclude<FolderCompleteness, "unknown">; readonly message: "viewing" | "refreshed" | "silent" }
+  | { readonly type: "refresh-failed"; readonly request: FolderRequest; readonly items: FileEntry[]; readonly completeness: FolderCompleteness }
   | { readonly type: "load-failed"; readonly request: FolderRequest; readonly error: Error; readonly reason: "live-failure" | "offline-cache-miss" | "server-cache-miss" }
   | { readonly type: "request-cancelled"; readonly request: FolderRequest };
 
@@ -65,6 +67,7 @@ export const folderReducer = (state: FolderState, event: FolderEvent): FolderSta
             kind: "refreshing",
             request: event.request,
             items: event.items,
+            completeness: event.completeness,
             source: "cache",
             ...(event.cachedAt ? { cachedAt: event.cachedAt } : {})
           }
@@ -73,6 +76,7 @@ export const folderReducer = (state: FolderState, event: FolderEvent): FolderSta
             key: event.request.key,
             contextToken: event.request.contextToken,
             items: event.items,
+            completeness: event.completeness,
             source: "cache",
             reason: event.mode,
             ...(event.cachedAt ? { cachedAt: event.cachedAt } : {})
@@ -83,7 +87,7 @@ export const folderReducer = (state: FolderState, event: FolderEvent): FolderSta
         : state;
     case "live-response-accepted":
       return accepts(state, event.request)
-        ? { kind: "ready", key: event.request.key, contextToken: event.request.contextToken, items: event.items, source: "live", message: event.message }
+        ? { kind: "ready", key: event.request.key, contextToken: event.request.contextToken, items: event.items, completeness: event.completeness, source: "live", message: event.message }
         : state;
     case "refresh-failed":
       return accepts(state, event.request)
@@ -92,6 +96,7 @@ export const folderReducer = (state: FolderState, event: FolderEvent): FolderSta
             key: event.request.key,
             contextToken: event.request.contextToken,
             items: event.items,
+            completeness: event.completeness,
             source: "cache",
             reason: "refresh-failed",
             ...(state.kind === "refreshing" && state.cachedAt ? { cachedAt: state.cachedAt } : {})

@@ -185,24 +185,24 @@ test("mobile Back closes search while retaining the folder path and selection", 
 });
 
 test("nested folder URL navigation and browser Back stay within the file manager", async ({ page }) => {
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [{ path: "Projects/Plans", name: "Plans", isFolder: true }]
         }
       })
     });
   });
-  await page.route("**/api/files?path=Projects%2FPlans", async (route) => {
+  await page.route("**/api/files?path=Projects%2FPlans&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects/Plans",
           items: [{ path: "Projects/Plans/roadmap.txt", name: "roadmap.txt", isFolder: false }]
         }
@@ -284,7 +284,7 @@ test("mobile keeps folder identity in a scrollable in-list breadcrumb row that f
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ data: { path, items } })
+      body: JSON.stringify({ data: { completeness: "complete", path, items } })
     });
   });
 
@@ -365,7 +365,7 @@ test("restores each folder's scroll position when navigating back through nested
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          data: {
+          data: { completeness: "complete",
             path,
             items: [
               ...padFolders("zzz-alpha/", "sub-"),

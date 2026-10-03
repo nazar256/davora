@@ -5,7 +5,7 @@ import { createFavouriteActionsPorts } from "./createFavouriteActionsPorts";
 describe("createFavouriteActionsPorts", () => {
   it("wires browser sources into favourite action ports", async () => {
     const input = {
-      listFiles: vi.fn(async () => ({ items: [] })),
+      listFiles: vi.fn(async () => ({ completeness: "complete" as const, items: [] })),
       cacheFolder: vi.fn(),
       toDisplayPath: vi.fn((path: string) => `/${path}`),
       closeNavigationChrome: vi.fn(),
@@ -18,7 +18,7 @@ describe("createFavouriteActionsPorts", () => {
     const entry = { path: "Projects", name: "Projects", isFolder: true };
 
     await ports.resolve.listFiles("", "session");
-    ports.resolve.cacheFolder("alpha-cache", "", [entry]);
+    ports.resolve.cacheFolder("alpha-cache", "", [entry], "complete");
     ports.resolve.toDisplayPath("Projects");
     ports.open.closeNavigationChrome();
     ports.open.navigateToPath("Projects");
@@ -27,7 +27,7 @@ describe("createFavouriteActionsPorts", () => {
     ports.surface.reportListError(new Error("broken"));
 
     expect(input.listFiles).toHaveBeenCalledWith("", "session");
-    expect(input.cacheFolder).toHaveBeenCalledWith("alpha-cache", "", [entry]);
+    expect(input.cacheFolder).toHaveBeenCalledWith("alpha-cache", "", [entry], "complete");
     expect(input.toDisplayPath).toHaveBeenCalledWith("Projects");
     expect(input.closeNavigationChrome).toHaveBeenCalled();
     expect(input.navigateToPath).toHaveBeenCalledWith("Projects");

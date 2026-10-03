@@ -49,13 +49,13 @@ type PortOverrides = {
 function createPorts(overrides: PortOverrides = {}) {
   const folder: FolderPorts = {
     createAbortHandle: () => new AbortController(),
-    loadFolder: overrides.folderLoad ?? vi.fn<FolderPorts["loadFolder"]>(async () => ({ kind: "success", items: folderItems })),
+    loadFolder: overrides.folderLoad ?? vi.fn<FolderPorts["loadFolder"]>(async () => ({ completeness: "complete" as const, kind: "success", items: folderItems })),
     readCachedFolder: vi.fn(() => undefined),
     writeCachedFolder: vi.fn()
   };
   const search: SearchPorts = {
     createAbortHandle: () => new AbortController(),
-    loadSearch: overrides.searchLoad ?? vi.fn<SearchPorts["loadSearch"]>(async () => ({ kind: "success", items: searchItems })),
+    loadSearch: overrides.searchLoad ?? vi.fn<SearchPorts["loadSearch"]>(async () => ({ completeness: "complete" as const, kind: "success", items: searchItems })),
     readCachedSearch: vi.fn(() => undefined),
     writeCachedSearch: vi.fn()
   };
@@ -150,7 +150,7 @@ describe("Browsing external list-error arbitration characterization", () => {
   it("retains the external error through account and path replacement until explicit clear", async () => {
     const externalError = new Error("operation failed");
     const ports = createPorts({
-      folderLoad: vi.fn<FolderPorts["loadFolder"]>(async ({ path }) => ({
+      folderLoad: vi.fn<FolderPorts["loadFolder"]>(async ({ path }) => ({ completeness: "complete" as const,
         kind: "success",
         items: [{ path: `${path}/replacement.txt`, name: "replacement.txt", isFolder: false }]
       }))
@@ -279,7 +279,7 @@ describe("Browsing external list-error arbitration characterization", () => {
           first = false;
           return oldOutcome;
         }
-        return Promise.resolve({ kind: "success", items: [{ path: `${path}/new.txt`, name: "new.txt", isFolder: false }] });
+        return Promise.resolve({ completeness: "complete" as const, kind: "success", items: [{ path: `${path}/new.txt`, name: "new.txt", isFolder: false }] });
       })
     });
     const initial = createInput(ports, { ports: { ...createInput(ports).ports, presentation: { setStatus } } });
@@ -289,7 +289,7 @@ describe("Browsing external list-error arbitration characterization", () => {
     const statusCallsAfterReport = setStatus.mock.calls.length;
     rerender({ value: { ...initial, context: { ...initial.context, path: "Other" } } });
     await waitFor(() => expect(result.current.list.items).toEqual([{ path: "Other/new.txt", name: "new.txt", isFolder: false }]));
-    resolveOld?.({ kind: "success", items: folderItems });
+    resolveOld?.({ completeness: "complete" as const, kind: "success", items: folderItems });
     await act(async () => { await oldOutcome; });
     expect(result.current.list.items).not.toContainEqual(folderItems[0]);
     expect(result.current.list.visibleError).toBe(externalError);

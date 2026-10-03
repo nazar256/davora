@@ -4,8 +4,6 @@
  * already redacted at record time; this module only assembles the archive.
  */
 
-import JSZip from "jszip";
-
 import {
   DIAGNOSTICS_SCHEMA_VERSION,
   eventCategories,
@@ -130,6 +128,7 @@ const buildReportMarkdown = (input: BugReportBundleInput): string => {
 export const buildBugReportBundle = async (
   input: BugReportBundleInput
 ): Promise<BugReportBundle> => {
+  const { default: JSZip } = await import("jszip");
   const zip = new JSZip();
   zip.file("report.md", buildReportMarkdown(input));
   zip.file("report.json", JSON.stringify({

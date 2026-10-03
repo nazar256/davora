@@ -161,12 +161,12 @@ test("quick actions stay hidden in explicit offline mode", async ({ page }, test
 test("quick actions keep the last file row reachable above the control", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chrome", "Quick actions are mobile-only.");
   const names = Array.from({ length: 30 }, (_, index) => `Row ${String(index + 1).padStart(2, "0")}`);
-  await page.route("**/api/files?path=", async (route) => {
+  await page.route("**/api/files?path=&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "",
           items: names.map((name) => ({
             path: name,

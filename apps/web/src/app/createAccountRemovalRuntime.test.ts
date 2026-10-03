@@ -5,6 +5,12 @@ import type { BrowsingCacheRepository } from "../features/browsing/cache";
 import type { FavouritesService } from "../features/browsing/favourites";
 import type { FolderSortService } from "../features/browsing/folderSort";
 import type { RetentionRepository } from "../features/offline/retention";
+import { createBrowserExplicitOfflineModeStorage } from "../platform/storage/browserExplicitOfflineModeStorage";
+import type { ExplicitOfflineModeStorage } from "../platform/storage/browserExplicitOfflineModeStorage";
+import { createBrowserStringStorage } from "../platform/storage/browserStringStorage";
+import { createBrowserAccountPlaybackCleanup } from "../platform/storage/browserAccountPlaybackCleanup";
+import { audioPreviewPositionStorageKey } from "../lib/audioResume";
+import { folderAudioStorageKey } from "../features/preview/folderAudio";
 import { createAccountRemovalRuntime } from "./createAccountRemovalRuntime";
 import { createBrowserAppServices } from "./createBrowserAppServices";
 
@@ -21,6 +27,8 @@ function dependencies(overrides: {
   readonly cache?: Pick<BrowsingCacheRepository, "clearNamespaceOrThrow">;
   readonly favourites?: Pick<FavouritesService, "clear">;
   readonly folderSorts?: Pick<FolderSortService, "clearNamespace">;
+  readonly explicitOfflineMode?: Pick<ExplicitOfflineModeStorage, "commit">;
+  readonly playbackCleanup?: { purgeAccount(accountId: string, knownAccountIds: readonly string[]): void };
 } = {}) {
   return {
     accountTransport: overrides.transport ?? { deleteConnectedAccount: vi.fn(async () => undefined) },
@@ -38,7 +46,9 @@ function dependencies(overrides: {
     },
     browsingCache: overrides.cache ?? { clearNamespaceOrThrow: vi.fn() },
     favourites: overrides.favourites ?? { clear: vi.fn(() => ({ kind: "cleared" as const })) },
-    folderSorts: overrides.folderSorts ?? { clearNamespace: vi.fn(() => ({ kind: "cleared" as const, removedCount: 0 })) }
+    folderSorts: overrides.folderSorts ?? { clearNamespace: vi.fn(() => ({ kind: "cleared" as const, removedCount: 0 })) },
+    explicitOfflineMode: overrides.explicitOfflineMode ?? { commit: vi.fn(() => ({ kind: "committed" as const })) },
+    playbackCleanup: overrides.playbackCleanup ?? { purgeAccount: vi.fn() }
   };
 }
 
@@ -82,9 +92,48 @@ describe("createAccountRemovalRuntime", () => {
     expect(deps.browsingCache.clearNamespaceOrThrow).toHaveBeenCalledWith(alpha.cacheNamespace);
     expect(deps.favourites.clear).toHaveBeenCalledWith(alpha.id);
     expect(deps.folderSorts.clearNamespace).toHaveBeenCalledWith(alpha.cacheNamespace);
+    expect(deps.explicitOfflineMode.commit).toHaveBeenCalledWith(alpha.id, false);
+    expect(deps.playbackCleanup.purgeAccount).toHaveBeenCalledWith(alpha.id, [alpha.id, beta.id]);
     expect(deps.browsingCache.clearNamespaceOrThrow).not.toHaveBeenCalledWith(beta.cacheNamespace);
     expect(deps.favourites.clear).not.toHaveBeenCalledWith(beta.id);
     expect(deps.folderSorts.clearNamespace).not.toHaveBeenCalledWith(beta.cacheNamespace);
+  });
+
+  it("purges the composed account-owned stores while preserving another account and unrelated values", async () => {
+    const values = new Map<string, string>([
+      ["davora-explicit-offline-accounts", JSON.stringify([alpha.id, beta.id])],
+      [folderAudioStorageKey(alpha.id, "Projects"), "not-json"],
+      [folderAudioStorageKey(alpha.id, "Archive/Audio"), JSON.stringify({ accountId: alpha.id })],
+      [folderAudioStorageKey(beta.id, "Projects"), JSON.stringify({ accountId: beta.id })],
+      [audioPreviewPositionStorageKey({ accountId: alpha.id, path: "Projects/track.m4a" }), "17"],
+      [audioPreviewPositionStorageKey({ accountId: beta.id, path: "Projects/track.m4a" }), "23"],
+      ["davora-unrelated", "preserve-me"]
+    ]);
+    const storage = createBrowserStringStorage(() => ({
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => { values.set(key, value); },
+      removeItem: (key) => { values.delete(key); },
+      get length() { return values.size; },
+      key: (index) => [...values.keys()][index] ?? null
+    }));
+    const deps = dependencies({
+      explicitOfflineMode: createBrowserExplicitOfflineModeStorage(storage),
+      playbackCleanup: createBrowserAccountPlaybackCleanup({
+        storage,
+        folderAudioKeyPrefix: (accountId) => folderAudioStorageKey(accountId, ""),
+        audioResumeKeyPrefix: (accountId) => audioPreviewPositionStorageKey({ accountId, path: "" })
+      })
+    });
+    const runtime = createAccountRemovalRuntime(deps);
+
+    await runtime.purgeLocalAccountData(alpha, knownAccounts);
+
+    expect(values).toEqual(new Map([
+      ["davora-explicit-offline-accounts", JSON.stringify([beta.id])],
+      [folderAudioStorageKey(beta.id, "Projects"), JSON.stringify({ accountId: beta.id })],
+      [audioPreviewPositionStorageKey({ accountId: beta.id, path: "Projects/track.m4a" }), "23"],
+      ["davora-unrelated", "preserve-me"]
+    ]));
   });
 
   it.each([
@@ -92,7 +141,9 @@ describe("createAccountRemovalRuntime", () => {
     ["retention", () => dependencies({ retention: { purgeAccountNamespace: vi.fn(async () => { throw new Error("retention-secret"); }) } }), "Account browser data cleanup failed."],
     ["cache", () => dependencies({ cache: { clearNamespaceOrThrow: vi.fn(() => { throw new Error("cache-secret"); }) } }), "Account browser data cleanup failed."],
     ["favourites", () => dependencies({ favourites: { clear: vi.fn(() => ({ kind: "clear-failed" as const, error: new Error("favourites-secret") })) } }), "Account browser data cleanup failed."],
-    ["folderSorts", () => dependencies({ folderSorts: { clearNamespace: vi.fn(() => ({ kind: "clear-failed" as const, error: new Error("folder-sort-secret") })) } }), "Account browser data cleanup failed."]
+    ["folderSorts", () => dependencies({ folderSorts: { clearNamespace: vi.fn(() => ({ kind: "clear-failed" as const, error: new Error("folder-sort-secret") })) } }), "Account browser data cleanup failed."],
+    ["offline", () => dependencies({ explicitOfflineMode: { commit: vi.fn(() => ({ kind: "failed" as const, error: new Error("offline-secret") })) } }), "Account browser data cleanup failed."],
+    ["playback", () => dependencies({ playbackCleanup: { purgeAccount: vi.fn(() => { throw new Error("playback-secret"); }) } }), "Account browser data cleanup failed."]
   ])("redacts %s failures", async (_name, makeDependencies, expected) => {
     const runtime = createAccountRemovalRuntime(makeDependencies());
     const operation = _name === "transport"

@@ -13,7 +13,8 @@ type AccountSnapshot = ReturnType<AppServices["accountRegistry"]["getSnapshot"]>
 type FixtureFolderFile = { readonly path: string; readonly name: string; readonly isFolder: boolean; readonly size?: number; readonly mimeType?: string };
 type FixtureSearchFile = FixtureFolderFile & { readonly score: number };
 type FixtureListResponse = { readonly path: string; readonly items: FixtureFolderFile[] };
-type FixtureSearchResponse = { readonly query: string; readonly path: string; readonly items: FixtureSearchFile[] };
+type FixtureSearchResponse = {
+  completeness: "complete" | "partial"; readonly query: string; readonly path: string; readonly items: FixtureSearchFile[] };
 type MutationResult = Awaited<ReturnType<AppServices["operationRuntime"]["mutation"]["deleteFile"]>>;
 type FixtureSession = Awaited<ReturnType<AppServices["accountTransport"]["createSession"]>>;
 
@@ -80,7 +81,7 @@ function createSelectionFixture(): AppServices {
     createAbortHandle: abortHandle,
     loadFolder: async ({ path, token, signal }) => {
       const response = await mockedApi.listFiles(path, token, signal);
-      return { kind: "success", items: response.items };
+      return { completeness: "complete" as const, kind: "success", items: response.items };
     },
     readCachedFolder: () => undefined, writeCachedFolder: () => undefined
   };
@@ -88,7 +89,7 @@ function createSelectionFixture(): AppServices {
     createAbortHandle: abortHandle,
     loadSearch: async ({ path, query, token, signal }) => {
       const response = await mockedApi.searchFiles(path, query, token, signal);
-      return { kind: "success", items: response.items };
+      return { completeness: "complete" as const, kind: "success", items: response.items };
     },
     readCachedSearch: () => undefined, writeCachedSearch: () => undefined
   };
@@ -124,9 +125,9 @@ function createSelectionFixture(): AppServices {
       },
       uploadFile: async () => ({ action: "upload", parentPath: "", path: "" }),
       copyOrMove: async () => ({ action: "copy", parentPath: "", path: "" }),
-      listDestination: async () => ({ path: "", items: [] })
+      listDestination: async () => ({ completeness: "complete" as const, path: "", items: [] })
     },
-    download: { prepareDownloadFile: async () => ({ blob: new Blob(), filename: "fixture" }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "fixture" }), listFiles: async () => ({ path: "", items: [] }), triggerBrowserDownload: () => undefined, saveDownload: () => undefined },
+    download: { prepareDownloadFile: async () => ({ blob: new Blob(), filename: "fixture" }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "fixture" }), listFiles: async () => ({ completeness: "complete" as const, path: "", items: [] }), triggerBrowserDownload: () => undefined, saveDownload: () => undefined },
     batch: { downloadSelectionAsZip: async () => ({ blob: new Blob(), plan: { archiveName: "fixture", selectedCount: 0, selectedFileCount: 0, selectedDirectoryCount: 0, directories: [], files: [], failedFiles: [] } }) },
     preview: { createFileStreamUrl: async () => "" }, time: { wait: async () => {} }, uploadFiles: { prepare: async () => ({ kind: "prepared", contentBase64: "" }) },
     isUnauthorized: (error) => error instanceof ApiRequestError && error.status === 401,
@@ -148,7 +149,7 @@ function createSelectionFixture(): AppServices {
   };
   const services = {
     accountRegistry, accountTransport, accountSession, browsingCache,
-    favouriteResolveRuntime: { listFiles: async () => ({ items: [] }), cacheFolder: () => undefined }, connectivity: { read: () => onlineSnapshot, subscribe: () => () => undefined },
+    favouriteResolveRuntime: { listFiles: async () => ({ completeness: "complete" as const, items: [] }), cacheFolder: () => undefined }, connectivity: { read: () => onlineSnapshot, subscribe: () => () => undefined },
     explicitOfflineRuntime: { storage: { read: () => ({ kind: "ready" as const, enabled: false }), commit: () => ({ kind: "committed" as const }), reset: () => ({ kind: "committed" as const }), repair: () => ({ kind: "repaired" as const }) }, network: { setBlocked: () => undefined } }, clock: { nowIso: () => "2026-01-01T00:00:00.000Z" },
     favourites: { load: () => ({ kind: "loaded" as const, entries: [] }), save: (_account, entries) => ({ kind: "saved" as const, entries: [...entries] }), clear: () => ({ kind: "cleared" as const }), create: (entry, account) => ({ ...entry, accountId: account.id, accountBackend: account.backend, accountRootPath: account.rootPath, cacheNamespace: account.cacheNamespace, addedAt: "2026-01-01T00:00:00.000Z" }) },
     favouritesPointerEnvironment: { elementFromPoint: () => null, addWindowListener: () => () => undefined }, folder,
@@ -156,7 +157,7 @@ function createSelectionFixture(): AppServices {
     history: { pushState: (state: unknown, url?: string): void => { window.history.pushState(state, "", url); }, replaceState: (state: unknown, url?: string): void => { window.history.replaceState(state, "", url); }, getState: (): unknown => window.history.state, getLocation: (): { readonly href: string; readonly search: string } => ({ href: window.location.href, search: window.location.search }), subscribe: (listener: (state: unknown) => void): (() => void) => { const handler = () => { listener(window.history.state); }; window.addEventListener("popstate", handler); return () => { window.removeEventListener("popstate", handler); }; } },
     pullToRefreshEnvironment: { getWindowScrollY: () => 0 }, responsiveViewport: { getSnapshot: () => matchMediaMatches ? narrowViewport : wideViewport, subscribe: () => () => undefined }, search,
     settings: { load: () => ({ themeMode: "system" as const, showHiddenFiles: false, sortMode: "name-asc" as const, keepAwakeEnabled: true, previewFreshnessIntervalSeconds: 300, imagePreviewPrefetchCount: 1 as const, maxCacheableFileSizeBytes: 1, fileSizeDisplayMode: "human" as const, imagePreviewFitMode: "fill" as const, experimentalHeicPreviewEnabled: false, experimentalFolderAppShortcutsEnabled: false, diagnosticsEnabled: false, videoMuted: false }), save: (settings) => settings },
-    operationRuntime, offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "selection-sync", listFiles: async () => ({ path: "", items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "fixture" }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback },
+    operationRuntime, offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "selection-sync", listFiles: async () => ({ completeness: "complete" as const, path: "", items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "fixture" }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback },
     retentionRepository, previewRuntime, accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
   } satisfies AppServices;
   return services;
@@ -177,8 +178,8 @@ beforeEach(() => {
   matchMediaMatches = false;
   Object.defineProperty(window.navigator, "onLine", { value: true, configurable: true });
   Object.defineProperty(window, "matchMedia", { configurable: true, value: (query: string) => ({ matches: matchMediaMatches, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }) });
-  mockedApi.listFiles.mockImplementation(async (path: string) => path === "Projects" ? { path, items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] } : { path, items: [{ path: "Projects", name: "Projects", isFolder: true }, { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] });
-  mockedApi.searchFiles.mockResolvedValue({ query: "", path: "", items: [] });
+  mockedApi.listFiles.mockImplementation(async (path: string) => path === "Projects" ? { completeness: "complete" as const, path, items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] } : { completeness: "complete" as const, path, items: [{ path: "Projects", name: "Projects", isFolder: true }, { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] });
+  mockedApi.searchFiles.mockResolvedValue({ completeness: "complete", query: "", path: "", items: [] });
   mockedApi.getFile.mockResolvedValue({ file: { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain", content: "preview" } });
   mockedApi.deleteFile.mockResolvedValue({ result: { action: "delete", parentPath: "", path: "Projects/roadmap.txt" } });
   mockedApi.createSession.mockImplementation(async ({ accountId }: { accountId: string }) => buildSession(buildAccount(accountId)));
@@ -193,12 +194,12 @@ describe("selection lifecycle App integration", () => {
     const account = buildAccount("alpha", { displayName: "Search focus workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     mockedApi.searchFiles
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce({ completeness: "complete",
         query: "old",
         path: "",
         items: [{ path: "old.txt", name: "old.txt", isFolder: false, score: 1 }]
       })
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce({ completeness: "complete",
         query: "new",
         path: "",
         items: [{ path: "new.txt", name: "new.txt", isFolder: false, score: 1 }]

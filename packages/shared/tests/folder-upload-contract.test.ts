@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import fc from "fast-check";
 
 import {
   assertCreateFolderResponseIdentity,
@@ -29,6 +30,12 @@ const uploadPayload = {
     }
   }
 };
+
+const legacyCanonicalBase64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+
+function parseUploadContent(contentBase64: string) {
+  return uploadEndpoint.requestSchema.safeParse({ ...uploadRequest, contentBase64 });
+}
 
 describe("create-folder endpoint contract", () => {
   it("accepts root-parent requests and identity-matched strict responses", () => {
@@ -93,5 +100,50 @@ describe("upload endpoint contract", () => {
     { ...uploadPayload.data, result: { ...uploadPayload.data.result, item: { ...uploadPayload.data.result.item, name: "b.txt" } } }
   ])("rejects mismatched upload response identity", (response) => {
     expect(() => assertUploadResponseIdentity(uploadRequest, response)).toThrow();
+  });
+
+  it("accepts a 4 MiB upload without throwing during validation", () => {
+    const contentBase64 = Buffer.alloc(4 * 1024 * 1024, 0x61).toString("base64");
+
+    expect(() => parseUploadContent(contentBase64)).not.toThrow();
+    expect(parseUploadContent(contentBase64).success).toBe(true);
+  });
+
+  it.each([
+    ["invalid tail", (contentBase64: string) => `${contentBase64.slice(0, -1)}!`],
+    ["invalid padding", (contentBase64: string) => `${contentBase64.slice(0, -2)}=A`]
+  ])("rejects a same-size %s without throwing during validation", (_label, mutate) => {
+    const validContentBase64 = Buffer.alloc(4 * 1024 * 1024, 0x61).toString("base64");
+    const contentBase64 = mutate(validContentBase64);
+
+    expect(() => parseUploadContent(contentBase64)).not.toThrow();
+    expect(parseUploadContent(contentBase64).success).toBe(false);
+  });
+
+  it.each([
+    "",
+    "A",
+    "AA",
+    "AAA",
+    "AAAA",
+    "AA==",
+    "AAA=",
+    "YR==",
+    "ABCD",
+    "AAAAA",
+    "A===",
+    "AA=A",
+    "AAAA\n",
+    "YW-J",
+    "YW_J",
+    "éAAA"
+  ])("preserves short-input compatibility for %j", (contentBase64) => {
+    expect(parseUploadContent(contentBase64).success).toBe(legacyCanonicalBase64.test(contentBase64));
+  });
+
+  it("matches the legacy validator across bounded generated short inputs", () => {
+    fc.assert(fc.property(fc.string({ maxLength: 24 }), (contentBase64) => {
+      expect(parseUploadContent(contentBase64).success).toBe(legacyCanonicalBase64.test(contentBase64));
+    }));
   });
 });

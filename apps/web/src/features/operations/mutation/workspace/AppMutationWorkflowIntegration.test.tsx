@@ -15,7 +15,7 @@ type FileEntry = Parameters<AppServices["favourites"]["create"]>[0];
 type Account = ReturnType<AppServices["accountRegistry"]["getState"]>["snapshot"]["accounts"][number]["account"];
 type Session = NonNullable<ReturnType<AppServices["accountRegistry"]["getState"]>["snapshot"]["accounts"][number]["session"]>;
 type MutationResult = Awaited<ReturnType<AppServices["operationRuntime"]["mutation"]["copyOrMove"]>>;
-type ListResponse = { path: string; items: FileEntry[] };
+type ListResponse = { completeness: "complete" | "partial"; path: string; items: FileEntry[] };
 
 const mutationApi = {
   listFiles: vi.fn<(path: string, token: string, signal?: AbortSignal) => Promise<ListResponse>>(),
@@ -116,7 +116,7 @@ function createMutationServices(): AppServices {
   const folder: AppServices["folder"] = {
     createAbortHandle: abortHandle,
     loadFolder: async ({ path, token, signal }) => {
-      try { return { kind: "success", items: (await listFiles(path, token, signal)).items }; }
+      try { return { completeness: "complete" as const, kind: "success", items: (await listFiles(path, token, signal)).items }; }
       catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return { kind: "cancelled" };
         if (error instanceof ApiRequestError && error.status === 401) return { kind: "unauthorized", error };
@@ -126,7 +126,7 @@ function createMutationServices(): AppServices {
     },
     readCachedFolder: () => undefined, writeCachedFolder: () => undefined
   };
-  const search: AppServices["search"] = { createAbortHandle: abortHandle, loadSearch: async () => ({ kind: "success", items: [] }), readCachedSearch: () => undefined, writeCachedSearch: () => undefined };
+  const search: AppServices["search"] = { createAbortHandle: abortHandle, loadSearch: async () => ({ completeness: "complete" as const, kind: "success", items: [] }), readCachedSearch: () => undefined, writeCachedSearch: () => undefined };
   const accountTransport: AppServices["accountTransport"] = {
     getHealth: async () => healthResponse,
     connectAccount: async () => ({ kind: "invalid-http-success" }),
@@ -163,7 +163,7 @@ function createMutationServices(): AppServices {
   };
   const services: AppServices = {
     accountRegistry, accountTransport, accountSession, browsingCache: cache,
-    favouriteResolveRuntime: { listFiles: async () => ({ items: [] }), cacheFolder: () => undefined },
+    favouriteResolveRuntime: { listFiles: async () => ({ completeness: "complete" as const, items: [] }), cacheFolder: () => undefined },
     connectivity: { read: () => ONLINE, subscribe: () => () => undefined },
     explicitOfflineRuntime: { storage: { read: () => ({ kind: "ready", enabled: false }), commit: () => ({ kind: "committed" }), reset: () => ({ kind: "committed" }), repair: () => ({ kind: "repaired" }) }, network: { setBlocked: () => undefined } },
     clock: { nowIso: () => "2026-01-01T00:00:00.000Z" },
@@ -173,7 +173,7 @@ function createMutationServices(): AppServices {
     history: { pushState: (state, url) => { window.history.pushState(state, "", url); }, replaceState: (state, url) => { window.history.replaceState(state, "", url); }, getState: () => window.history.state as unknown, getLocation: () => ({ href: window.location.href, search: window.location.search }), subscribe: (listener) => { const handler = () => listener(window.history.state); window.addEventListener("popstate", handler); return () => window.removeEventListener("popstate", handler); } },
     pullToRefreshEnvironment: { getWindowScrollY: () => window.scrollY }, responsiveViewport: { getSnapshot: () => WIDE_VIEWPORT, subscribe: () => () => undefined }, search,
     settings: { load: () => ({ themeMode: "system", showHiddenFiles: false, sortMode: "name-asc", keepAwakeEnabled: true, previewFreshnessIntervalSeconds: 300, imagePreviewPrefetchCount: 1 as const, maxCacheableFileSizeBytes: 24 * 1024 * 1024, fileSizeDisplayMode: "human", imagePreviewFitMode: "fill", experimentalHeicPreviewEnabled: false, experimentalFolderAppShortcutsEnabled: false, diagnosticsEnabled: false, videoMuted: false }), save: (settings) => settings },
-    operationRuntime, offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "mutation-sync", listFiles: async (path) => ({ path, items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "download.bin" }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
+    operationRuntime, offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "mutation-sync", listFiles: async (path) => ({ completeness: "complete" as const, path, items: [] }), fetchDownloadBlob: async () => ({ blob: new Blob(), filename: "download.bin" }), readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
     retentionRepository, previewRuntime, accountRemovalRuntime: { revokeRemoteAccount: async () => undefined, purgeLocalAccountData: async () => undefined }, diagnostics: createFakeDiagnosticsRuntimePorts()
   };
   return services;
@@ -201,7 +201,7 @@ beforeEach(() => {
   cleanup(); localStorage.clear(); window.history.replaceState(null, "", "/");
   Object.defineProperty(window.navigator, "onLine", { value: true, configurable: true });
   Object.defineProperty(window, "matchMedia", { configurable: true, value: (query: string) => ({ matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }) });
-  mutationApi.listFiles.mockImplementation(async (path) => path === "Projects" ? { path, items: [buildFileEntry("Projects/roadmap.txt", { name: "roadmap.txt", size: 70, mimeType: "text/plain" })] } : { path, items: [buildFileEntry("Projects", { name: "Projects", isFolder: true }), buildFileEntry("Projects/roadmap.txt", { name: "roadmap.txt", size: 70, mimeType: "text/plain" })] });
+  mutationApi.listFiles.mockImplementation(async (path) => path === "Projects" ? { completeness: "complete" as const, path, items: [buildFileEntry("Projects/roadmap.txt", { name: "roadmap.txt", size: 70, mimeType: "text/plain" })] } : { completeness: "complete" as const, path, items: [buildFileEntry("Projects", { name: "Projects", isFolder: true }), buildFileEntry("Projects/roadmap.txt", { name: "roadmap.txt", size: 70, mimeType: "text/plain" })] });
   mutationApi.copyFile.mockResolvedValue({ result: { action: "copy", parentPath: "", path: "Projects/roadmap.txt", destinationPath: "Projects/roadmap-copy.txt" } });
   mutationApi.moveFile.mockResolvedValue({ result: { action: "move", parentPath: "", path: "Projects/roadmap.txt", destinationPath: "Projects/renamed.txt" } });
   mutationApi.deleteFile.mockResolvedValue({ result: { action: "delete", parentPath: "", path: "Projects/roadmap.txt" } });
@@ -217,7 +217,7 @@ describe("mutation workflow App integration", () => {
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     mutationApi.listFiles.mockImplementation(async (path: string) => {
       if (path === "Projects") {
-        return {
+        return { completeness: "complete" as const,
           path,
           items: [
             { path: "Projects/Документи 100%", name: "Документи 100%", isFolder: true },
@@ -226,9 +226,9 @@ describe("mutation workflow App integration", () => {
         };
       }
       if (path === "Projects/Документи 100%") {
-        return { path, items: [] };
+        return { completeness: "complete" as const, path, items: [] };
       }
-      return {
+      return { completeness: "complete" as const,
         path,
         items: [{ path: "Projects", name: "Projects", isFolder: true }]
       };
@@ -272,7 +272,7 @@ describe("mutation workflow App integration", () => {
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     mutationApi.listFiles.mockImplementation(async (path: string) => {
       if (path === "Projects") {
-        return {
+        return { completeness: "complete" as const,
           path,
           items: [
             { path: "Projects/Archive 100%", name: "Archive 100%", isFolder: true },
@@ -281,9 +281,9 @@ describe("mutation workflow App integration", () => {
         };
       }
       if (path === "Projects/Archive 100%") {
-        return { path, items: [] };
+        return { completeness: "complete" as const, path, items: [] };
       }
-      return {
+      return { completeness: "complete" as const,
         path,
         items: [{ path: "Projects", name: "Projects", isFolder: true }]
       };
@@ -316,7 +316,7 @@ describe("mutation workflow App integration", () => {
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     mutationApi.listFiles.mockImplementation(async (path: string) => {
       if (path === "Projects") {
-        return {
+        return { completeness: "complete" as const,
           path,
           items: [
             { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" },
@@ -324,7 +324,7 @@ describe("mutation workflow App integration", () => {
           ]
         };
       }
-      return {
+      return { completeness: "complete" as const,
         path,
         items: [{ path: "Projects", name: "Projects", isFolder: true }]
       };
@@ -383,18 +383,18 @@ describe("mutation workflow App integration", () => {
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     mutationApi.listFiles.mockImplementation(async (path: string) => {
       if (path === "Projects") {
-        return {
+        return { completeness: "complete" as const,
           path,
           items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }]
         };
       }
       if (path === "Archive") {
-        return {
+        return { completeness: "complete" as const,
           path,
           items: [{ path: "Archive/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }]
         };
       }
-      return {
+      return { completeness: "complete" as const,
         path,
         items: [
           { path: "Projects", name: "Projects", isFolder: true },
@@ -455,18 +455,18 @@ describe("mutation workflow App integration", () => {
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     mutationApi.listFiles.mockImplementation(async (path: string) => {
       if (path === "Projects") {
-        return {
+        return { completeness: "complete" as const,
           path,
           items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }]
         };
       }
       if (path === "Archive") {
-        return {
+        return { completeness: "complete" as const,
           path,
           items: [{ path: "Archive/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 30, mimeType: "text/plain" }]
         };
       }
-      return {
+      return { completeness: "complete" as const,
         path,
         items: [
           { path: "Projects", name: "Projects", isFolder: true },
@@ -512,7 +512,7 @@ describe("mutation workflow App integration", () => {
     });
     mutationApi.listFiles.mockImplementation(async (path: string) => {
       if (path === "Docs") {
-        return {
+        return { completeness: "complete" as const,
           path,
           items: moved.has("Docs/a.txt")
             ? []
@@ -520,18 +520,18 @@ describe("mutation workflow App integration", () => {
         };
       }
       if (path === "Archive") {
-        return {
+        return { completeness: "complete" as const,
           path,
           items: [{ path: "Archive/Docs", name: "Docs", isFolder: true }]
         };
       }
       if (path === "Archive/Docs") {
-        return {
+        return { completeness: "complete" as const,
           path,
           items: [{ path: "Archive/Docs/b.txt", name: "b.txt", isFolder: false, size: 5, mimeType: "text/plain" }]
         };
       }
-      return {
+      return { completeness: "complete" as const,
         path,
         items: [
           { path: "Docs", name: "Docs", isFolder: true },
@@ -633,7 +633,7 @@ describe("mutation workflow App integration", () => {
       { account: alpha, session: buildSession(alpha) },
       { account: beta, session: buildSession(beta) }
     ], alpha.id);
-    mutationApi.listFiles.mockResolvedValue({
+    mutationApi.listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "",
       items: [
         { path: "Projects", name: "Projects", isFolder: true },
@@ -670,7 +670,7 @@ describe("mutation workflow App integration", () => {
   it("stops a batch delete on session expiry before issuing another request", async () => {
     const account = buildAccount("alpha", { displayName: "Expired delete workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mutationApi.listFiles.mockResolvedValue({
+    mutationApi.listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "",
       items: [
         { path: "Projects", name: "Projects", isFolder: true },
@@ -694,7 +694,7 @@ describe("mutation workflow App integration", () => {
   it("does not publish batch-delete success when its refresh terminates the session", async () => {
     const account = buildAccount("alpha", { displayName: "Refresh terminal delete workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mutationApi.listFiles.mockResolvedValue({
+    mutationApi.listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "",
       items: [
         { path: "Projects", name: "Projects", isFolder: true },
@@ -721,12 +721,12 @@ describe("mutation workflow App integration", () => {
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     mutationApi.listFiles.mockImplementation(async (path: string) => {
       if (path === "Archive") {
-        return {
+        return { completeness: "complete" as const,
           path,
           items: [{ path: "Archive/notes.txt", name: "notes.txt", isFolder: false, size: 10, mimeType: "text/plain" }]
         };
       }
-      return {
+      return { completeness: "complete" as const,
         path,
         items: [
           { path: "Archive", name: "Archive", isFolder: true },
@@ -771,12 +771,12 @@ describe("mutation workflow App integration", () => {
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     mutationApi.listFiles.mockImplementation(async (path: string) => {
       if (path === "Projects") {
-        return { path, items: [] };
+        return { completeness: "complete" as const, path, items: [] };
       }
       if (path === "Archive") {
-        return { path, items: [] };
+        return { completeness: "complete" as const, path, items: [] };
       }
-      return {
+      return { completeness: "complete" as const,
         path,
         items: [
           { path: "Archive", name: "Archive", isFolder: true },
@@ -826,9 +826,9 @@ describe("mutation workflow App integration", () => {
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     mutationApi.listFiles.mockImplementation(async (path: string) => {
       if (path === "Archive") {
-        return { path, items: [] };
+        return { completeness: "complete" as const, path, items: [] };
       }
-      return {
+      return { completeness: "complete" as const,
         path,
         items: [
           { path: "Archive", name: "Archive", isFolder: true },
@@ -866,9 +866,9 @@ describe("mutation workflow App integration", () => {
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     mutationApi.listFiles.mockImplementation(async (path: string) => {
       if (path === "Archive") {
-        return { path, items: [] };
+        return { completeness: "complete" as const, path, items: [] };
       }
-      return {
+      return { completeness: "complete" as const,
         path,
         items: [
           { path: "Archive", name: "Archive", isFolder: true },
@@ -906,8 +906,8 @@ describe("mutation workflow App integration", () => {
       { account: beta, session: buildSession(beta) }
     ], alpha.id);
     mutationApi.listFiles.mockImplementation(async (path: string) => path === "Archive"
-      ? { path, items: [] }
-      : { path, items: [
+      ? { completeness: "complete" as const, path, items: [] }
+      : { completeness: "complete" as const, path, items: [
         { path: "Archive", name: "Archive", isFolder: true },
         { path: "Projects", name: "Projects", isFolder: true },
         { path: "notes.txt", name: "notes.txt", isFolder: false, size: 20, mimeType: "text/plain" }
@@ -948,15 +948,15 @@ describe("mutation workflow App integration", () => {
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     mutationApi.listFiles.mockImplementation(async (path: string) => {
       if (path === "Projects/Sub") {
-        return { path, items: [] };
+        return { completeness: "complete" as const, path, items: [] };
       }
       if (path === "Archive") {
-        return {
+        return { completeness: "complete" as const,
           path,
           items: [{ path: "Archive/notes.txt", name: "notes.txt", isFolder: false, size: 10, mimeType: "text/plain" }]
         };
       }
-      return {
+      return { completeness: "complete" as const,
         path,
         items: [
           { path: "Archive", name: "Archive", isFolder: true },
@@ -1006,13 +1006,13 @@ describe("mutation workflow App integration", () => {
     let rootLoadCount = 0;
     mutationApi.listFiles.mockImplementation(async (path: string) => {
       if (path === "Archive") {
-        return { path, items: [] };
+        return { completeness: "complete" as const, path, items: [] };
       }
       rootLoadCount += 1;
       if (rootLoadCount === 3) {
         throw new ApiRequestError("Session expired", 401, "session_invalid");
       }
-      return {
+      return { completeness: "complete" as const,
         path,
         items: [
           { path: "Archive", name: "Archive", isFolder: true },

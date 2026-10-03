@@ -13,7 +13,7 @@ describe("App operations integration", () => {
     const targetName = "Документи-and-a-very-long-delete-target-name-100%.txt";
     const targetPath = `Projects/${targetName}`;
     seedAccounts([{ account, session: buildSession(account) }], account.id);
-    mockedApi.listFiles.mockResolvedValue({
+    mockedApi.listFiles.mockResolvedValue({ completeness: "complete",
       path: "",
       items: [{ path: targetPath, name: targetName, isFolder: false, size: 70, mimeType: "text/plain" }]
     });

@@ -82,7 +82,7 @@ export function updateDestinationPickerFolder(
           folderPath,
           previous.nameEdited ? previous.name : previous.sourceEntries[0]?.name ?? previous.name
         ),
-    entries: [],
+    entries: [], completeness: undefined,
     loading: true,
     reloadKey: previous.reloadKey + 1,
     error: undefined,
@@ -126,7 +126,7 @@ export function updateDestinationPickerManualPath(
   return {
     ...previous,
     manualPath,
-    ...(previous.manualMode ? { entries: [], loading: true, error: undefined } : {}),
+    ...(previous.manualMode ? { entries: [], completeness: undefined, loading: true, error: undefined } : {}),
     conflictReview: undefined
   };
 }
@@ -136,7 +136,7 @@ export function reloadDestinationPickerFolder(
 ): DestinationPickerState {
   return {
     ...previous,
-    entries: [],
+    entries: [], completeness: undefined,
     loading: true,
     error: undefined,
     reloadKey: previous.reloadKey + 1,
@@ -146,7 +146,8 @@ export function reloadDestinationPickerFolder(
 
 export function applyDestinationListingSuccess(
   previous: DestinationPickerState,
-  nextEntries: readonly FileEntry[]
+  nextEntries: readonly FileEntry[],
+  completeness: "complete" | "partial"
 ): DestinationPickerState {
   const sourceEntry = previous.sourceEntries[0];
   const shouldSuggestName = !previous.batch
@@ -163,6 +164,7 @@ export function applyDestinationListingSuccess(
     : previous.name;
   return {
     ...previous,
+    completeness,
     entries: [...nextEntries],
     name: suggestedName,
     manualPath: shouldSuggestName && !previous.manualMode

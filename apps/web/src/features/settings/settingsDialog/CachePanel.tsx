@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { Check, CircleMinus, Info, RotateCw, Trash2, TriangleAlert } from "lucide-react";
+import { useStorageEstimate, type EstimateStorage } from "./useStorageEstimate";
 
 import { formatFileSize, getFileSizeDisplayModeLabel, type FileSizeDisplayMode } from "../../../lib/fileSize";
 import {
@@ -82,9 +84,17 @@ export interface CachePanelProps {
     name: string;
     kind: "file" | "folder" | "batch";
     fileCount: number;
+    readableFileCount: number;
+    readiness: "available" | "incomplete" | "missing" | "empty";
+    recoverable: boolean;
     totalBytes: number;
     addedAt?: string;
   }>;
+  retainedBytes?: number;
+  storageScope?: string;
+  estimateStorage?: EstimateStorage;
+  retryDisabled?: boolean;
+  onRetryOfflineItem?: (rootId: string) => void;
   onClear: () => void;
   onRemoveOfflineItem: (rootId: string) => void;
   onLimitChange: (limitBytes: number) => void;
@@ -93,7 +103,39 @@ export interface CachePanelProps {
   onImagePreviewPrefetchCountChange: (count: ImagePreviewPrefetchCount) => void;
 }
 
+type OfflineItem = CachePanelProps["offlineItems"][number];
+
+function savedFileCount(item: OfflineItem): string {
+  if (item.readiness === "incomplete") {
+    return `${item.readableFileCount} saved ${item.readableFileCount === 1 ? "file" : "files"}`;
+  }
+  if (item.readiness === "missing") return `${item.readableFileCount} of ${item.fileCount} files`;
+  return `${item.fileCount} ${item.fileCount === 1 ? "file" : "files"}`;
+}
+
+function OfflineReadinessIndicator({ item }: { readonly item: OfflineItem }) {
+  if (item.readiness === "available") return <Check aria-label="Saved offline" />;
+  if (item.readiness === "empty") return <CircleMinus aria-label="No files saved" />;
+  return (
+    <details className="offline-readiness-disclosure">
+      <summary
+        role="button"
+        aria-label={item.readiness === "incomplete" ? "Incomplete" : "Missing files"}
+        className="icon-button quiet-button"
+      >
+        <TriangleAlert aria-hidden="true" />
+      </summary>
+      <p className="status">
+        {item.readiness === "incomplete" ? "This selection is not fully saved." : "Some saved files are unavailable."}
+        {!item.recoverable ? " Select the items again to save them offline." : ""}
+      </p>
+    </details>
+  );
+}
+
 export function CachePanel(props: CachePanelProps) {
+  const [storageDisclosure, setStorageDisclosure] = useState({ open: false, visit: 0 });
+  const estimate = useStorageEstimate(storageDisclosure.open, JSON.stringify([storageDisclosure.visit, props.storageScope, props.totalBytes, props.retainedBytes, props.limitBytes]), props.estimateStorage);
   const itemLabel = props.itemCount === 1 ? "cached file" : "cached files";
   const [manualLimitMb, setManualLimitMb] = useState(() => String(bytesToMegabytes(props.limitBytes)));
   const [manualMaxCacheableMb, setManualMaxCacheableMb] = useState(() => String(bytesToMegabytesRounded(props.maxCacheableFileSizeBytes)));
@@ -171,9 +213,21 @@ export function CachePanel(props: CachePanelProps) {
         </div>
         <button onClick={props.onClear} type="button">Clear cache</button>
       </div>
-      <p className="cache-summary">
+      <div className="cache-summary-row"><p className="cache-summary">
         <strong>{props.itemCount}</strong> {itemLabel} • {formatFileSize(props.totalBytes, props.fileSizeDisplayMode)} used
       </p>
+      <details className="storage-disclosure" onToggle={(event) => {
+        const open = event.currentTarget.open;
+        setStorageDisclosure((previous) => previous.open === open ? previous : { open, visit: previous.visit + Number(open) });
+      }}>
+        <summary role="button" aria-label="Storage details" className="icon-button quiet-button"><Info aria-hidden="true" /></summary>
+        <div className="storage-explanation status">
+          <p>This account</p>
+          <p>Evictable cache: {formatFileSize(props.totalBytes, props.fileSizeDisplayMode)} / {formatFileSize(props.limitBytes, props.fileSizeDisplayMode)} limit</p>
+          <p>Retained originals: {formatFileSize(props.retainedBytes ?? 0, props.fileSizeDisplayMode)} · outside the cache limit</p>
+          {estimate ? <><p>This browser: approximately {formatFileSize(estimate.usage, props.fileSizeDisplayMode)} / {formatFileSize(estimate.quota, props.fileSizeDisplayMode)}</p><p>All accounts and app storage for this site.</p></> : null}
+        </div>
+      </details></div>
       <p className="status">Opened files stay available until the cache is cleared or older entries are evicted.</p>
       <div className="offline-files-management">
         <div className="panel-header compact-panel-header">
@@ -188,11 +242,33 @@ export function CachePanel(props: CachePanelProps) {
             {props.offlineItems.map((item) => (
               <li key={item.rootId} className="offline-files-item">
                 <div>
-                  <strong>{item.name}</strong>
-                  <p className="status">{item.kind === "folder" ? "Recursive folder" : item.kind === "batch" ? "Batch selection" : "File"} • {item.fileCount} {item.fileCount === 1 ? "file" : "files"} • {formatFileSize(item.totalBytes, props.fileSizeDisplayMode)}</p>
-                  <p className="status">{item.rootPath}</p>
+                  <div className="offline-item-heading">
+                    <strong>{item.name}</strong>
+                    <OfflineReadinessIndicator item={item} />
+                  </div>
+                  <p className="status">
+                    {item.kind === "folder" ? "Recursive folder" : item.kind === "batch" ? "Batch selection" : "File"}
+                    {` • ${savedFileCount(item)} • ${formatFileSize(item.totalBytes, props.fileSizeDisplayMode)}`}
+                  </p>
+                  {item.kind !== "batch" ? <p className="status">{item.rootPath}</p> : null}
                 </div>
-                <button aria-label={`Remove offline copy for ${item.name} from this device`} className="quiet-button" onClick={() => props.onRemoveOfflineItem(item.rootId)} type="button">Remove from this device</button>
+                <div className="offline-item-actions">
+                  {(item.readiness === "incomplete" || item.readiness === "missing") && item.recoverable ? (
+                    <button
+                      aria-label={`Retry offline copy for ${item.name}`}
+                      className="icon-button quiet-button"
+                      disabled={props.retryDisabled || !props.onRetryOfflineItem}
+                      onClick={() => props.onRetryOfflineItem?.(item.rootId)}
+                      type="button"
+                    ><RotateCw aria-hidden="true" /></button>
+                  ) : null}
+                  <button
+                    aria-label={`Remove offline copy for ${item.name} from this device`}
+                    className="icon-button quiet-button"
+                    onClick={() => props.onRemoveOfflineItem(item.rootId)}
+                    type="button"
+                  ><Trash2 aria-hidden="true" /></button>
+                </div>
               </li>
             ))}
           </ul>

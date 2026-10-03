@@ -19,20 +19,20 @@ describe("browser search ports", () => {
 
   it("passes raw query and abort signal through while preserving live order", async () => {
     const items = [item("Docs/z.txt", 2), item("Docs/a.txt", 1)];
-    searchFiles.mockResolvedValue({ path: "Docs", query: " Raw ", items });
+    searchFiles.mockResolvedValue({ completeness: "partial", path: "Docs", query: " Raw ", items });
     const controller = new AbortController();
     const ports = createBrowserSearchPorts(cache, { searchFiles });
     await expect(ports.loadSearch({ path: "Docs", query: " Raw ", token: "token", signal: controller.signal }))
-      .resolves.toEqual({ kind: "success", items });
+      .resolves.toEqual({ kind: "success", items, completeness: "partial" });
     expect(searchFiles).toHaveBeenCalledWith("Docs", " Raw ", "token", controller.signal);
   });
 
   it.each([
-    { path: "Other", query: "x", items: [item("Other/a.txt")] },
-    { path: "Docs", query: "other", items: [item("Docs/a.txt")] },
-    { path: "Docs", query: "x", items: [item("Elsewhere/a.txt")] },
-    { path: "Docs", query: "x", items: [{ ...item("Docs/a.txt"), name: "wrong.txt" }] },
-    { path: "Docs", query: "x", items: [{ ...item("Docs/a.txt"), score: Number.POSITIVE_INFINITY }] }
+    { completeness: "complete", path: "Other", query: "x", items: [item("Other/a.txt")] },
+    { completeness: "complete", path: "Docs", query: "other", items: [item("Docs/a.txt")] },
+    { completeness: "complete", path: "Docs", query: "x", items: [item("Elsewhere/a.txt")] },
+    { completeness: "complete", path: "Docs", query: "x", items: [{ ...item("Docs/a.txt"), name: "wrong.txt" }] },
+    { completeness: "complete", path: "Docs", query: "x", items: [{ ...item("Docs/a.txt"), score: Number.POSITIVE_INFINITY }] }
   ])("rejects mismatched or malformed live data %#", async (response) => {
     searchFiles.mockResolvedValue(response);
     const ports = createBrowserSearchPorts(cache, { searchFiles });
@@ -71,4 +71,11 @@ describe("browser search ports", () => {
     expect(ports.readCachedSearch("ns", "a:b", "c")).toEqual([item("a:b/first.txt")]);
     expect(ports.readCachedSearch("ns", "a", "b:c")).toEqual([item("a/second.txt")]);
   });
+});
+
+it.each([undefined, "unknown", null, false])("rejects missing or invalid injected API coverage %s without fallback requests", async (completeness) => {
+  searchFiles.mockReset().mockResolvedValue({ path: "Docs", query: "x", items: [], completeness });
+  const ports = createBrowserSearchPorts(cache, { searchFiles });
+  await expect(ports.loadSearch({ path: "Docs", query: "x", token: "token", signal: new AbortController().signal })).resolves.toMatchObject({ kind: "failure" });
+  expect(searchFiles).toHaveBeenCalledOnce();
 });

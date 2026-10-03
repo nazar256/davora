@@ -60,7 +60,7 @@ export interface DownloadFileSources {
       readonly signal?: AbortSignal;
     }
   ): Promise<{ readonly blob: Blob; readonly filename?: string }>;
-  listFiles(path: string, token: string, signal?: AbortSignal): Promise<{ items: FileEntry[] }>;
+  listFiles(path: string, token: string, signal?: AbortSignal): Promise<{ completeness: "complete" | "partial"; items: FileEntry[] }>;
   triggerBrowserDownload(blob: Blob, filename: string): void;
 }
 
@@ -68,7 +68,7 @@ export interface DownloadBatchSource {
   downloadSelectionAsZip(options: {
     readonly roots: BatchArchiveInput["roots"];
     readonly archiveLabel: string;
-    readonly listFiles: (path: string) => Promise<{ readonly items: readonly FileEntry[] }>;
+    readonly listFiles: (path: string) => Promise<{ completeness: "complete" | "partial"; readonly items: readonly FileEntry[] }>;
     readonly fetchFile: (
       path: string,
       callbacks?: { readonly onProgress?: (loadedBytes: number, totalBytes?: number) => void }
@@ -177,7 +177,7 @@ export function createDownloadPorts(input: CreateDownloadPortsInput): DownloadOr
         const result = options?.signal
           ? await input.files.listFiles(path, token, options.signal)
           : await input.files.listFiles(path, token);
-        return { items: result.items };
+        return result;
       },
       triggerBrowserDownload: input.files.triggerBrowserDownload
     },

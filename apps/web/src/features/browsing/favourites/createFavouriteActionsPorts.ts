@@ -3,8 +3,8 @@ import type { FileEntry } from "@davora/shared";
 import type { FavouriteActionsPorts } from "./ports";
 
 export interface CreateFavouriteActionsPortsInput {
-  listFiles(parentPath: string, token: string): Promise<{ readonly items: readonly FileEntry[] }>;
-  cacheFolder(namespace: string, parentPath: string, items: readonly FileEntry[]): void;
+  listFiles(parentPath: string, token: string): Promise<{ completeness: "complete" | "partial"; readonly items: readonly FileEntry[] }>;
+  cacheFolder(namespace: string, parentPath: string, items: readonly FileEntry[], completeness: "complete" | "partial"): void;
   toDisplayPath(path: string): string;
   closeNavigationChrome(): void;
   navigateToPath(path: string): void;
@@ -17,7 +17,7 @@ export function createFavouriteActionsPorts(input: CreateFavouriteActionsPortsIn
   return {
     resolve: {
       listFiles: (parentPath, token) => input.listFiles(parentPath, token),
-      cacheFolder: (namespace, parentPath, items) => input.cacheFolder(namespace, parentPath, items),
+      cacheFolder: (namespace, parentPath, items, completeness) => input.cacheFolder(namespace, parentPath, items, completeness),
       toDisplayPath: (path) => input.toDisplayPath(path)
     },
     open: {

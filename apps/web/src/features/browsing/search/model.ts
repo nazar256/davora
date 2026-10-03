@@ -17,7 +17,7 @@ export interface SearchRequest {
 export type SearchState =
   | { readonly kind: "inactive" }
   | { readonly kind: "searching"; readonly request: SearchRequest }
-  | { readonly kind: "ready"; readonly key: SearchKey; readonly contextToken: object; readonly items: SearchResult[]; readonly source: "live" }
+  | { readonly kind: "ready"; readonly key: SearchKey; readonly contextToken: object; readonly items: SearchResult[]; readonly source: "live"; readonly completeness: "complete" | "partial" }
   | { readonly kind: "fallback"; readonly key: SearchKey; readonly contextToken: object; readonly items: SearchResult[]; readonly source: "cache"; readonly reason: "live-failure" }
   | { readonly kind: "offline"; readonly key: SearchKey; readonly contextToken: object; readonly items: SearchResult[]; readonly source: "explicit-offline" }
   | { readonly kind: "failed"; readonly key: SearchKey; readonly contextToken: object; readonly reason: "live-failure" };
@@ -25,7 +25,7 @@ export type SearchState =
 export type SearchEvent =
   | { readonly type: "reset" }
   | { readonly type: "request-started"; readonly request: SearchRequest }
-  | { readonly type: "live-response-accepted"; readonly request: SearchRequest; readonly items: SearchResult[] }
+  | { readonly type: "live-response-accepted"; readonly request: SearchRequest; readonly items: SearchResult[]; readonly completeness: "complete" | "partial" }
   | { readonly type: "cached-fallback-shown"; readonly request: SearchRequest; readonly items: SearchResult[] }
   | { readonly type: "explicit-offline-shown"; readonly request: SearchRequest; readonly items: SearchResult[] }
   | { readonly type: "load-failed"; readonly request: SearchRequest }
@@ -51,7 +51,7 @@ export const searchReducer = (state: SearchState, event: SearchEvent): SearchSta
     case "request-started": return { kind: "searching", request: event.request };
     case "live-response-accepted":
       return accepts(state, event.request)
-        ? { kind: "ready", key: event.request.key, contextToken: event.request.contextToken, items: event.items, source: "live" }
+        ? { kind: "ready", key: event.request.key, contextToken: event.request.contextToken, items: event.items, source: "live", completeness: event.completeness }
         : state;
     case "cached-fallback-shown":
       return accepts(state, event.request)

@@ -122,3 +122,93 @@
   border-color: var(--color-accent);
   box-shadow: var(--focus-ring);
 }
+
+.account-form-help {
+  position: relative;
+  justify-self: start;
+}
+
+.account-form-help > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  min-height: var(--touch-target);
+  padding: 0;
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  list-style: none;
+}
+
+.account-form-help > summary::-webkit-details-marker,
+.account-removal-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.account-form-help-content {
+  display: grid;
+  gap: 0.65rem;
+  width: min(38rem, calc(100vw - 2rem));
+  margin: 0.5rem 0 0;
+  padding: 0.8rem;
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+}
+
+.account-form-help-content > div {
+  display: grid;
+  grid-template-columns: minmax(6rem, auto) minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.account-form-help-content dt {
+  color: var(--color-accent-strong);
+  font-weight: 700;
+}
+
+.account-form-help-content dd {
+  margin: 0;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.account-form-help-content a {
+  color: var(--color-accent-strong);
+}
+
+.account-removal-details {
+  margin-bottom: var(--space-4);
+}
+
+.account-removal-details > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  min-height: var(--touch-target);
+  padding: 0;
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  list-style: none;
+}
+
+.account-removal-details > p {
+  max-width: 34rem;
+  margin: 0.35rem 0 0;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 600px) {
+  .account-form-help-content {
+    width: 100%;
+  }
+
+  .account-form-help-content > div {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+}

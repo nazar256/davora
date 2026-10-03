@@ -17,17 +17,17 @@ describe("browser folder ports", () => {
 
   it("passes the abort signal through and unwraps live items", async () => {
     const item = buildFileEntry("Docs/live.txt");
-    listFiles.mockResolvedValue({ path: "Docs", items: [item] });
+    listFiles.mockResolvedValue({ completeness: "complete" as const, path: "Docs", items: [item] });
     const ports = createBrowserFolderPorts(cache, { listFiles });
     const controller = new AbortController();
 
     await expect(ports.loadFolder({ path: "Docs", token: "token", signal: controller.signal }))
-      .resolves.toEqual({ kind: "success", items: [item] });
+      .resolves.toEqual({ completeness: "complete" as const, kind: "success", items: [item] });
     expect(listFiles).toHaveBeenCalledWith("Docs", "token", controller.signal);
   });
 
   it("rejects malformed live entries at the browser trust boundary", async () => {
-    listFiles.mockResolvedValue({ path: "Docs", items: [{ path: "Docs/escape", name: "escape", isFolder: false, size: "large" }] });
+    listFiles.mockResolvedValue({ completeness: "complete" as const, path: "Docs", items: [{ path: "Docs/escape", name: "escape", isFolder: false, size: "large" }] });
     const ports = createBrowserFolderPorts(cache, { listFiles });
 
     await expect(ports.loadFolder({ path: "Docs", token: "token", signal: new AbortController().signal }))
@@ -46,10 +46,10 @@ describe("browser folder ports", () => {
   });
 
   it.each([
-    [{ path: "Elsewhere", items: [] }, "response-path-mismatch"],
-    [{ path: "Docs", items: {} }, "items-not-array"],
-    [{ path: "Docs", items: [{ path: "Docs/a.txt", name: "b.txt", isFolder: false }] }, "basename-mismatch"],
-    [{ path: "Docs", items: [buildFileEntry("Elsewhere/a.txt")] }, "item-outside-folder"]
+    [{ completeness: "complete" as const, path: "Elsewhere", items: [] }, "response-path-mismatch"],
+    [{ completeness: "complete" as const, path: "Docs", items: {} }, "items-not-array"],
+    [{ completeness: "complete" as const, path: "Docs", items: [{ path: "Docs/a.txt", name: "b.txt", isFolder: false }] }, "basename-mismatch"],
+    [{ completeness: "complete" as const, path: "Docs", items: [buildFileEntry("Elsewhere/a.txt")] }, "item-outside-folder"]
   ])("reports the safe rejection phase for %s", async (response, phase) => {
     listFiles.mockResolvedValue(response);
     const ports = createBrowserFolderPorts(cache, { listFiles });
@@ -61,7 +61,7 @@ describe("browser folder ports", () => {
   });
 
   it("reports a redacted basename comparison without inventing control characters", async () => {
-    listFiles.mockResolvedValue({
+    listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "Docs",
       items: [{ path: "Docs/Report.txt", name: "report.txt", isFolder: false }]
     });
@@ -97,7 +97,7 @@ describe("browser folder ports", () => {
   });
 
   it("classifies C1 characters as controls without retaining the value", async () => {
-    listFiles.mockResolvedValue({
+    listFiles.mockResolvedValue({ completeness: "complete" as const,
       path: "Docs",
       items: [{ path: "Docs/report.txt", name: "report\u0085.txt", isFolder: false }]
     });
@@ -139,9 +139,9 @@ describe("browser folder ports", () => {
   });
 
   it.each([
-    [{ path: "Elsewhere", items: [buildFileEntry("Elsewhere/a.txt")] }, "mismatched response path"],
-    [{ path: "Docs", items: [buildFileEntry("Elsewhere/a.txt")] }, "entry outside requested folder"],
-    [{ path: "Docs", items: [buildFileEntry("Docs//a.txt") ] }, "noncanonical entry path"]
+    [{ completeness: "complete" as const, path: "Elsewhere", items: [buildFileEntry("Elsewhere/a.txt")] }, "mismatched response path"],
+    [{ completeness: "complete" as const, path: "Docs", items: [buildFileEntry("Elsewhere/a.txt")] }, "entry outside requested folder"],
+    [{ completeness: "complete" as const, path: "Docs", items: [buildFileEntry("Docs//a.txt") ] }, "noncanonical entry path"]
   ])("rejects %s (%s)", async (response) => {
     listFiles.mockResolvedValue(response);
     const ports = createBrowserFolderPorts(cache, { listFiles });
@@ -155,11 +155,11 @@ describe("browser folder ports", () => {
     ["", "Docs/Sub/a.txt"]
   ])("accepts a contained descendant for folder %s", async (path, itemPath) => {
     const item = buildFileEntry(itemPath);
-    listFiles.mockResolvedValue({ path, items: [item] });
+    listFiles.mockResolvedValue({ completeness: "complete" as const, path, items: [item] });
     const ports = createBrowserFolderPorts(cache, { listFiles });
 
     await expect(ports.loadFolder({ path, token: "token", signal: new AbortController().signal }))
-      .resolves.toEqual({ kind: "success", items: [item] });
+      .resolves.toEqual({ completeness: "complete" as const, kind: "success", items: [item] });
   });
 
   it.each([
@@ -188,7 +188,7 @@ describe("browser folder ports", () => {
     const item = buildFileEntry("Docs/cached.txt");
     localStorage.setItem(folderCacheKey("ns", "Docs"), JSON.stringify({ cachedAt: "2026-01-01T00:00:00.000Z", value: [item] }));
     const ports = createBrowserFolderPorts(cache, { listFiles });
-    expect(ports.readCachedFolder("ns", "Docs")).toEqual({ cachedAt: "2026-01-01T00:00:00.000Z", items: [item] });
+    expect(ports.readCachedFolder("ns", "Docs")).toEqual({ completeness: "unknown" as const, cachedAt: "2026-01-01T00:00:00.000Z", items: [item] });
 
     localStorage.setItem(folderCacheKey("ns", "Docs"), JSON.stringify({ cachedAt: 42, value: [{ path: "../escape", name: "escape", isFolder: false }] }));
     expect(ports.readCachedFolder("ns", "Docs")).toBeUndefined();
@@ -197,7 +197,7 @@ describe("browser folder ports", () => {
     expect(ports.readCachedFolder("ns", "Docs")).toBeUndefined();
 
     localStorage.setItem(folderCacheKey("ns", "Docs"), JSON.stringify({ cachedAt: "2026-01-01T00:00:00.000Z", value: [buildFileEntry("Docs/Sub/a.txt")] }));
-    expect(ports.readCachedFolder("ns", "Docs")).toEqual({
+    expect(ports.readCachedFolder("ns", "Docs")).toEqual({ completeness: "unknown" as const,
       cachedAt: "2026-01-01T00:00:00.000Z",
       items: [buildFileEntry("Docs/Sub/a.txt")]
     });
@@ -208,6 +208,6 @@ describe("browser folder ports", () => {
     const ports = createBrowserFolderPorts(cache, { listFiles });
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("quota"); });
 
-    expect(() => ports.writeCachedFolder("ns", "Docs", [buildFileEntry("Docs/a.txt")])).not.toThrow();
+    expect(() => ports.writeCachedFolder("ns", "Docs", [buildFileEntry("Docs/a.txt")], "complete")).not.toThrow();
   });
 });

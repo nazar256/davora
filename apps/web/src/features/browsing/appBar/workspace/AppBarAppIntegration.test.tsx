@@ -335,7 +335,9 @@ function createAppBarFixture(): AppServices {
       retentionRepository: mockedRetentionRepository,
       browsingCache: mockedCache,
       favourites: services.favourites,
-      folderSorts: services.folderSorts
+      folderSorts: services.folderSorts,
+      explicitOfflineMode: { commit: () => ({ kind: "committed" }) },
+      playbackCleanup: { purgeAccount: () => undefined }
     }),
     accountSession: {
       ...services.accountSession,
@@ -426,12 +428,12 @@ beforeEach(() => {
   });
   mockedApi.listFiles.mockImplementation(async (path: string) => {
     if (path === "Projects") {
-      return {
+      return { completeness: "complete" as const,
         path,
         items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }]
       };
     }
-    return {
+    return { completeness: "complete" as const,
       path,
       items: [
         { path: "Projects", name: "Projects", isFolder: true },
@@ -439,7 +441,7 @@ beforeEach(() => {
       ]
     };
   });
-  mockedApi.searchFiles.mockImplementation(async (path, query) => ({ path, query, items: [] }));
+  mockedApi.searchFiles.mockImplementation(async (path, query) => ({ completeness: "complete", path, query, items: [] }));
   mockedApi.fetchDownloadBlob.mockResolvedValue({ blob: new Blob(["download"], { type: "application/octet-stream" }), filename: undefined });
   mockedApi.deleteFile.mockResolvedValue({ action: "delete", parentPath: "", path: "Projects/roadmap.txt" });
   mockedCache.readFolder.mockReturnValue({ kind: "miss" });

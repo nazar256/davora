@@ -27,12 +27,20 @@ export type FileEntry = z.infer<typeof fileEntrySchema>;
 
 export const filesResponseSchema = z.strictObject({
   path: normalizedPathSchema,
+  completeness: z.enum(["complete", "partial"]),
   items: z.array(fileEntrySchema)
 });
 
 export type FilesResponse = z.infer<typeof filesResponseSchema>;
 
 export const filesSuccessSchema = apiEnvelopeSchema(filesResponseSchema);
+export const legacyFilesSuccessSchema = apiEnvelopeSchema(filesResponseSchema.omit({ completeness: true }));
+
+export const filesRequestSchema = z.strictObject({
+  path: normalizedPathSchema,
+  listing: z.literal("complete-v1").optional()
+});
+export type FilesRequest = z.infer<typeof filesRequestSchema>;
 
 export const filesEndpoint = {
   id: "files",
@@ -42,7 +50,7 @@ export const filesEndpoint = {
   path: "/api/files",
   auth: "session",
   responseKind: "json",
-  requestSchema: z.strictObject({ path: normalizedPathSchema }),
+  requestSchema: filesRequestSchema,
   successSchema: filesSuccessSchema,
   errorSchema: apiErrorEnvelopeSchema
 } satisfies EndpointContract;

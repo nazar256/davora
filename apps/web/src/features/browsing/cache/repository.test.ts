@@ -63,9 +63,10 @@ describe("browsing cache repository", () => {
     const { storage, values } = createStorage();
     const repository = createRepository(storage);
     const entry = item("Projects/report.txt");
-    expect(repository.writeFolder("ns-alpha", "Projects", [entry])).toEqual({ kind: "written" });
+    expect(repository.writeFolder("ns-alpha", "Projects", [entry], "complete")).toEqual({ kind: "written" });
     expect(JSON.parse(values.get(folderCacheKey("ns-alpha", "Projects")) ?? "")).toEqual({
       cachedAt: "2026-07-23T12:34:56.000Z",
+      completeness: "complete",
       value: [entry]
     });
   });
@@ -165,7 +166,7 @@ describe("browsing cache repository", () => {
     const valid = JSON.stringify({ cachedAt: "2026-01-01T00:00:00.000Z", value: [item("Docs/a.txt")] });
     const { storage, values } = createStorage({ [key]: valid });
     const repository = createRepository(storage);
-    expect(repository.readFolder("ns", "Docs")).toEqual({
+    expect(repository.readFolder("ns", "Docs")).toEqual({ completeness: "unknown" as const,
       kind: "hit",
       cachedAt: "2026-01-01T00:00:00.000Z",
       items: [item("Docs/a.txt")]
@@ -209,7 +210,7 @@ describe("browsing cache repository", () => {
     const repository = createRepository(storage);
     repository.writeSearch("alpha", "a:b", "c", [item("a:b/first.txt", 1)]);
     repository.writeSearch("alpha", "a", "b:c", [item("a/second.txt", 1)]);
-    repository.writeFolder("alpha-extra", "Docs", [item("Docs/peer.txt")]);
+    repository.writeFolder("alpha-extra", "Docs", [item("Docs/peer.txt")], "complete");
     expect(repository.readSearch("alpha", "a:b", "c")).toMatchObject({ kind: "hit", items: [item("a:b/first.txt", 1)] });
     expect(repository.readSearch("alpha", "a", "b:c")).toMatchObject({ kind: "hit", items: [item("a/second.txt", 1)] });
     expect(repository.clearNamespace("alpha")).toEqual({ kind: "cleared" });
@@ -219,10 +220,10 @@ describe("browsing cache repository", () => {
   it("preserves exact roots and descendants while clearing other folders and every search", () => {
     const { storage } = createStorage();
     const repository = createRepository(storage);
-    repository.writeFolder("ns", "Projects", [item("Projects/a.txt")]);
-    repository.writeFolder("ns", "Projects/Nested", [item("Projects/Nested/a.txt")]);
-    repository.writeFolder("ns", "Projects-old", [item("Projects-old/a.txt")]);
-    repository.writeFolder("ns", "Archive", [item("Archive/a.txt")]);
+    repository.writeFolder("ns", "Projects", [item("Projects/a.txt")], "complete");
+    repository.writeFolder("ns", "Projects/Nested", [item("Projects/Nested/a.txt")], "complete");
+    repository.writeFolder("ns", "Projects-old", [item("Projects-old/a.txt")], "complete");
+    repository.writeFolder("ns", "Archive", [item("Archive/a.txt")], "complete");
     repository.writeSearch("ns", "", "project", [item("Projects/a.txt", 1)]);
     expect(repository.clearNamespace("ns", { preserveFolderPaths: ["Projects"] })).toEqual({ kind: "cleared" });
     expect(repository.readFolder("ns", "Projects")).toMatchObject({ kind: "hit" });
@@ -235,9 +236,9 @@ describe("browsing cache repository", () => {
   it("clears only an exact folder path and descendants", () => {
     const { storage } = createStorage();
     const repository = createRepository(storage);
-    repository.writeFolder("ns", "A:B/%", [item("A:B/%/a.txt")]);
-    repository.writeFolder("ns", "A:B/%/Nested", [item("A:B/%/Nested/a.txt")]);
-    repository.writeFolder("ns", "A:B/%-peer", [item("A:B/%-peer/a.txt")]);
+    repository.writeFolder("ns", "A:B/%", [item("A:B/%/a.txt")], "complete");
+    repository.writeFolder("ns", "A:B/%/Nested", [item("A:B/%/Nested/a.txt")], "complete");
+    repository.writeFolder("ns", "A:B/%-peer", [item("A:B/%-peer/a.txt")], "complete");
     expect(repository.clearFolderPath("ns", "A:B/%")).toEqual({ kind: "cleared" });
     expect(repository.readFolder("ns", "A:B/%")).toEqual({ kind: "miss" });
     expect(repository.readFolder("ns", "A:B/%/Nested")).toEqual({ kind: "miss" });
@@ -250,14 +251,37 @@ describe("browsing cache repository", () => {
     failures.add("read");
     expect(repository.readFolder("ns", "Docs")).toEqual({ kind: "miss" });
     failures.add("write");
-    expect(repository.writeFolder("ns", "Docs", [item("Docs/a.txt")])).toEqual({ kind: "skipped" });
+    expect(repository.writeFolder("ns", "Docs", [item("Docs/a.txt")], "complete")).toEqual({ kind: "skipped" });
     failures.add("list");
     expect(repository.clearNamespace("ns")).toEqual({ kind: "failed" });
     failures.delete("list");
     failures.delete("write");
-    repository.writeFolder("ns", "Docs", [item("Docs/a.txt")]);
+    repository.writeFolder("ns", "Docs", [item("Docs/a.txt")], "complete");
     failures.add("delete");
     expect(repository.clearFolderPath("ns", "Docs")).toEqual({ kind: "failed" });
     expect(() => repository.clearFolderPathOrThrow("ns", "Docs")).toThrow("Browsing cache cleanup failed.");
+  });
+});
+
+describe("listing completeness persistence", () => {
+  it.each(["complete", "partial"] as const)("round-trips %s in the same account namespace", (completeness) => {
+    const { storage } = createStorage();
+    const repository = createRepository(storage);
+    const items = [item("Docs/file.txt")];
+    repository.writeFolder("alpha", "Docs", items, completeness);
+    expect(repository.readFolder("alpha", "Docs")).toMatchObject({ kind: "hit", items, completeness });
+    expect(repository.readFolder("beta", "Docs")).toEqual({ kind: "miss" });
+  });
+  it("preserves legacy entries and timestamp as unknown and rejects malformed metadata", () => {
+    const cachedAt = "2026-07-23T12:34:56.000Z";
+    const value = [item("Docs/file.txt")];
+    const key = folderCacheKey("alpha", "Docs");
+    const { storage, values } = createStorage({ [key]: JSON.stringify({ cachedAt, value }) });
+    const repository = createRepository(storage);
+    expect(repository.readFolder("alpha", "Docs")).toEqual({ kind: "hit", cachedAt, items: value, completeness: "unknown" });
+    values.set(key, JSON.stringify({ cachedAt, value, completeness: "maybe" }));
+    expect(repository.readFolder("alpha", "Docs")).toEqual({ kind: "miss" });
+    repository.writeFolder("alpha", "Docs", value, "complete");
+    expect(repository.readFolder("alpha", "Docs")).toMatchObject({ completeness: "complete" });
   });
 });

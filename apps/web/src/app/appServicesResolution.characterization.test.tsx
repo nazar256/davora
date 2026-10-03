@@ -110,6 +110,8 @@ function assertExactCapabilitySurface(): void {
   const body = appServicesSource.match(/export interface AppServices \{([\s\S]*?)\n\}/)?.[1] ?? "";
   const declaredKeys = [...body.matchAll(/readonly\s+(\w+):/g)].map((match) => match[1]);
   expect(declaredKeys).toEqual([...capabilityKeys]);
+  const optionalKeys = [...body.matchAll(/readonly\s+(\w+)\?:/g)].map((match) => match[1]);
+  expect(optionalKeys).toEqual(["estimateStorage"]);
 
   const returnStart = browserServicesSource.indexOf("  return {");
   const returnEnd = browserServicesSource.indexOf("\n  };", returnStart);
@@ -117,13 +119,13 @@ function assertExactCapabilitySurface(): void {
   expect(returnEnd).toBeGreaterThan(returnStart);
   const returnBody = browserServicesSource.slice(returnStart, returnEnd);
   const returnedKeys = [...returnBody.matchAll(/^\s{4}(\w+)(?::.*)?,?$/gm)].map((match) => match[1]);
-  expect(returnedKeys).toEqual([...capabilityKeys]);
+  expect(returnedKeys).toEqual(capabilityKeys.flatMap((key) => key === "settings" ? [key, "estimateStorage"] : [key]));
   expect(browserServicesSource).toContain("const browsingCache = createBrowsingCacheRepository(storage, clock);");
   expect(browserServicesSource).toContain("const retentionRepository = createOpenedFileRepository();");
   expect(browserServicesSource).toContain("folder: createBrowserFolderPorts(browsingCache),");
   expect(browserServicesSource).toContain("search: createBrowserSearchPorts(browsingCache),");
   expect(browserServicesSource).toContain("const previewRuntime = createPreviewComposition({ retentionRepository });");
-  characterization.branches.push("exact-22-capability-surface", "shared-cache-retention-aliases");
+  characterization.branches.push("exact-required-and-optional-capability-surface", "shared-cache-retention-aliases");
 }
 
 function assertDownstreamServicesOnly(): void {
@@ -164,7 +166,7 @@ describe("AppServices resolution and fallback lifetime", () => {
     expect(count(appSource, "const fallbackServices = useRef<AppServices | undefined>(undefined);")).toBe(1);
     expect(count(appSource, "const appShell = useBrowserWorkspaceComposition(services);")).toBe(1);
     expect(count(compositionSource, "return useAppWorkspacePresentation({")).toBe(1);
-    expect(compositionSource).toContain("services: { favourites: services.favourites, favouritesPointerEnvironment: services.favouritesPointerEnvironment, favouriteResolveRuntime: services.favouriteResolveRuntime }");
+    expect(compositionSource).toContain("services: { favourites: services.favourites, favouritesPointerEnvironment: services.favouritesPointerEnvironment, favouriteResolveRuntime: services.favouriteResolveRuntime, estimateStorage: services.estimateStorage }");
     assertResolverSource(resolverSource);
     characterization.branches.push("resolver-source-lock", "byte-semantic-extraction", "per-app-fallback-ref", "no-eager-construction");
   });

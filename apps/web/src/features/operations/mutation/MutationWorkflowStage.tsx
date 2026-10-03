@@ -87,6 +87,7 @@ export function MutationWorkflowStage(props: MutationWorkflowStageProps) {
         busy={props.busy}
         copyAllowed={props.canSubmitDestinationCopy}
         entries={picker.entries}
+        completeness={picker.completeness}
         error={picker.error}
         folderPath={picker.folderPath}
         kind={picker.kind}

@@ -3,7 +3,7 @@ import { apiEndpoints, buildCapabilitySet } from "@davora/shared";
 
 import type { AuthorizedAccountContext, SessionPayload, StreamTokenPayload, WorkerEnv } from "../src/types";
 import { createWorkerRequestContext } from "../src/http/context";
-import { catalogRouteKeys, matchWorkerRoute } from "../src/http/router";
+import { catalogRouteKeys, matchWorkerRoute, resolveWorkerRouteInput } from "../src/http/router";
 
 function request(path: string, method = "GET", body?: BodyInit, contentType?: string): Request {
   return new Request(`https://worker.test${path}`, {
@@ -42,7 +42,7 @@ describe("catalog Worker router", () => {
     ["delete", request("/api/delete", "POST", JSON.stringify({ path: "Docs/a.txt", confirmName: "a.txt" }))],
     ["diagnosticReport", request("/api/diagnostic-reports", "POST", new Uint8Array([0x50, 0x4b, 0x03, 0x04]), "application/zip")],
     ["reset", request("/api/mock/reset", "POST")]
-  ] as const)("matches and parses %s exactly once", async (id, input) => {
+  ] as const)("matches %s from the canonical catalog", async (id, input) => {
     await expect(matchWorkerRoute(input)).resolves.toMatchObject({ id });
   });
 
@@ -61,8 +61,14 @@ describe("catalog Worker router", () => {
   it("rejects wrong methods and defers malformed input behind authentication", async () => {
     await expect(matchWorkerRoute(request("/api/session"))).rejects.toMatchObject({ kind: "not_found" });
     await expect(matchWorkerRoute(request("/api/files?path=../escape"))).resolves.toMatchObject({ id: "files", inputError: { kind: "invalid_file_query" } });
-    await expect(matchWorkerRoute(request("/api/upload", "POST", "not-json"))).resolves.toMatchObject({ id: "upload", inputError: { kind: "invalid_mutation_body" } });
-    await expect(matchWorkerRoute(request("/api/move", "POST", "not-json"))).resolves.toMatchObject({ id: "move", inputError: { kind: "invalid_move_copy_json" } });
+    const upload = request("/api/upload", "POST", "not-json");
+    const uploadRoute = await matchWorkerRoute(upload);
+    expect(upload.bodyUsed).toBe(false);
+    await expect(resolveWorkerRouteInput(upload, uploadRoute)).resolves.toMatchObject({ id: "upload", inputError: { kind: "invalid_mutation_body" } });
+    const move = request("/api/move", "POST", "not-json");
+    const moveRoute = await matchWorkerRoute(move);
+    expect(move.bodyUsed).toBe(false);
+    await expect(resolveWorkerRouteInput(move, moveRoute)).resolves.toMatchObject({ id: "move", inputError: { kind: "invalid_move_copy_json" } });
   });
 });
 

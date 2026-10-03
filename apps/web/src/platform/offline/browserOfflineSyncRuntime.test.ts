@@ -16,7 +16,7 @@ describe("browser offline sync runtime", () => {
     const signal = new AbortController().signal;
     const blob = new Blob(["hello"]);
     Object.defineProperty(blob, "text", { configurable: true, value: async () => "hello" });
-    listFiles.mockResolvedValue({ path: "Docs", items: [] });
+    listFiles.mockResolvedValue({ completeness: "complete", path: "Docs", items: [] });
     fetchDownloadBlob.mockResolvedValue({ blob, filename: "a.txt" });
 
     await runtime.listFiles("Docs", "token", signal);

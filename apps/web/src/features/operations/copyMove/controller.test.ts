@@ -24,7 +24,7 @@ function ports(overrides: Partial<BatchCopyMovePorts> = {}): BatchCopyMovePorts 
   return {
     isCurrent: () => true,
     executeTarget: vi.fn(async () => ({ kind: "completed" } as const)),
-    listChildren: vi.fn(async (): Promise<FolderListResult> => ({ kind: "completed", entries: [] })),
+    listChildren: vi.fn(async (): Promise<FolderListResult> => ({ completeness: "complete" as const, kind: "completed", entries: [] })),
     deleteFolder: vi.fn(async () => ({ kind: "completed" } as const)),
     refreshFolder: vi.fn(async () => ({ kind: "completed" } as const)),
     ...overrides
@@ -235,7 +235,7 @@ describe("executeBatchCopyMove", () => {
 
     it("copies missing children into the destination and keeps both folders", async () => {
       const adapter = ports({
-        listChildren: vi.fn(async (path: string): Promise<FolderListResult> => ({
+        listChildren: vi.fn(async (path: string): Promise<FolderListResult> => ({ completeness: "complete" as const,
           kind: "completed",
           entries: path === "Src" ? [file("Src/new.txt")] : []
         }))
@@ -254,7 +254,7 @@ describe("executeBatchCopyMove", () => {
 
     it("replaces nested files only when the size rule allows it", async () => {
       const adapter = ports({
-        listChildren: vi.fn(async (path: string): Promise<FolderListResult> => ({
+        listChildren: vi.fn(async (path: string): Promise<FolderListResult> => ({ completeness: "complete" as const,
           kind: "completed",
           entries: path === "Src"
             ? [file("Src/a.txt", { size: 10 }), file("Src/b.txt", { size: 5 })]
@@ -276,7 +276,7 @@ describe("executeBatchCopyMove", () => {
     it("skips type mismatches without executing them", async () => {
       const settled: string[] = [];
       const adapter = ports({
-        listChildren: vi.fn(async (path: string): Promise<FolderListResult> => ({
+        listChildren: vi.fn(async (path: string): Promise<FolderListResult> => ({ completeness: "complete" as const,
           kind: "completed",
           entries: path === "Src" ? [file("Src/item", { size: 3 })] : [folder("Archive/Src/item")]
         })),
@@ -292,7 +292,7 @@ describe("executeBatchCopyMove", () => {
 
     it("reports nested failures as a target failure", async () => {
       const adapter = ports({
-        listChildren: vi.fn(async (path: string): Promise<FolderListResult> => ({
+        listChildren: vi.fn(async (path: string): Promise<FolderListResult> => ({ completeness: "complete" as const,
           kind: "completed",
           entries: path === "Src" ? [file("Src/a.txt")] : []
         })),
@@ -310,12 +310,12 @@ describe("executeBatchCopyMove", () => {
 
     it("deletes emptied source folders for moves once all children settle", async () => {
       const srcLists: FolderListResult[] = [
-        { kind: "completed", entries: [file("Src/a.txt")] },
-        { kind: "completed", entries: [] }
+        { completeness: "complete" as const, kind: "completed", entries: [file("Src/a.txt")] },
+        { completeness: "complete" as const, kind: "completed", entries: [] }
       ];
       const adapter = ports({
         listChildren: vi.fn(async (path: string): Promise<FolderListResult> => (
-          path === "Src" ? srcLists.shift() ?? { kind: "completed", entries: [] } : { kind: "completed", entries: [] }
+          path === "Src" ? srcLists.shift() ?? { completeness: "complete" as const, kind: "completed", entries: [] } : { completeness: "complete" as const, kind: "completed", entries: [] }
         ))
       });
 
@@ -327,13 +327,13 @@ describe("executeBatchCopyMove", () => {
 
     it("keeps the source folder when the pre-delete listing still shows entries", async () => {
       const srcLists: FolderListResult[] = [
-        { kind: "completed", entries: [file("Src/a.txt")] },
-        { kind: "completed", entries: [file("Src/stray.txt")] }
+        { completeness: "complete" as const, kind: "completed", entries: [file("Src/a.txt")] },
+        { completeness: "complete" as const, kind: "completed", entries: [file("Src/stray.txt")] }
       ];
       const settled: string[] = [];
       const adapter = ports({
         listChildren: vi.fn(async (path: string): Promise<FolderListResult> => (
-          path === "Src" ? srcLists.shift() ?? { kind: "completed", entries: [] } : { kind: "completed", entries: [] }
+          path === "Src" ? srcLists.shift() ?? { completeness: "complete" as const, kind: "completed", entries: [] } : { completeness: "complete" as const, kind: "completed", entries: [] }
         )),
         onItemSettled: (item) => { settled.push(`${item.sourcePath}:${item.status}`); }
       });
@@ -347,12 +347,12 @@ describe("executeBatchCopyMove", () => {
 
     it("reports a failure and keeps the source when the pre-delete listing fails", async () => {
       const srcLists: FolderListResult[] = [
-        { kind: "completed", entries: [file("Src/a.txt")] },
+        { completeness: "complete" as const, kind: "completed", entries: [file("Src/a.txt")] },
         { kind: "failed", message: "listing went away" }
       ];
       const adapter = ports({
         listChildren: vi.fn(async (path: string): Promise<FolderListResult> => (
-          path === "Src" ? srcLists.shift() ?? { kind: "completed", entries: [] } : { kind: "completed", entries: [] }
+          path === "Src" ? srcLists.shift() ?? { completeness: "complete" as const, kind: "completed", entries: [] } : { completeness: "complete" as const, kind: "completed", entries: [] }
         ))
       });
 
@@ -367,7 +367,7 @@ describe("executeBatchCopyMove", () => {
 
     it("keeps the source folder for moves when a child is skipped", async () => {
       const adapter = ports({
-        listChildren: vi.fn(async (path: string): Promise<FolderListResult> => ({
+        listChildren: vi.fn(async (path: string): Promise<FolderListResult> => ({ completeness: "complete" as const,
           kind: "completed",
           entries: path === "Src" ? [file("Src/a.txt", { size: 1 })] : [file("Archive/Src/a.txt", { size: 5 })]
         }))
@@ -382,7 +382,7 @@ describe("executeBatchCopyMove", () => {
       let cancelled = false;
       const adapter = ports({
         isCancelled: () => cancelled,
-        listChildren: vi.fn(async (path: string): Promise<FolderListResult> => ({
+        listChildren: vi.fn(async (path: string): Promise<FolderListResult> => ({ completeness: "complete" as const,
           kind: "completed",
           entries: path === "Src" ? [file("Src/a.txt"), file("Src/b.txt")] : []
         })),
@@ -402,10 +402,10 @@ describe("executeBatchCopyMove", () => {
     it("recurses into nested folder conflicts", async () => {
       const adapter = ports({
         listChildren: vi.fn(async (path: string): Promise<FolderListResult> => {
-          if (path === "Src") return { kind: "completed", entries: [folder("Src/sub")] };
-          if (path === "Archive/Src") return { kind: "completed", entries: [folder("Archive/Src/sub")] };
-          if (path === "Src/sub") return { kind: "completed", entries: [file("Src/sub/deep.txt")] };
-          return { kind: "completed", entries: [] };
+          if (path === "Src") return { completeness: "complete" as const, kind: "completed", entries: [folder("Src/sub")] };
+          if (path === "Archive/Src") return { completeness: "complete" as const, kind: "completed", entries: [folder("Archive/Src/sub")] };
+          if (path === "Src/sub") return { completeness: "complete" as const, kind: "completed", entries: [file("Src/sub/deep.txt")] };
+          return { completeness: "complete" as const, kind: "completed", entries: [] };
         })
       });
 
@@ -418,5 +418,48 @@ describe("executeBatchCopyMove", () => {
       });
       expect(result).toMatchObject({ kind: "completed", completedCount: 1 });
     });
+  });
+});
+
+describe("merge listing completeness", () => {
+  it.each(["source", "destination", "cleanup"] as const)("rejects partial %s enumeration without unsafe cleanup", async (partialAt) => {
+    let sourceReads = 0;
+    const adapter = ports({ listChildren: vi.fn(async (path: string): Promise<FolderListResult> => {
+      if (path === "Docs") sourceReads += 1;
+      const partial = partialAt === "source" ? path === "Docs" : partialAt === "destination" ? path === "Archive/Docs" : path === "Docs" && sourceReads === 2;
+      return { kind: "completed", completeness: partial ? "partial" : "complete", entries: [] };
+    }) });
+    const result = await executeBatchCopyMove(input([{ source: file("Docs", { isFolder: true }), destinationPath: "Archive/Docs", mode: "merge" }], { operation: "move" }), adapter);
+    expect(result.kind).toBe("partial");
+    expect(result.failures[0]?.message).toMatch(/complete folder listing/i);
+    expect(adapter.executeTarget).not.toHaveBeenCalled();
+    expect(adapter.deleteFolder).not.toHaveBeenCalled();
+  });
+});
+
+describe("direct operations with unverified destination enumeration", () => {
+  it.each([false, true])("keeps direct writes no-overwrite and does not implicitly retry hidden conflicts (conflict=%s)", async (conflict) => {
+    const adapter = ports({
+      listChildren: vi.fn(async () => ({ kind: "completed", completeness: "partial", entries: [] } as const)),
+      executeTarget: vi.fn(async () => conflict ? { kind: "failed", message: "Destination already exists" } as const : { kind: "completed" } as const)
+    });
+    const direct = target("Docs", "write");
+    const result = await executeBatchCopyMove(input([direct]), adapter);
+    expect(adapter.listChildren).not.toHaveBeenCalled();
+    expect(adapter.executeTarget).toHaveBeenCalledExactlyOnceWith("copy", direct);
+    expect(result.kind).toBe(conflict ? "partial" : "completed");
+  });
+  it("reports a later nested partial listing after already completed children without deleting the source", async () => {
+    const first = file("Docs/first.txt");
+    const nested = file("Docs/nested", { isFolder: true });
+    const adapter = ports({ listChildren: vi.fn(async (path: string): Promise<FolderListResult> => ({
+      kind: "completed", completeness: path === nested.path ? "partial" : "complete",
+      entries: path === "Docs" ? [first, nested] : path === "Archive/Docs" ? [file("Archive/Docs/nested", { isFolder: true })] : []
+    })) });
+    const result = await executeBatchCopyMove(input([{ source: file("Docs", { isFolder: true }), destinationPath: "Archive/Docs", mode: "merge" }], { operation: "move" }), adapter);
+    expect(result.kind).toBe("partial");
+    expect(result.failures[0]?.message).toContain("Docs/nested");
+    expect(adapter.executeTarget).toHaveBeenCalledExactlyOnceWith("move", { source: first, destinationPath: "Archive/Docs/first.txt", mode: "write" });
+    expect(adapter.deleteFolder).not.toHaveBeenCalled();
   });
 });

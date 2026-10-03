@@ -9,8 +9,36 @@ export const pathSegmentSchema = normalizedPathSchema.refine(
   "Name must be one non-empty canonical path segment."
 );
 
+function isCanonicalBase64(value: string): boolean {
+  const length = value.length;
+  if (length % 4 !== 0) return false;
+
+  let dataLength = length;
+  let paddingLength = 0;
+  if (length > 0 && value.charCodeAt(length - 1) === 61) {
+    paddingLength = 1;
+    dataLength -= 1;
+    if (dataLength > 0 && value.charCodeAt(length - 2) === 61) {
+      paddingLength = 2;
+      dataLength -= 1;
+    }
+  }
+
+  if (paddingLength === 1 && (dataLength < 3 || dataLength % 4 !== 3)) return false;
+  if (paddingLength === 2 && (dataLength < 2 || dataLength % 4 !== 2)) return false;
+
+  for (let index = 0; index < dataLength; index += 1) {
+    const code = value.charCodeAt(index);
+    const isUppercase = code >= 65 && code <= 90;
+    const isLowercase = code >= 97 && code <= 122;
+    const isDigit = code >= 48 && code <= 57;
+    if (!isUppercase && !isLowercase && !isDigit && code !== 43 && code !== 47) return false;
+  }
+  return true;
+}
+
 const canonicalBase64Schema = z.string().refine(
-  (value) => /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value),
+  isCanonicalBase64,
   "Content must be canonical base64."
 );
 

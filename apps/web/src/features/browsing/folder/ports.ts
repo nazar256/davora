@@ -1,7 +1,10 @@
 import type { FileEntry } from "@davora/shared";
 
+import type { FolderCompleteness } from "./model";
+
 export interface CachedFolder {
   readonly items: FileEntry[];
+  readonly completeness: FolderCompleteness;
   readonly cachedAt?: string;
 }
 
@@ -67,7 +70,7 @@ export interface FolderResponseRejectionDiagnostic {
 }
 
 export type FolderLoadOutcome =
-  | { readonly kind: "success"; readonly items: FileEntry[] }
+  | { readonly kind: "success"; readonly items: FileEntry[]; readonly completeness: Exclude<FolderCompleteness, "unknown"> }
   | {
       readonly kind: "unauthorized" | "reconnect-required" | "transient" | "failure";
       readonly error: Error;
@@ -79,5 +82,5 @@ export interface FolderPorts {
   createAbortHandle(): { readonly signal: AbortSignal; abort(): void };
   loadFolder(input: { path: string; token: string; signal: AbortSignal }): Promise<FolderLoadOutcome>;
   readCachedFolder(cacheNamespace: string, path: string): CachedFolder | undefined;
-  writeCachedFolder(cacheNamespace: string, path: string, items: FileEntry[]): void;
+  writeCachedFolder(cacheNamespace: string, path: string, items: FileEntry[], completeness: "complete" | "partial"): void;
 }

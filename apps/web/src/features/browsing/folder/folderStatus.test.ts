@@ -42,7 +42,7 @@ describe("applyFolderStatus", () => {
 
   it("clears listError and announces cached-while-checking for refreshing", () => {
     const ports = createPorts();
-    applyFolderStatus({
+    applyFolderStatus({ completeness: "complete" as const,
       kind: "refreshing",
       request: { key, generation: 1, contextToken },
       items,
@@ -59,7 +59,7 @@ describe("applyFolderStatus", () => {
     ["refreshed", "Refreshed /Docs/Reports in Work"]
   ] as const)("clears listError and sets ready status for %s", (message, expectedStatus) => {
     const ports = createPorts();
-    applyFolderStatus({
+    applyFolderStatus({ completeness: "complete" as const,
       kind: "ready",
       key,
       contextToken,
@@ -73,7 +73,7 @@ describe("applyFolderStatus", () => {
 
   it("clears listError but skips status when ready message is silent", () => {
     const ports = createPorts();
-    applyFolderStatus({
+    applyFolderStatus({ completeness: "complete" as const,
       kind: "ready",
       key,
       contextToken,
@@ -91,7 +91,7 @@ describe("applyFolderStatus", () => {
     ["refresh-failed", "Still showing cached folder for /Docs/Reports in Work because live refresh failed."]
   ] as const)("clears listError and sets stale status for %s", (reason, expectedStatus) => {
     const ports = createPorts();
-    applyFolderStatus({
+    applyFolderStatus({ completeness: "complete" as const,
       kind: "stale",
       key,
       contextToken,
@@ -105,7 +105,7 @@ describe("applyFolderStatus", () => {
 
   it("skips stale status at root without a token", () => {
     const ports = createPorts();
-    applyFolderStatus({
+    applyFolderStatus({ completeness: "complete",
       kind: "stale",
       key: { ...key, path: "" },
       contextToken,

@@ -5,7 +5,7 @@ import type { FileSizeDisplayMode } from "../../../lib/fileSize";
 import { useModalFocusBoundary } from "../../../components/useModalFocusBoundary";
 import type { ScreenWakeLockState } from "../../offline/wakeLock";
 import type { ImagePreviewPrefetchCount, ThemeMode } from "../model";
-import { CachePanel } from "./CachePanel";
+import { CachePanel, type CachePanelProps } from "./CachePanel";
 
 export interface SettingsDialogStageProps {
   open: boolean;
@@ -34,15 +34,12 @@ export interface SettingsDialogStageProps {
   imagePreviewPrefetchCount: ImagePreviewPrefetchCount;
   keepAwakeEnabled: boolean;
   keepAwakeState: ScreenWakeLockState;
-  offlineItems: Array<{
-    rootId: string;
-    rootPath: string;
-    name: string;
-    kind: "file" | "folder" | "batch";
-    fileCount: number;
-    totalBytes: number;
-    addedAt?: string;
-  }>;
+  offlineItems: CachePanelProps["offlineItems"];
+  retainedBytes?: number;
+  storageScope?: string;
+  estimateStorage?: CachePanelProps["estimateStorage"];
+  retryDisabled?: boolean;
+  onRetryOfflineItem?: (rootId: string) => void;
   onClearCache: () => void;
   onRemoveOfflineItem: (rootId: string) => void;
   onClose: () => void;
@@ -188,6 +185,11 @@ export function SettingsDialogStage(props: SettingsDialogStageProps) {
             limitBytes={props.cacheSummary.limitBytes}
             maxCacheableFileSizeBytes={props.maxCacheableFileSizeBytes}
             offlineItems={props.offlineItems}
+            retainedBytes={props.retainedBytes}
+            storageScope={props.storageScope}
+            estimateStorage={props.estimateStorage}
+            retryDisabled={props.retryDisabled || props.offline || props.backendActionsDisabled}
+            onRetryOfflineItem={props.onRetryOfflineItem}
             previewFreshnessIntervalSeconds={props.previewFreshnessIntervalSeconds}
             imagePreviewPrefetchCount={props.imagePreviewPrefetchCount}
             onClear={props.onClearCache}

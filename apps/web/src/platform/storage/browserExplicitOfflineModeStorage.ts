@@ -18,7 +18,7 @@ type ExplicitOfflineModeStorageCommit =
 type ExplicitOfflineModeStorageRepairResult =
   | { readonly kind: "repaired" }
   | { readonly kind: "failed"; readonly error: Error };
-interface ExplicitOfflineModeStorage {
+export interface ExplicitOfflineModeStorage {
   read(accountId: string | undefined): ExplicitOfflineModeStorageRead;
   commit(accountId: string, enabled: boolean): ExplicitOfflineModeStorageCommit;
   reset(): ExplicitOfflineModeStorageCommit;

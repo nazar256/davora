@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { createGate } from "./support/workspace";
 
 import {
   connectScreenshotAccount as connectAccount,
@@ -125,12 +126,13 @@ test("captures background offline sync progress", async ({ page }, testInfo) => 
 test("captures recursive offline sync retry preserving folder scope", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chrome", "Mobile evidence only.");
   let badDownloadAttempts = 0;
-  await page.route("**/api/files?path=Projects", async (route) => {
+  const retryResponse = createGate();
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [
             { path: "Projects/bad.pdf", name: "bad.pdf", isFolder: false, size: 10, mimeType: "application/pdf" },
@@ -150,6 +152,7 @@ test("captures recursive offline sync retry preserving folder scope", async ({ p
       });
       return;
     }
+    await retryResponse.promise;
     await route.fulfill({
       status: 200,
       contentType: "application/pdf",
@@ -164,35 +167,49 @@ test("captures recursive offline sync retry preserving folder scope", async ({ p
     });
   });
 
-  await connectAccount(page, "Offline retry workspace");
-  await page.getByRole("button", { name: /Open actions for Projects/i }).click();
-  await page.getByRole("button", { name: /^Keep offline$/i }).click();
-  const confirmDialog = page.getByRole("dialog", { name: /Keep offline confirmation/i });
-  await expect(confirmDialog.getByText("Projects")).toBeVisible();
-  await expect(confirmDialog.getByText(/Synced recursively/i)).toBeVisible();
-  await confirmDialog.getByRole("button", { name: /Start sync/i }).click();
+  try {
+    await connectAccount(page, "Offline retry workspace");
+    await page.getByRole("button", { name: /Open actions for Projects/i }).click();
+    await page.getByRole("button", { name: /^Keep offline$/i }).click();
+    const confirmDialog = page.getByRole("dialog", { name: /Keep offline confirmation/i });
+    await expect(confirmDialog.getByText("Projects")).toBeVisible();
+    await expect(confirmDialog.getByText(/Synced recursively/i)).toBeVisible();
+    await confirmDialog.getByRole("button", { name: /Start sync/i }).click();
 
-  const transferStatus = page.getByRole("dialog", { name: /Transfer status/i });
-  await expect(transferStatus.getByText("Projects/bad.pdf", { exact: true })).toBeVisible();
-  await expect(transferStatus.getByRole("button", { name: /Retry failed sync/i })).toBeVisible();
-  await transferStatus.getByRole("button", { name: /Retry failed sync/i }).click();
+    const transferStatus = page.getByRole("dialog", { name: /Transfer status/i });
+    await expect(transferStatus.getByText("Projects/bad.pdf", { exact: true })).toBeVisible();
+    await expect(transferStatus.getByRole("button", { name: /Retry failed sync/i })).toBeVisible();
+    await transferStatus.getByRole("button", { name: /Retry failed sync/i }).click();
 
-  const retryDialog = page.getByRole("dialog", { name: /Keep offline confirmation/i });
-  await expect(retryDialog.getByText("Projects")).toBeVisible();
-  await expect(retryDialog.getByText(/Synced recursively/i)).toBeVisible();
-  await expect(retryDialog.getByText("2", { exact: true })).toBeVisible();
-  await expect(retryDialog.getByText("bad.pdf")).toHaveCount(0);
-  await saveScreenshot(page, "davora-offline-sync-retry-folder.png");
+    await expect.poll(() => badDownloadAttempts).toBe(2);
+    await expect(confirmDialog).toHaveCount(0);
+    await expect(transferStatus.locator(".transfer-tray-item")).toHaveCount(1);
+    const retryingTransfer = transferStatus.locator(".transfer-tray-item-transferring");
+    await expect(retryingTransfer).toHaveCount(1);
+    await expect(retryingTransfer.getByText("Projects", { exact: true })).toBeVisible();
+    await expect(transferStatus.getByRole("list", { name: /Failed files for Projects/i })).toHaveCount(0);
+    await expect(transferStatus.getByText("Failed to fetch", { exact: true })).toHaveCount(0);
+    await expect(transferStatus.getByRole("button", { name: /Retry failed sync/i })).toHaveCount(0);
+    await saveScreenshot(page, "davora-offline-sync-retry-folder.png");
+
+    retryResponse.release();
+    await expect(transferStatus.locator(".transfer-tray-item-done")).toHaveCount(1);
+    await expect(transferStatus.locator(".transfer-tray-item")).toHaveCount(1);
+    await expect(page.getByLabel("Projects is available offline")).toBeVisible();
+    expect(badDownloadAttempts).toBe(2);
+  } finally {
+    retryResponse.release();
+  }
 });
 
 test("captures a mobile partial transfer with failed child path", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chrome", "Mobile evidence only.");
-  await page.route("**/api/files?path=Projects", async (route) => {
+  await page.route("**/api/files?path=Projects&listing=complete-v1", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: {
+        data: { completeness: "complete",
           path: "Projects",
           items: [
             { path: "Projects/good.txt", name: "good.txt", isFolder: false, size: 12, mimeType: "text/plain" },

@@ -98,7 +98,7 @@ const mockedApi = {
   connectAccount: vi.fn<AccountTransport["connectAccount"]>(),
   createSession: vi.fn<AccountTransport["createSession"]>(),
   deleteConnectedAccount: vi.fn<AccountTransport["deleteConnectedAccount"]>(),
-  listFiles: vi.fn<(path: string, token: string, signal?: AbortSignal) => Promise<{ path: string; items: FileEntry[] }>>(),
+  listFiles: vi.fn<(path: string, token: string, signal?: AbortSignal) => Promise<{ completeness: "complete" | "partial"; path: string; items: FileEntry[] }>>(),
   getFile: vi.fn<(path: string, token: string, signal?: AbortSignal) => Promise<{ file: FilePreview }>>(),
   prepareDownloadFile: vi.fn<OperationRuntimePort["download"]["prepareDownloadFile"]>(),
   fetchDownloadBlob: vi.fn<OperationRuntimePort["download"]["fetchDownloadBlob"]>(),
@@ -208,7 +208,7 @@ function createWakeLockFixture(): AppServices {
     createAbortHandle: abortHandle,
     loadFolder: async ({ path, token, signal }) => {
       try {
-        return { kind: "success", items: (await mockedApi.listFiles(path, token, signal)).items } as const;
+        return { completeness: "complete" as const, kind: "success", items: (await mockedApi.listFiles(path, token, signal)).items } as const;
       } catch (error) {
         return { kind: "failure", error: error instanceof Error ? error : new Error("Unable to load folder.") } as const;
       }
@@ -218,7 +218,7 @@ function createWakeLockFixture(): AppServices {
   };
   const search: SearchPorts = {
     createAbortHandle: abortHandle,
-    loadSearch: async () => ({ kind: "success", items: [] }),
+    loadSearch: async () => ({ completeness: "complete" as const, kind: "success", items: [] }),
     readCachedSearch: () => undefined,
     writeCachedSearch: () => undefined
   };
@@ -287,7 +287,7 @@ function createWakeLockFixture(): AppServices {
     accountTransport,
     accountSession,
     browsingCache: cache,
-    favouriteResolveRuntime: { listFiles: async () => ({ items: [] }), cacheFolder: () => undefined },
+    favouriteResolveRuntime: { listFiles: async () => ({ completeness: "complete" as const, items: [] }), cacheFolder: () => undefined },
     connectivity,
     explicitOfflineRuntime,
     clock: { nowIso: () => "2026-01-01T00:00:00.000Z" },
@@ -306,7 +306,7 @@ function createWakeLockFixture(): AppServices {
     search,
     settings,
     operationRuntime,
-    offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "wake-lock-sync", listFiles: async (path) => ({ path, items: [] }), fetchDownloadBlob: mockedApi.fetchDownloadBlob, readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
+    offlineSyncRuntime: { createAbortHandle: abortHandle, createTransferId: () => "wake-lock-sync", listFiles: async (path) => ({ completeness: "complete" as const, path, items: [] }), fetchDownloadBlob: mockedApi.fetchDownloadBlob, readBlobText: async () => "", isUnauthorized: () => false, isReconnectRequired: () => false, toErrorMessage: (error, fallback) => error instanceof Error ? error.message : fallback },
     retentionRepository,
     previewRuntime: createPreviewComposition({ retentionRepository, previewTransport, folderAudioRuntime }),
     accountRemovalRuntime,
@@ -338,7 +338,7 @@ beforeEach(() => {
   mockedApi.connectAccount.mockResolvedValue({ kind: "invalid-http-success" });
   mockedApi.createSession.mockImplementation(async ({ accountId }) => buildSession(buildAccount(accountId)));
   mockedApi.deleteConnectedAccount.mockResolvedValue(undefined);
-  mockedApi.listFiles.mockImplementation(async (path: string) => path === "Projects" ? { path, items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] } : { path, items: [{ path: "Projects", name: "Projects", isFolder: true }, { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] });
+  mockedApi.listFiles.mockImplementation(async (path: string) => path === "Projects" ? { completeness: "complete" as const, path, items: [{ path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] } : { completeness: "complete" as const, path, items: [{ path: "Projects", name: "Projects", isFolder: true }, { path: "Projects/roadmap.txt", name: "roadmap.txt", isFolder: false, size: 70, mimeType: "text/plain" }] });
   mockedApi.getFile.mockResolvedValue({ file: textPreview });
   mockedApi.prepareDownloadFile.mockResolvedValue({ blob: new Blob(["download"]), filename: "download.bin" });
   mockedApi.fetchDownloadBlob.mockResolvedValue({ blob: new Blob(["download"]), filename: "download.bin" });
@@ -408,11 +408,11 @@ describe("wake-lock App integration", () => {
     const account = buildAccount("alpha", { displayName: "Wake lock media workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     mockedApi.listFiles.mockImplementation(async (path: string) => path === "Projects"
-      ? {
+      ? { completeness: "complete" as const,
         path,
         items: [{ path: "Projects/chapter.m4a", name: "chapter.m4a", isFolder: false, size: 18, mimeType: "audio/mp4" }]
       }
-      : { path, items: [{ path: "Projects", name: "Projects", isFolder: true }] });
+      : { completeness: "complete" as const, path, items: [{ path: "Projects", name: "Projects", isFolder: true }] });
     const wakeLock = installWakeLockMock();
 
     render(<App services={createWakeLockFixture()} />);
@@ -437,11 +437,11 @@ describe("wake-lock App integration", () => {
     const account = buildAccount("alpha", { displayName: "Unavailable audio workspace" });
     seedAccounts([{ account, session: buildSession(account) }], account.id);
     mockedApi.listFiles.mockImplementation(async (path: string) => path === "Projects"
-      ? {
+      ? { completeness: "complete" as const,
         path,
         items: [{ path: "Projects/chapter.m4a", name: "chapter.m4a", isFolder: false, size: 18, mimeType: "audio/mp4" }]
       }
-      : { path, items: [{ path: "Projects", name: "Projects", isFolder: true }] });
+      : { completeness: "complete" as const, path, items: [{ path: "Projects", name: "Projects", isFolder: true }] });
     mockedApi.createStreamingFileUrl.mockRejectedValueOnce(new Error("stream unavailable"));
     const wakeLock = installWakeLockMock();
     mediaPlayMock.mockClear();
